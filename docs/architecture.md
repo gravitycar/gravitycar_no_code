@@ -15,7 +15,7 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
 
 ### Extensibility Mechanisms
 
-- **Metadata-Driven Extensibility**: All models and relationships defined in external metadata files JSON files. This allows developers to add, modify, or remove models and fields without changing application code.
+- **Metadata-Driven Extensibility**: All models and relationships defined in external metadata files PHP files. This allows developers to add, modify, or remove models and fields without changing application code.
 - **Dynamic Schema Updates**: The schema generator detects changes in metadata and updates the database schema accordingly, supporting new tables, fields, and relationships on the fly.
 - **Pluggable Field and Validation Types**: New field types and validation rules can be added by creating new classes in the `src/fields` and `src/validation` directories, respectively. These are automatically discovered and made available for use in metadata.
 - **API and UI Generation**: RESTful API endpoints and React UI components are generated dynamically based on metadata, so new models and fields are instantly available in both backend and frontend without manual coding.
@@ -36,27 +36,54 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
 
 ## Core Components
 
+### Modules
+- **Purpose**: Represents an application in the framework. A module is a collection of models, fields, validation rules, relationships, and API controllers that work together to provide a specific functionality or feature set.
+- **Location**: `src/modules/*` directory - every module has its own directory. Every module should extend an abstract ModuleBase class which contains features common to all modules.
+- **Responsibility**: 
+  - Implements the scope and functionality of the module
+  - Provides a way to group related models to implement the feature set of the module.
+  - Allows for modular development and extensibility
+  - Handles saving and loading data from models and relationships. The fields in the models and relationships handle their own validation with the validation rules set in the model's metadata.
+  - Defines how the data in the models and relationships should be displayed in the UI with a metadata file: `src/modules/<module_name>/metadata.php`.
+- **UI**:
+  - Each module will be accessible via a link in the main navigation menu of the React frontend.
+  - The link in the main navigation menu will point to the module's list view.
+  - The link in the main navigation will open a menu with links defined in the module's metadata file. The default links are:
+    - Show a list of all models in the module
+    - Create a new record for each model in the module
+- **Metadata**: Each module should have a metadata file: `src/modules/<module_name>/metadata.php`. This file defines:
+  - The name of the module
+  - The description of the module
+  - The models included in the module
+  - The UI components for the module
+  - The fields to display in the UI for the list view and the create view. These fields may come from more than one model, so the metadata must reflect which model each field comes from.
+- **API Controllers**: Each module should have its own API controller class that extends the abstract ApiControllerBase class. This class handles the API requests for the module and provides methods for CRUD operations on the models in the module. The API controller class should be located in the `src/modules/<module_name>/api` directory. This API Controller class should define a registerRoutes() method which should list all of the routes this module will use for CRUD and other operations. 
+
 ### Models
-- **Location**: `src/models/*` directory - every model has its own directory. Every model should extend an abstract ModelBase class which contains features common to all models. Every model should also have a metadata file: `src/models/<model_name>/metadata.json`.
+- **Location**: `src/models/*` directory - every model has its own directory. Every model should extend an abstract ModelBase class which contains features common to all models. Every model should also have a metadata file: `src/models/<model_name>/metadata.php`.
 - **Purpose**: Defines the structure, specific logic, specific features and relationships of each model
 - **Function**: Defines models, fields, relationships, and validation rules
-- **Format**: model metadata files will be JSON files
+- **Format**: model metadata files will be PHP files
 - **Responsibility**: Single source of truth for data structure
 - **Principles**:
   - All fields that will be stored in the database and/or displayed in the UI should be defined in the model metadata file.
-  - The database fields for a model should be stored in an array called `fields` in the model class. Database fields should NOT be stored as hard-coded properties in model classes.
-  - Models should be extensible by adding new fields or relationships in metadata file.
+  - Model records are stored in a database table. The table name is set in the model's metadata file.
+  - All model records must have a unique identifier field named `id`. Use composer package `ramsey/uuid` to generate unique identifiers.
+  - All fields defined in the model's metadata file should be stored in a property on the model class called `fields`. These fields should NOT be stored as hard-coded properties in model classes.
+  - Models should be extensible by adding new fields in metadata file.
+  - Relationships between models will be represented by special field types in the model metadata file.
   - Models should validate their fields during create and update operations
   - Models should sanitize field values before saving to the database
   - Models should handle relationships and constraints
   - Models should provide methods for CRUD operations
+  - Models should provide a method to return a human-readable name for the model, which will be used in the UI and API responses.
   - Models should provide methods for relationship handling (e.g., loading related records)
   - Deleting a model should not be a hard delete. Instead, it should set a `deleted_at` timestamp field to the current time, and set a `deleted_by` field to the ID of the currently authenticated user. This allows for soft deletes and data recovery.
   - Deleting a model should not delete related records.
   - Deleted records should not be returned in API responses or UI views unless a specific flag is set to include them.
   - Deleting a model should 'soft-delete' entries in join tables for many-to-many relationships. 'soft-delete' means setting a `deleted_at` timestamp field to the current time.
   - Models should provide a mechanism to undelete themselves and restore their entries in join tables by setting the `deleted_at` timestamp field to null.
-  - All models should include a 'core' list of fields:
+  - All models should include these 'core' fields:
     - `id`: Unique identifier for the record
     - `name`: Name of the record (used for display purposes)
     - `created_at`: Timestamp of when the record was created
@@ -65,7 +92,6 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
     - `created_by`: User ID of the user who created the record
     - `updated_by`: User ID of the user who last updated the record
     - `deleted_by`: User ID of the user who soft-deleted the record (null if not deleted)
-    - 
 - **Features**:
   - Model definitions include fields, relationships, database indices and validation rules
   - Model definitions can overwrite default values in field objects by specifying them in the model metadata.
@@ -74,29 +100,114 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
   - Relationships defined as foreign keys or many-to-many associations
   - Dynamic loading of model definitions based on metadata files
   - Models must validate their fields during create and update operations. Every field's value should also be sanitized before being saved to the database.
- 
-
+- **Metadata**: Each model should have a metadata file: `src/models/<model_name>/metadata.php`. This file defines:
+  - The name of the model
+  - The table name for the model in the database
+  - The list of the fields in the model. Each entry in the list of fields will contain an associative array of metadata about that field, including:
+    + The field name
+    + The field type (e.g., text, number, date, datetime, enum, multi-enum, float, email, etc.) These types will match the class name of a FieldBase subclass defined in `src/fields`. For example, a field where the metadata['type'] = 'Text' will be matched to the TextField class, which extends the FieldBase class.
+    + The field label for display purposes
+    + The field description for documentation purposes
+    + The default value for the field if appropriate
+    + The maximum length of the field if appropriate
+    + For enum and multi-enum fields, it will include a class name and the name of a method on that class that will return the list of options for the field. This list of options will be in the format of 'value_stored_in_db' => 'display_value_in_ui'. These methods can get their list from any source, including a hard-coded list in the class file or a dataabase query. 
+    + The field validation rules. This list will overwrite the default validation rules for that field type. The validation rules will be defined in the metadata file as an array of validation rule names. Each validation rule name should match a class name in the `src/validation` directory. The validation rule class should extend an abstract ValidationBase class that contains features common to all validation rules.
+    + The field's default value. This will overwrite the default value defined in the field class.
+    + Whether the field is required
+    + Whether the field is a non-db field. Non-db fields are fields that are not stored in the database, but are used for display purposes in the UI. Non-db fields should be defined in the model metadata file, but should not be included in the database schema.
+    + Whether the field is unique
+    + Whether the field is read-only
+    + Whether the field is searchable in the UI
+  - The relationships to other models, including foreign keys and many-to-many associations
+  - The UI components for the model, including the fields to display in the list view and create view
+- **Metadata Example**:
+  - ```
+    
+    $metadata = [
+    'name' => 'Users',
+    'table' => 'users',
+    fields => [
+      'username' => [
+          'name' => 'username',
+          'label' => 'Username',
+          'type' => 'Text',
+          'required' => true,
+          'maxLength' => 50,
+          'validationRules' => [
+              'Required',
+          ],
+      ],
+      'password' => [
+          'label' => 'Password',
+          'name' => 'password',
+          'type' => 'Password',
+          'required' => false,
+          'maxLength' => 100,
+          'validationRules' => [
+              'Password'
+          ],
+      ],
+      'user_type' => [
+          'label' => 'User Type',
+          'name' => 'user_type',
+          'type' => 'Enum',
+          'defaultValue' => 'regular',
+          'optionsClass' => '\Gravitycar\Gravitons\Users\Users',
+          'optionsMethod' => 'getUserTypes',
+          'validationRules' => [
+                  'Options',
+          ],
+      ],
+      'email' => [
+          'name' => 'email',
+          'label' => 'Email',
+          'type' => 'Email',
+          'required' => false,
+          'maxLength' => 100,
+          'validationRules' => [
+              'Email',
+          ],
+      ],
+      'last_login' => [
+          'name' => 'last_login',
+          'label' => 'Last Login',
+          'type' => 'DateTime',
+          'required' => false,
+          'readOnly' => true,
+          'validationRules' => [
+              'DateTime',
+          ],
+      ],
+    ],
+];```
 ### Fields
-- **Purpose**: Defines field types to represent specific data types and behaviors specific to each type.
+- **Purpose**: Defines field types to represent specific data types and behaviors specific to each type, on the backend and in the UI.
 - **Location**: `src/fields/*` directory - every field type has its own class file. Every field type should extend an abstract FieldBase class which contains features common to all field types.
-- **Function**: define:
-  + PHP Data type 
-  + Database type
+- **Principles**: Fields are represented in classes that extend the FieldBase class. The properties of these FieldBase subclasses can be overwritten when the FieldBase object ingests metadata from a model or a relationship. This allows for dynamic field definitions based on metadata.
+- **Properties**: 
+  + name - the name of the field. This MUST be provided in the metadata. Throw a GCException subclass if the name is not provided.
+  + PHP Data type - This should map to known PHP datatypes, i.e. string, int, float, bool etc. 
+  + Database type - this should map to known MySQL datatypes, i.e. VARCHAR, INT, FLOAT, DATETIME, etc.
   + UI Data type
-  + Validation rules
-  + Default values
+  + value - the value of the field. This is the value that will be stored in the database and returned in API responses. This is the value that will validated by the validation rules.
+  + Validation rules - this is a list of strings that will match to the names of subclasses of the ValidationBase class in the `src/validation` directory. For example, if the validation rules contain a string 'Alphanumeric', that should map to a class named 'AlphanumericValidation' in `src/validation`. These validation rules will be applied to the field when it is set or updated. The validation rules will be defined in the metadata file as an array of validation rule names. Each validation rule name should match a class name in the `src/validation` directory.
+  + Default values - can be null. If not null, this value will be returned until a new value is set.
   + Display Label for UI
-  + Maximum length 
+  + Maximum length - an integer that defines the maximum length of the field value. This is used for validation and UI rendering.
   + Whether the field is required
   + Whether the field is unique
   + Whitelist of values (for select fields)
   + Blacklist of values 
-  + whether the field is read-only
+  + Whether the field is read-only
+  + Required user_type to view or edit the field
+  + Whether the field is stored in the database. Non-database fields are only for display in the UI and are not stored in the database. Non-database fields should be defined in the model metadata file, but should not be included in the database schema.
 - **Features**:
+  - Dynamic field definitions based on metadata. But Fields can only set values on existing properties, and will skip properties specified in the metadata but not defined in the class. Skipped properties like this must be logged.
   - Support for various field types (text, number, date, etc.)
   - Custom validation rules
   - Dynamic UI rendering based on field type
   - Support for relationships (foreign keys, many-to-many, etc.)
+  - Store the original value of the field when it is retrieved from the database, so that it can be compared to the current value when the field is updated. This allows for detecting changes to the field value and running validation rules when the value is changed.
   - When the value of a field is changed, run the validation rules for that field and return an error message if the value is invalid
 
 
@@ -131,9 +242,11 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
 
 ### Metadata Engine
 - **Location**: `src/metadata`
-- **Function**: Parses metadata files, aggregates metadata for pre-caching, generates model definitions, returns metadata either in full or partial formats
+- **Function**: Parses metadata files, aggregates metadata for pre-caching, returns metadata either in full or partial formats
 - **Format**: JSON or PHP arrays
-- **Responsibility**: 
+- **Responsibility**:
+  - Scan the file system for models and relationships
+  - Locate and load metadata files from the filesystem
   - Load and validate metadata files
   - Provide metadata for API and frontend generation
   - Cache metadata for performance
@@ -146,7 +259,7 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
 ### Database Connector
 - **Function**: 
   + Connects to MySQL database using Doctrine DBAL
-  + Generates all SQL used by the framework, including DDL and DML statements
+  + Generates all SQL used by the framework, including DDL and DML statements,  using Doctrine DBAL
   + Models, Relationships and the Schema Generator use this connector to interact with the database. 
   + Executes SQL queries and returns results
   + Throws specific GCException subclasses for database errors
@@ -184,7 +297,10 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
 - **Triggers**: Setup script and metadata changes
 - **Location**: `src/schema`
 - **Responsibility**: 
-  - Detect differences between metadata and existing schema
+  - For any model or relationship, instantiate the class and use the class's fields to generate the database schema
+  - If a the table for a model or relationship does not exist, create it
+  - If the table for a model or relationship exists, update it to match the metadata
+  - Detect differences between the metadata for models or relationships and the existing schema
   - Create, update, and delete database tables based on metadata
   - Create join tables for many-to-many relationships
   - Handle relationships and constraints
@@ -278,8 +394,8 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
 - **Purpose**: Define relationships between models to represent associations (e.g., one-to-one, one-to-many, many-to-many).
 - **Location**: `src/relationships/*` directory -
   + every relationship type (e.g. one-to-one (1_1), one-to-many (1_M) many-to-many (N_M)) has its own class file. Every relationship class should extend a RelationshipBase class that defines logic common to all relationships.
-  + Every relationship between to models should have a metadata file: `src/relationships/<relationship_name>/metadata.json`.
-- **Metadata-Driven Relationships**: Relationships between models are defined in dedicated metadata files (e.g., `src/relationships/<relationship_name>/metadata.json`). Each relationship metadata file specifies:
+  + Every relationship between to models should have a metadata file: `src/relationships/<relationship_name>/metadata.php`.
+- **Metadata-Driven Relationships**: Relationships between models are defined in dedicated metadata files (e.g., `src/relationships/<relationship_name>/metadata.php`). Each relationship metadata file specifies:
   - The two models involved in the relationship (e.g., `model_a` and `model_b`).
   - The name of the relationship so it may be referred to in other metadata files or in code.
   - The type of relationship (one-to-one, one-to-many, many-to-many).
@@ -296,7 +412,7 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
   - Related records will not be loaded by default
 
 - **Core Relationship Fields**:
-  - `id`: Unique identifier for the relationship record
+  - `id`: Unique identifier for the relationship record. This is typically a UUID generated by the framework. Use the composer package `ramsey/uuid` to generate unique identifiers.
   - `model_a_id`: Foreign key referencing the first model
   - `model_b_id`: Foreign key referencing the second model
   - `created_at`, `updated_at`, `deleted_at`: Timestamps for lifecycle management
