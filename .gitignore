@@ -1,2 +1,4 @@
+/vendor
 *.idea
 /*.xml
+/composer.lock

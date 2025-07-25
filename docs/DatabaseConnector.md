@@ -31,11 +31,19 @@ Config `config`: null - the configuration object that contains the database conn
 Logger `logger`: null - the logger instance used to log messages and errors. This should be an instance of the Monolog Logger class, which is used to log messages to a file or other logging destination.
 
 ## Methods, their return types and descriptions
-- `__construct(array $config)`: function()
+- `__construct()`: function()
   - private method 
-  - Constructor that initializes the database connection using the provided configuration array. The configuration should include parameters such as `host`, `dbname`, `user`, and `password`.
+  - Constructor initializes the config property using the `Config::getInstance() method`. 
+  - Checks the 'installed' config property. If it is false, DO NOT try to connect to the database. Just initialize the config property.
+  - Checks the database.host and database.name config properties. If they are not set, DO NOT try to connect to the database. Just initialize the config property.
   - This method will use the Doctrine DBAL Connection class to create a new connection instance.
+  - If the application is in install mode, it should not attempt to connect to the database until the connection parameters exist in the config file. Check the config property for the connection parameters. If they aren't present, do not try to connect.
   - If the connection fails, it should throw a GCException with a descriptive error message.
+- `getDBConfigParams()`: function(): array
+  - Returns the database connection parameters from the config property.
+  - This method retrieves the database connection parameters from the config property and returns them as an associative array.
+  - The returned array should contain the following keys: 'host', 'port', 'dbname', 'user', 'password'.
+  - If any of these parameters are missing, it should throw a GCException with a descriptive error message.
 - `getInstance()`: function(): \DatabaseConnector
   - Returns the singleton instance of the DatabaseConnector class. If the instance does not exist, it will create a new instance using the configuration provided in the config file.
   - This method ensures that only one instance of the DatabaseConnector is created and used throughout the application.

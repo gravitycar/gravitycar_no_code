@@ -1,0 +1,36 @@
+{
+    "name": "gravitycar/framework",
+    "description": "An extensible metadata-driven web application framework",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2",
+        "ext-pdo": "*",
+        "ext-json": "*",
+        "monolog/monolog": "^3.0",
+        "doctrine/dbal": "^3.6"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Gravitycar\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Gravitycar\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "install-framework": "php scripts/install.php"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
+
