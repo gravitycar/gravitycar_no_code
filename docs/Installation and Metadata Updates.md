@@ -1,5 +1,24 @@
 # Installation and Metadata Updates
 
+## Installer Model Changes
+
+- The Installer model now uses the Config class to manage configuration file checks and updates.
+- The Installer::runInstallation() method uses Config::configFileExists() to check if the config file exists and is writable, instead of using is_writable or undefined constants.
+- The Config class is instantiated with no arguments; its constructor sets up the logger and loads configuration from the hard-coded config.php file.
+- The installation workflow now:
+  1. Instantiates Config and checks config file existence/writability with configFileExists().
+  2. Sets and writes database credentials to the config file using Config::set() and Config::write().
+  3. Creates the database if it does not exist using DatabaseConnector.
+  4. Loads metadata and generates schema using MetadataEngine and SchemaGenerator.
+  5. Creates the initial admin user using the Users model.
+  6. Marks installation as complete in the config file.
+- All references to config file checks and updates in the Installer model should use the Config class methods for consistency and reliability.
+
+## Best Practices
+- Always use the Config class for configuration file management in installation and setup scripts.
+- Avoid using direct file system checks (e.g., is_writable) or undefined constants for config file validation.
+- Ensure all installation logic is encapsulated in the Installer model and uses framework-provided classes for configuration, database, and metadata management.
+
 ## Overview
 This document describes the installation process for the Gravitycar framework and 
 how to trigger updates to the schema after metadata files are updated. It is intended 

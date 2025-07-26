@@ -4,6 +4,12 @@
 The ModelBase class is the foundational class for all models in the Gravitycar framework. It provides a set of common properties and methods that are shared across all models, ensuring consistency and ease of use.
 Database fields should not be defined as properties of the ModelBase class, or of any of its subclasses. Instead, they should be defined in the metadata files for each model, which will be ingested by the ModelBase class during instantiation. This allows for a flexible and extensible data model that can be easily modified without changing the codebase.
 
+## Constructor
+- The ModelBase constructor does **not** take metadata or logger as arguments.
+- The constructor instantiates its own Monolog logger internally.
+- The constructor calls `ingestMetadata()` to load and merge metadata from the appropriate files.
+- After loading metadata, the constructor initializes fields, relationships, and validation rules using the loaded metadata.
+
 ## Properties, their default values and descriptions
 - `name`: '' - The name of the model, used to identify it in the database and in the UI. When instantiating a ModelBase, the 'name' value must be present in the metadata passed in from the model or relationship and cannot be empty. It must be an alphanumeric string with no spaces or special characters.
 - `label`: '' - The label displayed in the UI for the model. Default is the same as the `name` value.

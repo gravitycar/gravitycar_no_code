@@ -252,11 +252,19 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
   - Load and validate metadata files
   - Provide metadata for API and frontend generation
   - Cache metadata for performance
+- **Implementation Details**:
+  - The MetadataEngine class hard-codes all directory paths:
+    - `modelsDirPath` = 'src/models' (hard-coded)
+    - `relationshipsDirPath` = 'src/relationships' (hard-coded)
+    - `cacheDirPath` = 'cache/' (hard-coded)
+  - The MetadataEngine constructor does not take any arguments. It instantiates its own Monolog logger internally.
+  - The MetadataEngine automatically scans the hard-coded directories for metadata files when loadAllMetadata() is called.
+  - Metadata files are cached in the 'cache/' directory for performance optimization.
 - **Features**:
   - Caching for performance
   - Validation of metadata files
   - Dynamic loading of model definitions
-
+  - Self-contained operation with no external dependencies required for instantiation
 
 ### Database Connector
 - **Function**: 
@@ -279,7 +287,13 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
   - Provides methods to get and set configuration values
   - Provides a method to get the database connection parameters
   - Provides a method to write the configuration file
+  - Provides a method to check if the config file exists and is writable
   - Throws a GCException subclass if the configuration file is not found, not readable or not writable
+- **Implementation Details**:
+  - The Config class hard-codes the config file location in its `configFilePath` property as 'config.php'.
+  - The Config class constructor does not take any arguments. It instantiates its own Monolog logger internally.
+  - The Config class loads configuration from the config file automatically when instantiated.
+  - The Config class provides a public method `configFileExists()` that returns true if the config file exists and is writable, false otherwise.
 - **Config file contents:**
   - The config.php file is a PHP file that returns an associative array with all the configuration settings for the framework.
   - The config file should include the following settings:
