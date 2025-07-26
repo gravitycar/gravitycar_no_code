@@ -5,22 +5,31 @@ This document describes the installation process for the Gravitycar framework an
 how to trigger updates to the schema after metadata files are updated. It is intended 
 for developers who want to set up the framework and customize it by adding or modifying metadata.
 
-The installation process will 
+The installation process will look use the Config class to load the configuration file `/config.php` from the root directory. 
+If the config file does not exist or does not contain valid database credentials, the application will enter "install mode" and prompt the user to enter the database credentials. The installation process will also use the MetadataEngine class to discover models and relationships defined in metadata files, generate React components for each field type, and create or update the database schema based on the metadata.
+
+### Installation Checks
+- Use the Config class to load the `config.php` file from the root directory.
+- If the `config.php` file does not exist, or if it does not contain valid database credentials, the installation process will begin. See "Installation" below.
+- When the database credentials are provided, the Config class must update the `config.php` file with the provided credentials and set the 'installed' flag to false.
 
 ### Installation
 - We assume that the user has already cloned the repository and has a working LAMP/WAMP environment.
-- When the application starts, it will try to load the `config.php` file from the root directory.
-- If the `config.php` file does not exist or does not contain valid database credentials or has its 'installed' flag set to false, the application will prompt the user to enter the database credentials. The application is now in "install mode".
+- Every step of the installation process will be logged using the Monolog library.
 - The user will be prompted to enter the following information:
   - Database host
   - Database name
   - Database username
   - Database password
+  - Admin username (optional, if the user is authenticated with Google, this will be ignored)
+  - Admin user password (optional, if the user is authenticated with Google, this will be ignored)
+- The application will validate the provided database credentials by attempting to connect to the database using the `DataBaseConnector` class.
 - If the user provides valid credentials, the application will create a `config.php` file in the root directory with the provided credentials. It will use the Config classs to create this file. It will also set the 'installed' flag to false in the config file.
 - If the user provides invalid credentials, the application will display an error message and prompt the user to try again.
 - Once the `config.php` file is created with valid db credentials, the application will attempt to connect to the database.
 - if the connection fails, the application will display an error message and prompt the user to try again.
-- if the connection is successful, the application will look for metadata files using the `MetadataEngine` class.
+- if the connection is successful, the application attempt to creat the database if it does not exist.
+- Next the application will look for metadata files using the `MetadataEngine` class.
 - The `MetadataEngine` will discover every model and every relationship. It will load the metadata files for those models and relationships. It will cache the metadata in memory.
 - With all the models and relationships loaded and cached, the MetadataEngine will store the metadata in a cache directory for each model and relationship, `cache/model/<model_name>/<model_name>_metadata.php`.
 - The MetadataEngine will also create a `cache/relationships/<relationship_name>/<relationship_name>metadata.php` directory to store the metadata for relationships.

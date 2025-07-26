@@ -6,6 +6,7 @@ use Gravitycar\Core\Config;
 use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Database\SchemaGenerator;
 use Gravitycar\Core\GCException;
+use Monolog\Logger;
 
 /**
  * Installation and setup manager for the Gravitycar framework
@@ -19,10 +20,13 @@ class Installer
     private SchemaGenerator $schemaGenerator;
     private array $installationSteps = [];
 
+    protected Logger $logger;
+
     public function __construct()
     {
         $this->config = Config::getInstance();
         $this->schemaGenerator = new SchemaGenerator();
+        $this->logger = new Logger('installer');
     }
 
     public function checkInstallationRequired(): bool
@@ -52,6 +56,7 @@ class Installer
             }
 
             // Step 2: Test database connection
+            $this->schemaGenerator->createDatabaseIfNotExists();
             if ($this->testDatabaseConnection()) {
                 $results[] = ['step' => 'database_connection', 'success' => true];
             } else {
@@ -106,16 +111,20 @@ class Installer
     private function testDatabaseConnection(): bool
     {
         try {
-            $this->db = DatabaseConnector::getInstance($this->config->get('database'));
-            return $this->db->testConnection();
+            $this->db = DatabaseConnector::getInstance();
+
+            if ($this->db && $this->db->isConnected() && $this->db->testConnection()) {
+                return true;
+            }
         } catch (GCException $e) {
-            return false;
+            $this->logger->alert("Database connection does not exist"); // Ignore, will attempt to reconnect
         }
+        return false;
     }
 
     private function coreTablesExist(): bool
     {
-        if (!$this->db) {
+        if (!$this->testDatabaseConnection()) {
             return false;
         }
 
@@ -133,7 +142,17 @@ class Installer
     private function createDatabaseSchema(): array
     {
         $metadataPath = __DIR__ . '/../../metadata/models';
-        return $this->schemaGenerator->generateAllTablesFromDirectory($metadataPath);
+        try {
+            $this->schemaGenerator->createDatabaseIfNotExists();
+        } catch (\Exception $e) {
+            throw new GCException("Failed to create database: " . $e->getMessage());
+        }
+
+        try {
+            return $this->schemaGenerator->generateAllTablesFromDirectory($metadataPath);
+        } catch (\Exception $e) {
+            throw new GCException("Failed to create database schema: " . $e->getMessage());
+        }
     }
 
     private function createInitialUser(string $username): void

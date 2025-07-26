@@ -60,10 +60,12 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
 - **API Controllers**: Each module should have its own API controller class that extends the abstract ApiControllerBase class. This class handles the API requests for the module and provides methods for CRUD operations on the models in the module. The API controller class should be located in the `src/modules/<module_name>/api` directory. This API Controller class should define a registerRoutes() method which should list all of the routes this module will use for CRUD and other operations. 
 
 ### Models
-- **Location**: `src/models/*` directory - every model has its own directory. Every model should extend an abstract ModelBase class which contains features common to all models. Every model should also have a metadata file: `src/models/<model_name>/metadata.php`.
-- **Purpose**: Defines the structure, specific logic, specific features and relationships of each model
+- **Location**: 
+  - Class File `src/models/<model_name>/<model_name>.php`. Every model should extend an abstract ModelBase class which contains features common to all models. 
+  - Metadata File: `src/models/<model_name>/<model_name>_metadata.php`. This file defines the name, table name, fields, relationships, and validation rules for the model. See `Metadata Example` below.
+- **Purpose**: Defines the structure, specific logic and specific features of each model
 - **Function**: Defines models, fields, relationships, and validation rules
-- **Format**: model metadata files will be PHP files
+- **Format**: model metadata files will be PHP files. Model class files will be PHP files.
 - **Responsibility**: Single source of truth for data structure
 - **Principles**:
   - All fields that will be stored in the database and/or displayed in the UI should be defined in the model metadata file.
@@ -268,7 +270,7 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
 - **Purpose**: Provides a centralized configuration management system for the framework
 - **Location**: 
    + Config Class: `src/config/Config.php`
-   + config file: `config.php`
+   + config file: `/config.php` **Claude Code Instruction**: The config.php file should be located in the root directory of the project, not in the src directory.
 - **Function**:
   - Loads configuration settings from a file
   - Provides access to configuration values throughout the framework
@@ -297,8 +299,10 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
 - **Triggers**: Setup script and metadata changes
 - **Location**: `src/schema`
 - **Responsibility**: 
+  - Create the database itself if it does not exist. The Config class will provide the database name. The SchemaGenerator MUST be able to do this during install, before a connection to the database is established. And it MUST provide a public method to do this.
+  - Create and update database tables based on metadata for models and relationships
   - For any model or relationship, instantiate the class and use the class's fields to generate the database schema
-  - If a the table for a model or relationship does not exist, create it
+  - If the table for a model or relationship does not exist, create it
   - If the table for a model or relationship exists, update it to match the metadata
   - Detect differences between the metadata for models or relationships and the existing schema
   - Create, update, and delete database tables based on metadata
@@ -348,6 +352,7 @@ Gravitycar is a metadata-driven web application framework that dynamically gener
 - **Function**: Routes API requests to appropriate handlers
 - **Location**: `src/api/Router.php`
 - **Principles**:
+  - **Simple interface** - Single entry point for routing. From the browser or clients, routes should look like `http(s)://<domain>/#<model_name>(/model_id)`. Use the hash (#) to separate the model name and id from the base URL. The API router will parse the URL and route the request to the appropriate API controller. You may need apache mod_rewrite to route all requests to the rest.php file.
   - **Smart matching** - Handles dynamic route segments
   - **Error handling** - Comprehensive validation and logging
   - **Maintainability** - Self-managing route system

@@ -11,6 +11,8 @@ This should be a singleton class, meaning that there should only be one instance
 of this class in the application.
 Other classes can generate SQL if they need to, but they MUST use the DatabaseConnector to execute those SQL statements. It's preferable to use the methods the Database Connector provides, such as `create`, `update`, `retrieve`, and `delete`, rather than executing raw SQL statements directly. If other classes do need to execute SQL statements, any values from the user must be properly sanitized and bound to the query to prevent SQL injection attacks. The DatabaseConnector should handle this sanitization and binding automatically.
 
+IMPORTANT: remember that queries such as "SHOW TABLES LIKE 'my_table'" DO NOT allow for parameter binding. In these cases, you must sanitize the value using the `sanitizeValue` method before including it in the query.
+
 ## Transaction handling patterns
 The DatabaseConnector should support "Unit of Work" transaction patterns, allowing for multiple operations to be executed as a single transaction.
 The DatabaseConnector should be able to handle transactions, including committing and rolling back transactions as needed.
@@ -39,17 +41,24 @@ Logger `logger`: null - the logger instance used to log messages and errors. Thi
   - This method will use the Doctrine DBAL Connection class to create a new connection instance.
   - If the application is in install mode, it should not attempt to connect to the database until the connection parameters exist in the config file. Check the config property for the connection parameters. If they aren't present, do not try to connect.
   - If the connection fails, it should throw a GCException with a descriptive error message.
-- `getDBConfigParams()`: function(): array
+- `getDBConnectionParams()`: function(): array
   - Returns the database connection parameters from the config property.
   - This method retrieves the database connection parameters from the config property and returns them as an associative array.
-  - The returned array should contain the following keys: 'host', 'port', 'dbname', 'user', 'password'.
+  - The returned array should contain the following keys: 'host', 'port', 'dbname', 'username', 'password'.
   - If any of these parameters are missing, it should throw a GCException with a descriptive error message.
 - `getInstance()`: function(): \DatabaseConnector
   - Returns the singleton instance of the DatabaseConnector class. If the instance does not exist, it will create a new instance using the configuration provided in the config file.
   - This method ensures that only one instance of the DatabaseConnector is created and used throughout the application.
+  - If this method is called, and the connection property is not set or is null, call the `connect()` method to establish the connection.
+  - If the connection fails, use the config->get('installed', false) property to determine if the application is in install mode. If it is, do not throw an exception, just return the instance with no connection. If the application is not in install mode, throw a GCException with a descriptive error message.
+- `connectionIsValid()`: function(): bool
+  - Checks if the current database connection is valid and active.
+  - This method should return true if the connection is established and valid, and false otherwise.
 - `getConnection()`: function(): \Doctrine\DBAL\Connection
   - Returns the database connection instance. If the connection is not already established, it will create a new connection using the configuration provided in the config file.
 - `connect()`: function(): void
+  - Should get the database connection parameters from the config property using the `getDBConnectionParams()` method.
+  - This method should not accept any parameters. It should use the `getDBConnectionParams()` method to get the connection parameters.
   - Establishes a connection to the database using the configuration provided in the constructor.
   - If the connection is already established, this method should do nothing.
   - This method should be idempotent, meaning that calling it multiple times will not change the state of the connection.

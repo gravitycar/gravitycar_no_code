@@ -4,6 +4,7 @@ namespace Gravitycar\Database;
 
 use Gravitycar\Core\GCException;
 use Gravitycar\Database\DatabaseConnector;
+use PDO;
 
 /**
  * Schema Generator for creating and updating database tables
@@ -21,6 +22,31 @@ class SchemaGenerator
         $this->db = $db ?? DatabaseConnector::getInstance();
     }
 
+    public function createDatabaseIfNotExists(): bool
+    {
+        $dbConfig = $this->db->getDBConnectionParams();
+        $host = $dbConfig['host'] ?? 'localhost';
+        $username = $dbConfig['username'];
+        $password = $dbConfig['password'] ?? '';
+        $databaseName = $dbConfig['database'] ?? '';
+        if (empty($databaseName) || empty($username)) {
+            throw new GCException("Database name and username must be provided in configuration.");
+        }
+        try {
+            // Connect to MySQL server without specifying a database
+            $pdo = new PDO("mysql:host=$host", $username, $password);
+            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+            // Create the database if it does not exist
+            $sql = "CREATE DATABASE IF NOT EXISTS `$databaseName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
+            $pdo->exec($sql);
+
+            return true;
+        } catch (PDOException $e) {
+            // Log or handle the error as needed
+            return false;
+        }
+    }
     public function generateSchemaFromMetadata(array $metadata, string $tableName): bool
     {
         if (!isset($metadata['fields']) || !is_array($metadata['fields'])) {

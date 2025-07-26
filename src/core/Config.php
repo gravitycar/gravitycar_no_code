@@ -15,7 +15,7 @@ class Config
 
     private function __construct(string $configPath = null)
     {
-        $this->configPath = $configPath ?? __DIR__ . '/../../config/config.php';
+        $this->configPath = $configPath ?? '../config.php';
         $this->loadConfig();
     }
 

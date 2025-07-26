@@ -13,10 +13,10 @@ The FieldFactory class is responsible for creating instances of field classes ba
 - `logger`: null - An instance of the Logger class for logging messages related to field creation. This is used to log any errors or important information during the field instantiation process.
 
 ## Methods, their return types and descriptions
-- `__construct(array $fieldDefinition, ModelBase $model = null): void`
-  - Constructor that initializes the field factory with a field definition array and an optional model object.
-  - This method sets the `fieldDefinition` and `model` properties and prepares the factory for creating field instances.
-- `createField(): FieldsBase`
+- `__construct(): void`
+  - Constructor that initializes the field factory.
+- `createField(array $fieldDefinition, ModelBase $model = null): FieldsBase`
+  - This method sets the `fieldDefinition` and `model` properties.
   - Returns an instance of the field class associated with the field definition.
   - The field class is determined by checking the `fieldTypeMap` array for a matching field type from the metadata.
   - If no specific field type is found, it defaults to the `defaultFieldType`. The field type and model name should be logged for debugging purposes with a helpful error message.

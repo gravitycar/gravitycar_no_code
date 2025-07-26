@@ -17,8 +17,7 @@ is applied for generating React components.
 
 ## Methods, their return types and descriptions
 - `__construct(): void`
-  - Constructor that initializes the component generator factory with a field object and an optional model object.
-  - This method sets the `field` and `model` properties and prepares the factory for generating components.
+  - Constructor that initializes the component generator factory.
 - `getComponentGenerator(FieldsBase $field, ModelBase $model = null): ComponentGeneratorBase`
   - Returns an instance of the component generator class associated with the field.
   - The component generator class is determined by checking the `componentGenerators` array for a matching field type.

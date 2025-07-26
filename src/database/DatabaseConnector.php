@@ -18,6 +18,7 @@ class DatabaseConnector
     private static ?DatabaseConnector $instance = null;
     private ?PDO $connection = null;
     private Config $config;
+    private ?\Monolog\Logger $logger = null;
 
     /**
      * @throws GCException
@@ -25,6 +26,7 @@ class DatabaseConnector
     private function __construct()
     {
         $this->config = Config::getInstance();
+        $this->logger = new \Monolog\Logger('database');
         if ($this->config->get('installed', false) !== true) {
             return;
         }
@@ -40,13 +42,14 @@ class DatabaseConnector
 
     public function getDBConnectionParams(): array
     {
-        return [
+        $params = [
             'host' => $this->config->get('database.host', 'localhost'),
             'port' => $this->config->get('database.port', 3306),
-            'database' => $this->config->get('database.name', ''),
-            'username' => $this->config->get('database.user', ''),
+            'database' => $this->config->get('database.dbname', ''),
+            'username' => $this->config->get('database.username', ''),
             'password' => $this->config->get('database.password', ''),
         ];
+        return $params;
     }
 
     public static function getInstance(): DatabaseConnector
@@ -54,6 +57,15 @@ class DatabaseConnector
         if (self::$instance === null) {
             self::$instance = new self();
         }
+
+        if (!self::$instance->isConnected()) {
+            try {
+                self::$instance->connect();
+            } catch (\Exception $e) {
+                // ignore connection errors here, as it may be during installation
+            }
+        }
+
         return self::$instance;
     }
 
@@ -83,11 +95,21 @@ class DatabaseConnector
         }
     }
 
+    public function isConnected(): bool
+    {
+        if ($this->connection == null) {
+            return false;
+        }
+
+        return true;
+    }
+
     public function testConnection(): bool
     {
         if (is_null($this->connection)) {
             return false;
         }
+
         try {
             $this->connection->query('SELECT 1');
             return true;
@@ -229,8 +251,8 @@ class DatabaseConnector
 
     public function tableExists(string $tableName): bool
     {
-        $sql = "SHOW TABLES LIKE :tableName";
-        $result = $this->query($sql, ['tableName' => $tableName]);
+        $sql = "SHOW TABLES LIKE " . $this->connection->quote($tableName);
+        $result = $this->query($sql);
         return !empty($result);
     }
 

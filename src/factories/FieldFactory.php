@@ -22,10 +22,8 @@ class FieldFactory
     private ?ModelBase $model = null;
     private $logger = null;
 
-    public function __construct(array $fieldDefinition = [], ModelBase $model = null)
+    public function __construct()
     {
-        $this->fieldDefinition = $fieldDefinition;
-        $this->model = $model;
         $this->initializeFieldTypeMap();
     }
 
@@ -50,13 +48,10 @@ class FieldFactory
         ];
     }
 
-    public function createField(): FieldsBase
+    public function createField(array $fieldDefinition): FieldsBase
     {
-        if (empty($this->fieldDefinition)) {
-            throw new GCException("Field definition is required to create a field");
-        }
 
-        $fieldType = $this->fieldDefinition['type'] ?? $this->defaultFieldType;
+        $fieldType = $fieldDefinition['type'] ?? $this->defaultFieldType;
 
         if (isset($this->fieldTypeMap[$fieldType])) {
             $this->fieldClass = $this->fieldTypeMap[$fieldType];
@@ -64,7 +59,7 @@ class FieldFactory
             $this->fieldClass = $this->fieldTypeMap[$this->defaultFieldType];
             if ($this->logger) {
                 $modelName = $this->model ? get_class($this->model) : 'Unknown';
-                $fieldName = $this->fieldDefinition['name'] ?? 'Unknown';
+                $fieldName = $fieldDefinition['name'] ?? 'Unknown';
                 error_log("Unknown field type '{$fieldType}' for field '{$fieldName}' in model '{$modelName}'. Using default type '{$this->defaultFieldType}'.");
             }
         }

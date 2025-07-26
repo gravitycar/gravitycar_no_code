@@ -30,23 +30,35 @@ try {
     $installer = new Installer();
     if ($installer->checkInstallationRequired()) {
         // Handle installation requests
+        $db = Gravitycar\database\DatabaseConnector::getInstance();
+        $adminUsername = $input['admin_username'] ?? 'admin';
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_GET['action']) && $_GET['action'] === 'install') {
             $input = json_decode(file_get_contents('php://input'), true);
-            $dbCredentials = $input['database'] ?? [];
-            $adminUsername = $input['admin_username'] ?? 'admin';
-
+            $dbCredentials = $db->getDBConnectionParams();
             $result = $installer->install($dbCredentials, $adminUsername);
             echo json_encode($result);
             exit;
+        } else {
+            $dbCredentials = $db->getDBConnectionParams();
+            $result = $installer->install($dbCredentials, $adminUsername);
         }
 
-        // Return installation required response
-        echo json_encode([
-            'success' => false,
-            'installation_required' => true,
-            'message' => 'Framework installation required',
-            'status' => $installer->getInstallationStatus()
-        ]);
+        if ($result) {
+            echo json_encode([
+                'success' => true,
+                'message' => 'Installation completed successfully',
+                'details' => $result
+            ]);
+        } else {
+            // Installation failed or incomplete
+            echo json_encode([
+                'success' => false,
+                'installation_required' => true,
+                'message' => 'Installation incomplete',
+                'status' => $installer->getInstallationStatus()
+            ]);
+        }
+
         exit;
     }
 
