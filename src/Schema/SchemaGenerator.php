@@ -167,9 +167,7 @@ class SchemaGenerator {
 
         // Update column type and options
         $column->setType(\Doctrine\DBAL\Types\Type::getType($type));
-        foreach ($options as $option => $value) {
-            $column->setOption($option, $value);
-        }
+        $column->setOptions($options);
     }
 
     /**

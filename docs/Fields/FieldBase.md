@@ -1,102 +1,234 @@
 # FieldBase
 
 ## Overview
-The FieldBase class is the base class for all field types in the Gravitycar framework.
-It provides the common properties and methods that all field types must implement. This class is used to define the structure and behavior of fields in models and relationships. It's also used by the SchemaGenerator to generate the database schema based on the metadata files.
-The FieldBase class DOES NOT contain a property for the model it belongs to. Instead, 
-it is expected that the model will pass itself as the third parameter to the `set` method 
-when setting a field value. The prevents circular dependencies between the FieldBase class and the ModelBase class.
-By having the model pass itself to the `set` method, the FieldBase class can access the model's properties and methods as needed without creating a direct dependency on the ModelBase class.
-This class is designed to be extended by specific field types, such as TextField, BooleanField, EnumField, etc.
-It provides a common interface for all field types, allowing them to be used interchangeably in models and relationships.
+The FieldBase class is the abstract foundation for all field types in the Gravitycar framework.
+It provides comprehensive metadata management, validation, and utility methods for easy field configuration and operation.
 
-## Properties, their default values and descriptions
-- `name`: '' - Field name (required, cannot be empty)
-- `label`: '' - Display label for UI (defaults to name if empty)
-- `type`: '' - Field type (e.g., 'Text', 'Email', 'Integer')
-- `phpDataType`: 'string' - PHP data type (string, int, float, bool, etc.)
-- `databaseType`: 'VARCHAR' - MySQL data type (VARCHAR, INT, FLOAT, DATETIME, etc.)
-- `uiDataType`: 'text' - UI input type for rendering
-- `value`: null - Current field value
-- `originalValue`: null - Original value from database (for change detection)
-- `defaultValue`: null - Default value when no value is set
-- `validationRules`: [] - Array of validation rule class names
-- `required`: false - Whether field is required
-- `unique`: false - Whether field value must be unique
-- `maxLength`: null - Maximum length for string fields
-- `minLength`: null - Minimum length for string fields
-- `minValue`: null - Minimum value for numeric fields
-- `maxValue`: null - Maximum value for numeric fields
-- `readOnly`: false - Whether field is read-only
-- `requiredUserType`: null - Required user type to view/edit field
-- `searchable`: true - Whether field is searchable in UI
-- `isDbField`: true - Whether field is stored in database
-- `isPrimaryKey`: false - Whether field is primary key
-- `isIndexed`: false - Whether field should be indexed
-- `allowedValues`: [] - Whitelist of allowed values
-- `forbiddenValues`: [] - Blacklist of forbidden values
-- `optionsClass`: null - Class name for dynamic options
-- `optionsMethod`: null - Method name for dynamic options
-- `placeholder`: '' - Placeholder text for input fields
-- `description`: '' - Field description for documentation
-- `helpText`: '' - Help text displayed in UI
-- `showInList`: true - Whether to show field in list views
-- `showInForm`: true - Whether to show field in forms
-- `metadata`: [] - Additional metadata from model definition
-- `validationErrors`: [] - Current validation errors for this field
-- `valueHasBeenChanged`: false - Whether the field value has changed since initially set
-- `logger`: null - Logger instance for logging messages related to this field
+## Core Features
+- **Metadata-Driven Configuration**: Fields are configured through metadata arrays
+- **Comprehensive Metadata Utilities**: Easy access to metadata values with type checking
+- **Validation Framework**: Built-in validation with extensible rules
+- **Database Integration**: Automatic handling of database field inclusion/exclusion
+- **Dependency Injection**: Full integration with Aura.DI container
 
-## Methods, their return types and descriptions
-- `__construct(array $fieldDefinition): void`
-  - Constructor that initializes the field properties based on the provided field definition array.
-  - This method should set the properties of the field based on the keys and values in the `$fieldDefinition` array using the `ingestFieldDefinitions` method.
-  - This method should set up the validation rules for the field using the `setupValidationRules` method.
-- `get(string $fieldName): mixed`
-  - Returns the value property of this field.
-  - If the value is not set, it should return the default value.
-- `set(string $fieldName, mixed $value, ModelBase $model): void`
-  - This method must validate the `$value` using the field's validation rules by calling the `validate` method.
-  - If the field does not exist, it should throw a GCException with a descriptive error message.
-  - If the value fails validation, it should add all the validation error messages to the model's `validationErrors` array using the `registerValidationError` method on the model.
-  - If the value passes validation, it should set the `value` property to the provided `$value`.
-  - If the value is different from the original value, it should call `hasChanged(true)`.
-- `getValueForApi(): mixed`
-  - Returns the value of the field formatted for API responses.
-  - This method should handle any necessary formatting or transformation of the field value before returning it.
-- `setValueFromDB(mixed $value): void`
-  - Sets the value of the field from a database record.
-  - This method should handle any necessary transformations or formatting of the value before setting it.
-  - It should also set the `originalValue` property to the value being set, to track changes.
-  - Values from the DB are assumed to be in the correct format for the field type. No validation should be performed on this value.
-- `ingestFieldDefinitions(array $fieldDefinitions): void`
-  - Ingests field definitions from an array derived from the metadata for a model or a relationship.
-  - "Ingests" means that it will iterate through all the keys in the associative array $fieldDefinitions and set the properties of the field based on the values in that array for each key.
-  - This method should populate the field's properties based on the provided definitions.
-  - Any key listed in the $fieldDefinitions that is not defined as a property in the class should be ignored.
-  - If any required properties are missing or invalid, it should throw a GCException with a descriptive error message.
-- `setupValidationRules(): void`
-  - Sets up the validation rules for the field based on the validationRules property.
-  - Rule class names are expected to be partial names of classes. For example 'AlphaNumeric' would map to the class `ValidationRules\AlphaNumericValidation`.'
-  - This method should use the ValidationRuleFactory to instantiate the validation rules.
-  - As each rule class is instantiated, replace the string class name in the validationRules array with the instantiated object. 
-  - If any rule class does not exist or is invalid, it should throw a GCException with a descriptive error message.
-- `hasChanged(mixed $state = null): bool`
-  - Checks if the field value has changed from its original value.
-  - If `$state` is provided, the valueHasBeenChanged property to the provided state. 
-  - Returns valueHasBeenChanged.
-- `validate(): bool`
-  - Iterates over the validation rules.
-  - Call these methods in this order for each rule:
-    - `setValue($this->getValue()`
-    - `setField($this)`
-    - `setModel($model)` (if applicable)
-    - `validate()`
-    - If the rule's `validate()` method returns false, call the rule's `getFormatErrorMessage()` method and pass that value to this field's `registerValidationError()` method and the model's `registerValidationError()` method.
-  - if any rule fails validation return false. 
-  - if all rules pass validation, return true.
+## Constructor
+```php
+public function __construct(array $metadata, Logger $logger)
+```
+- Validates that metadata contains required 'name' field
+- Sets up field properties from metadata
+- Initializes default value and validation rules
+- Stores logger for error reporting
 
-- `registerValidationError(string $errorMessage): void`
-  - Registers a validation error message for this field.
-  - This method should append the provided error message to the `validationErrors` array.
-  - If the `errorMessage` is empty, it should throw a GCException with a descriptive error message.
+## Core Properties
+- `$name`: Field name from metadata
+- `$value`: Current field value
+- `$originalValue`: Value before last change
+- `$metadata`: Complete metadata array
+- `$validationRules`: Array of validation rule names
+- `$logger`: Logger instance for error reporting
+
+## Core Methods
+
+### getName()
+```php
+public function getName(): string
+```
+Returns the field name.
+
+### getValue()
+```php
+public function getValue()
+```
+Returns the current field value.
+
+### setValue($value)
+```php
+public function setValue($value): void
+```
+Sets the field value and triggers validation.
+
+### validate()
+```php
+public function validate(): bool
+```
+Validates the current value against all validation rules.
+
+## Metadata Utility Methods
+
+### getMetadata()
+```php
+public function getMetadata(): array
+```
+Returns the complete metadata array for the field.
+
+### getMetadataValue(string $key, $default = null)
+```php
+public function getMetadataValue(string $key, $default = null)
+```
+Gets a specific metadata value with optional default fallback.
+
+### hasMetadata(string $key)
+```php
+public function hasMetadata(string $key): bool
+```
+Checks if a metadata key exists.
+
+### metadataEquals(string $key, $expectedValue)
+```php
+public function metadataEquals(string $key, $expectedValue): bool
+```
+Checks if a metadata key has a specific value (strict comparison).
+
+### metadataIsTrue(string $key)
+```php
+public function metadataIsTrue(string $key): bool
+```
+Checks if a metadata key is truthy (useful for boolean flags).
+
+### metadataIsFalse(string $key)
+```php
+public function metadataIsFalse(string $key): bool
+```
+Checks if a metadata key is falsy.
+
+## Database Integration Methods
+
+### isDBField()
+```php
+public function isDBField(): bool
+```
+Checks if this field should be stored in the database:
+- Returns true by default
+- Returns false if metadata has `'isDBField' => false`
+- Used by DatabaseConnector to determine which fields to include in queries
+
+### isRequired()
+```php
+public function isRequired(): bool
+```
+Checks if the field is required based on metadata `'required'` key.
+
+### isReadonly()
+```php
+public function isReadonly(): bool
+```
+Checks if the field is readonly based on metadata `'readonly'` key.
+
+### isUnique()
+```php
+public function isUnique(): bool
+```
+Checks if the field must be unique based on metadata `'unique'` key.
+
+## Example Metadata Structure
+```php
+$fieldMetadata = [
+    'name' => 'email',
+    'type' => 'Email',
+    'required' => true,
+    'unique' => true,
+    'maxLength' => 255,
+    'validation' => ['Email', 'Required', 'Unique'],
+    'isDBField' => true,
+    'readonly' => false,
+    'defaultValue' => null
+];
+```
+
+## Usage Examples
+
+### Basic Field Usage
+```php
+// Field creation through ServiceLocator (recommended)
+$emailField = ServiceLocator::createField(EmailField::class, $metadata);
+
+// Access metadata
+if ($emailField->isRequired()) {
+    echo "Email is required";
+}
+
+if ($emailField->isDBField()) {
+    echo "Email will be stored in database";
+}
+
+// Get specific metadata values
+$maxLength = $emailField->getMetadataValue('maxLength', 255);
+$validation = $emailField->getMetadataValue('validation', []);
+```
+
+### Metadata Checking Patterns
+```php
+// Check boolean flags
+if ($field->metadataIsTrue('required')) {
+    // Field is required
+}
+
+if ($field->metadataEquals('type', 'Password')) {
+    // Field is password type
+}
+
+// Safe metadata access with defaults
+$placeholder = $field->getMetadataValue('placeholder', 'Enter value...');
+$cssClass = $field->getMetadataValue('cssClass', 'form-control');
+```
+
+### Database Field Control
+```php
+// Fields marked as non-database fields won't be included in CRUD operations
+$metadata = [
+    'name' => 'confirmPassword',
+    'type' => 'Password',
+    'isDBField' => false, // This field won't be saved to database
+    'required' => true
+];
+```
+
+## Field Type Implementation
+When creating custom field types, extend FieldBase and implement specific behavior:
+
+```php
+class CustomField extends FieldBase {
+    public function validate(): bool {
+        // Custom validation logic
+        if (!parent::validate()) {
+            return false;
+        }
+        
+        // Additional custom validation
+        return $this->customValidation();
+    }
+    
+    private function customValidation(): bool {
+        // Implement field-specific validation
+        return true;
+    }
+}
+```
+
+## Integration with Models
+Fields are automatically created by ModelBase during initialization:
+
+```php
+// In model metadata file
+return [
+    'fields' => [
+        'email' => [
+            'type' => 'Email',
+            'required' => true,
+            'unique' => true,
+            'validation' => ['Email', 'Required', 'Unique']
+        ],
+        'temp_field' => [
+            'type' => 'Text',
+            'isDBField' => false // Won't be saved to database
+        ]
+    ]
+];
+```
+
+## Dependencies
+- Requires Logger injection for error reporting
+- Uses validation rule classes for field validation
+- Integrates with DatabaseConnector for CRUD operations
+- Works with ServiceLocator for dependency injection

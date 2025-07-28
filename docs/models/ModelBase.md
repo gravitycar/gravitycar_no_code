@@ -1,116 +1,294 @@
-# ModelBase class
+# ModelBase Class Documentation
 
 ## Overview
-The ModelBase class is the foundational class for all models in the Gravitycar framework. It provides a set of common properties and methods that are shared across all models, ensuring consistency and ease of use.
-Database fields should not be defined as properties of the ModelBase class, or of any of its subclasses. Instead, they should be defined in the metadata files for each model, which will be ingested by the ModelBase class during instantiation. This allows for a flexible and extensible data model that can be easily modified without changing the codebase.
+The ModelBase class is the abstract foundation for all models in the Gravitycar framework. It provides a metadata-driven approach to model definition, dynamic field management, validation, relationships, and comprehensive CRUD operations with soft delete functionality.
+
+## Core Features
+- **Metadata-Driven Configuration**: Models are defined through metadata files rather than hardcoded properties
+- **Dynamic Field System**: Fields are created dynamically based on metadata specifications
+- **Full CRUD Operations**: Create, Read, Update, Delete with soft delete as default
+- **Audit Trail Management**: Automatic tracking of created_at, updated_at, created_by, updated_by
+- **Soft Delete System**: Default delete behavior preserves data with restore capability
+- **Validation Framework**: Comprehensive field and model-level validation
+- **Relationship Management**: Support for model relationships
+- **Dependency Injection**: Full integration with Aura.DI container
 
 ## Constructor
-- The ModelBase constructor does **not** take metadata or logger as arguments.
-- The constructor instantiates its own Monolog logger internally.
-- The constructor calls `ingestMetadata()` to load and merge metadata from the appropriate files.
-- After loading metadata, the constructor initializes fields, relationships, and validation rules using the loaded metadata.
-
-## Properties, their default values and descriptions
-- `name`: '' - The name of the model, used to identify it in the database and in the UI. When instantiating a ModelBase, the 'name' value must be present in the metadata passed in from the model or relationship and cannot be empty. It must be an alphanumeric string with no spaces or special characters.
-- `label`: '' - The label displayed in the UI for the model. Default is the same as the `name` value.
-- `labelSingular`: '' - The singular label for the model, used in contexts where a single instance is referenced. Default is the same as the `label` value.
-- `db`: null - The database connection used by the model. This is typically set to the default database connection. NOTE: this should be a singleton instance, or be derived from some mechanism that ensures only one instance of the database connection is used across the application.
-- `fields`: [] - An array of FieldBase objects that define the fields of the model. Each field is an instance of a subclass of FieldBase, such as TextField, BooleanField, EnumField, etc. The keys of this associative array are the field names, and the values are the FieldBase instances.
-- `table`: '' - The name of the database table associated with the model. This is used to perform CRUD operations on the model's data.
-- `recordExistsInDb`: false - A boolean indicating whether the model's record exists in the database. This is used to determine if the model is new or if it has been persisted.
-- `log`: null - An instance of the Logger class used for logging messages related to the model's operations. This is typically set to a singleton instance of the Logger class.
-- `validationErrors`: [] - An array of validation error messages. This is used to store any validation errors that occur when validating the model's fields.
-- `coreFieldsMetadataFilePath`: '' - The file path to the core fields metadata file. This file contains the definitions of the core fields that are used by all models. The metadata for these core fields should be stored in a separate metadata file, which is loaded when the model is instantiated.
-- `validationStatus`: 'pending' - The validation status of the model. This can be 'pending', 'passed', or 'failed'. It is used to track the validation state of all of the model's fields. If any field fails validation the validation status should be set to 'failed'. If all fields pass validation, the validation status should be set to 'passed'. If no validation has been performed yet, the validation status should be set to 'pending'. If any field's value is changed, the validation status should be set to 'pending'.
-
-## Methods, their return types and descriptions
-- `getMetaDataFilePaths`: function(): array returns an array of these file paths for the metadata files: this->coreFieldsMetadataFilePath and `src/Models/{modelName}/metadata.php`
-  - Returns an array of file paths for the field files associated with the model. All models start with the same set of fields, which will be stored in the same location
-- `ingestMetadata`: function(): void
-  - Calls the `getMetaDataFilePaths` method to retrieve the file paths for the metadata files, and then loads the metadata from these files.
-  - Will merge the metadata from all files from `getMetaDataFilePaths` into a single array. It's very important that the fields defined in one file are merged into the same array as fields defined in subsequent files. If subsequent files define the same field by name, the last definition will override the previous one.
-  - Ingests metadata for the model, which includes properties such as `name`, `label`, `fields`, and other model-specific configurations. The metadata MUST include `fields`, which will be an associative array formatted like this: 
+```php
+public function __construct()
 ```
-'fields' => [
-    'fieldName' => [
-        'name' => 'fieldName',
-        'type' => 'FieldType',
-        // other field properties...
-    ],
-    // other fields...
-]
+The constructor automatically:
+- Gets Logger and metadata via dependency injection
+- Calls `ingestMetadata()` to load model configuration
+- Initializes fields, relationships, and validation rules
+
+## Metadata Management
+
+### ingestMetadata()
+```php
+protected function ingestMetadata(): void
 ```
-  - This method initializes the model's properties based on the provided metadata.
-  - This method will use the FieldFactory class to create instances of the fields defined in the metadata. The FieldFactory will instantiate the correct field type based on the `type` property of each field in the metadata.
-  - Any error conditions that occur during the ingestion of metadata MUST throw a GCException with a descriptive error message.
-  - This method should also validate the metadata to ensure that all required properties are present and correctly formatted. If any metadata is missing or invalid, it should throw a GCException with a descriptive error message.
-  - This method's processes should be idempotent, meaning that calling it multiple times with the same metadata should not change the state of the model.
-  - This method's logic can be broken down into smaller methods for better readability and maintainability and testing, but the overall flow should remain consistent.
-- `getFields`: function(): array
-  - Returns an associative array of FieldBase objects that define the fields of the model. The keys of this array are the field names, and the values are the FieldBase instances.
-    - This method should return the `fields` property of the model, which is an associative array of FieldBase objects.
-    - This method should also ensure that all fields are properly initialized and ready for use.
-- `getField(string $fieldName): ?FieldBase`
-  - Returns the FieldBase object for the specified field name. If the field does not exist, it returns null.
-  - This method should check if the field exists in the `fields` array and return the corresponding FieldBase object. If the field does not exist, it should return null.
-  - This method should also handle any exceptions that may occur when accessing the field, such as if the field is not properly initialized or if there is an error in the underlying data source.
-- `get`(string $fieldName): mixed
-  - Returns the value of the specified field using the field's get() method. If the field does not exist, it returns null.
-  - This method should check if the field exists in the `fields` array and return its value. If the field does not exist, it should return null.
-  - This method should also handle any exceptions that may occur when accessing the field's value, such as if the field is not properly initialized or if there is an error in the underlying data source.
-- `set`(string $fieldName, mixed $value): void
-  - Sets the value of the specified field using the field's set() method. If the field does not exist, it throws a GCException.
-  - This method should check if the field exists in the `fields` array and set its value using the field's set() method. If the field does not exist, it should throw a GCException with a descriptive error message.
-  - This method should also handle any exceptions that may occur when setting the field's value, such as if the field is not properly initialized or if there is an error in the underlying data source.
-  - If the field's set() method fails validation, all validation errors should be added to the `validationErrors` property of the model.
-- `collectValidationErrors()`: function(): array
-  - Returns an array of validation error messages for the model's fields. This method should iterate over all fields and collect any validation errors that have occurred.
-  - If there are no validation errors, it should return an empty array.
-  - This method should also handle any exceptions that may occur when collecting validation errors, such as if the field is not properly initialized or if there is an error in the underlying data source.
-- `populateFromRequest(array $request)` : void
-  - Populates the model's fields from the provided request data. This method should iterate over the request data and set the values for each field using the field's set() method.
-  - This method should also handle any exceptions that may occur when populating the model from the request, such as if the request data is not properly formatted or if there is an error in the underlying data source.
-  - If any field fails validation during this process, all validation errors should be added to the `validationErrors` property of the model.
-  - $request should be an associative array where the keys are field names and the values are the corresponding values to set.
-  - Any keys in $request that do not correspond to a field in the model should be ignored.
-- `populateFromDB(array $data): void`
-  - Populates the model's fields from the provided database record data. This method should iterate over the data and set the values for each field using the field's setValueFromDB() method.
-  - This method should also handle any exceptions that may occur when populating the model from the database, such as if the data is not properly formatted or if there is an error in the underlying data source.
-  - $data should be an associative array where the keys are field names and the values are the corresponding values to set.
-  - It is assumed that data from the database is already in the correct format for each field type, so no validation should be performed on these values.
-  - Any keys in $data that do not correspond to a field in the model should be ignored.
-- `registerValidationError(string $errorMessage): void`
-  - This method should append the provided error message to the `validationErrors` array.
-  - After the error message is registered, it should also set the `validationStatus` property to 'failed' to indicate that validation has failed for the model.
-  - The `validationErrors` array should only contain unique error messages, so if the same error message is already present, it should not be added again.
-  - If the `errorMessage` is empty, it should throw a GCException with a descriptive error message.
-- `create(): bool`
-  - Creates a new record in the database for the model. 
-  - This method will NOT prepare the SQL INSERT statement. That's done by the DatabaseConnector class.
-  - Should be called after the model's fields have been populated and validated. The `populateFromRequest` method will set the fields values using each field's `set` method, which will validate the values.
-  - if the model's `id` field is not set, it should be generated automatically using a UUID.
-  - This method will confirm that all the model's fields have been validated and that there are no validation errors in the `validationErrors` array.
-  - If there are validation errors, the record will not be created, and the method should return false.
-  - If there are no validation errors, the model will pass itself to `db->create()` and return the value of that method.
-  - Set the `created_by` field and the `updated_by` field to the current user's ID, and the `created_at` field and the `updated_at` field to the current timestamp.
-- `update(): bool`
-  - Updates the existing record in the database for the model.
-  - This method will NOT prepare the SQL UPDATE statement. That's done by the DatabaseConnector class.
-  - Should be called after the model's fields have been populated and validated. The `populateFromRequest` method will set the fields values using each field's `set` method, which will validate the values.
-  - If the model's `id` field is not set, it should throw a GCException with a descriptive error message.
-  - Set the `updated_by` field to the current user's ID, and update the `updated_at` field to the current timestamp.
-  - This method will confirm that all the model's fields have been validated and that there are no validation errors in the `validationErrors` array.
-  - If there are validation errors, the record will not be updated, and the method should return false.
-  - If there are no validation errors, the model will pass itself to `db->update()` and return the value of that method.
-- `delete(): bool`
-  - Soft-deletes the record in the database by setting the `deleted_at` timestamp and `deleted_by` user ID.
-  - This method will NOT prepare the SQL UPDATE statement. That's done by the DatabaseConnector class.
-  - If the model's `id` field is not set, it should throw a GCException with a descriptive error message.
-  - Set the `deleted_by` field to the current user's ID, and the `deleted_at` field to the current timestamp.
-  - The model will pass itself to `db->update()` and return the value of that method.
-- `restore(): bool`
-  - Restores a soft-deleted record by setting the `deleted_at` field to null and `deleted_by` to null.
-  - This method will NOT prepare the SQL UPDATE statement. That's done by the DatabaseConnector class.
-  - If the model's `id` field is not set, it should throw a GCException with a descriptive error message.
-  - Set the `deleted_at` field and `deleted_by` field to null, and update the `updated_at` field to the current timestamp.
-  - The model will pass itself to `db->update()` and return the value of that method.
+Loads metadata from files based on the model class name. Looks for files in:
+- `src/models/{modelname}/{modelname}_metadata.php`
+
+### getMetaDataFilePaths()
+```php
+protected function getMetaDataFilePaths(): array
+```
+Returns array of metadata file paths for this model.
+
+## Field Management
+
+### initializeFields()
+```php
+protected function initializeFields(): void
+```
+Creates field instances based on metadata using the FieldFactory and ServiceLocator for dependency injection.
+
+### getField(string $fieldName)
+```php
+public function getField(string $fieldName): ?FieldBase
+```
+Returns a specific field instance or null if not found.
+
+### get(string $fieldName)
+```php
+public function get(string $fieldName)
+```
+Gets the value of a specific field.
+
+### set(string $fieldName, $value)
+```php
+public function set(string $fieldName, $value): void
+```
+Sets the value of a specific field with validation.
+
+### hasField(string $fieldName)
+```php
+public function hasField(string $fieldName): bool
+```
+Checks if a field exists on this model.
+
+## CRUD Operations
+
+### create()
+```php
+public function create(): bool
+```
+Creates a new record in the database:
+- Validates all fields before saving
+- Generates UUID for ID field if not set
+- Sets audit fields (created_at, updated_at, created_by, updated_by)
+- Delegates to DatabaseConnector for actual database operations
+- Returns true on success, false on failure
+
+### update()
+```php
+public function update(): bool
+```
+Updates an existing record:
+- Validates all fields before saving
+- Requires ID field to be set
+- Updates audit fields (updated_at, updated_by)
+- Delegates to DatabaseConnector
+- Returns true on success, false on failure
+
+### delete()
+```php
+public function delete(): bool
+```
+**Default delete behavior - performs soft delete:**
+- Calls `softDelete()` internally
+- Preserves data while marking as deleted
+- Returns true on success, false on failure
+
+### softDelete()
+```php
+public function softDelete(): bool
+```
+Soft deletes the record:
+- Sets deleted_at timestamp and deleted_by user ID
+- Updates internal deleted flags
+- Delegates to DatabaseConnector for database update
+- Returns true on success, false on failure
+
+### hardDelete()
+```php
+public function hardDelete(): bool
+```
+Permanently removes the record from database:
+- Actually deletes the record (cannot be restored)
+- Use with caution - data loss is permanent
+- Returns true on success, false on failure
+
+### restore()
+```php
+public function restore(): bool
+```
+Restores a soft-deleted record:
+- Clears deleted_at and deleted_by fields
+- Updates internal deleted flags
+- Calls `update()` to save changes
+- Returns true on success, false on failure
+
+## Static Finder Methods
+
+### find(array $criteria = [], array $orderBy = [], int $limit = null, int $offset = null)
+```php
+public static function find(array $criteria = [], array $orderBy = [], int $limit = null, int $offset = null): array
+```
+Finds multiple records matching criteria:
+- `$criteria`: Associative array of field => value pairs
+- `$orderBy`: Associative array of field => direction ('ASC'/'DESC')
+- `$limit`: Maximum number of records to return
+- `$offset`: Number of records to skip
+- Returns array of model instances
+
+### findById($id)
+```php
+public static function findById($id)
+```
+Finds a single record by ID. Returns model instance or null.
+
+### findFirst(array $criteria = [], array $orderBy = [])
+```php
+public static function findFirst(array $criteria = [], array $orderBy = [])
+```
+Finds the first record matching criteria. Returns model instance or null.
+
+### findAll(array $orderBy = [])
+```php
+public static function findAll(array $orderBy = []): array
+```
+Finds all records with optional ordering. Returns array of model instances.
+
+## Soft Delete Management
+
+### isDeleted()
+```php
+public function isDeleted(): bool
+```
+Checks if the model is soft deleted by examining deleted_at field or internal flags.
+
+### setAuditFieldsForSoftDelete()
+```php
+protected function setAuditFieldsForSoftDelete(): void
+```
+Sets deleted_at timestamp and deleted_by user ID for soft delete operations.
+
+### clearSoftDeleteFields()
+```php
+protected function clearSoftDeleteFields(): void
+```
+Clears deleted_at and deleted_by fields for restore operations.
+
+## Audit Trail Management
+
+### setAuditFieldsForCreate()
+```php
+protected function setAuditFieldsForCreate(): void
+```
+Sets created_at, updated_at, created_by, and updated_by fields for new records.
+
+### setAuditFieldsForUpdate()
+```php
+protected function setAuditFieldsForUpdate(): void
+```
+Sets updated_at and updated_by fields for record updates.
+
+### getCurrentUserId()
+```php
+protected function getCurrentUserId(): ?string
+```
+Gets the current user ID for audit fields. Currently returns null - implement proper session management.
+
+## Validation
+
+### validate()
+```php
+public function validate(): bool
+```
+Validates the entire model:
+- Validates all fields using their validation rules
+- Validates all relationships
+- Runs model-level validation rules
+- Returns true if all validation passes
+
+### getValidationErrors()
+```php
+protected function getValidationErrors(): array
+```
+Returns array of validation errors from all fields.
+
+## Utility Methods
+
+### getTableName()
+```php
+public function getTableName(): string
+```
+Returns the database table name from metadata or falls back to lowercase class name.
+
+### getDisplayName()
+```php
+public function getDisplayName(): string
+```
+Returns human-readable name for the model from metadata.
+
+### generateUuid()
+```php
+protected function generateUuid(): string
+```
+Generates a UUID v4 string for ID fields.
+
+## Relationships and Validation Rules
+
+### initializeRelationships()
+```php
+protected function initializeRelationships(): void
+```
+Creates relationship instances based on metadata.
+
+### initializeValidationRules()
+```php
+protected function initializeValidationRules(): void
+```
+Creates validation rule instances based on metadata.
+
+## Example Usage
+
+```php
+// Create a new user
+$user = ServiceLocator::create(Users::class);
+$user->set('username', 'john@example.com');
+$user->set('password', 'securepassword');
+$user->set('first_name', 'John');
+$user->set('last_name', 'Doe');
+$user->set('user_type', 'admin');
+
+if ($user->create()) {
+    echo "User created with ID: " . $user->get('id');
+}
+
+// Find users
+$admins = Users::find(['user_type' => 'admin']);
+$user = Users::findById('some-uuid');
+
+// Update user
+$user->set('last_name', 'Smith');
+$user->update();
+
+// Soft delete (default)
+$user->delete(); // Sets deleted_at and deleted_by
+
+// Restore
+$user->restore(); // Clears deleted_at and deleted_by
+
+// Hard delete (permanent)
+$user->hardDelete(); // Actually removes from database
+```
+
+## Dependencies
+- Requires Logger injection for logging operations
+- Uses ServiceLocator for DatabaseConnector access
+- Integrates with FieldFactory for field creation
+- Uses GCException for error handling

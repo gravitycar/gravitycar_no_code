@@ -64,4 +64,76 @@ abstract class FieldBase {
         }
         return true;
     }
+
+    /**
+     * Get the complete metadata array
+     */
+    public function getMetadata(): array {
+        return $this->metadata;
+    }
+
+    /**
+     * Get a specific metadata value by key
+     */
+    public function getMetadataValue(string $key, $default = null) {
+        return $this->metadata[$key] ?? $default;
+    }
+
+    /**
+     * Check if a metadata key exists
+     */
+    public function hasMetadata(string $key): bool {
+        return isset($this->metadata[$key]);
+    }
+
+    /**
+     * Check if a metadata key has a specific value
+     */
+    public function metadataEquals(string $key, $expectedValue): bool {
+        return ($this->metadata[$key] ?? null) === $expectedValue;
+    }
+
+    /**
+     * Check if a metadata key is set to true (boolean or truthy)
+     */
+    public function metadataIsTrue(string $key): bool {
+        return !empty($this->metadata[$key]);
+    }
+
+    /**
+     * Check if a metadata key is set to false (boolean false or falsy)
+     */
+    public function metadataIsFalse(string $key): bool {
+        return empty($this->metadata[$key]);
+    }
+
+    /**
+     * Check if this field should be stored in the database
+     * Convenience method for the common 'isDBField' check
+     */
+    public function isDBField(): bool {
+        // Default to true if not specified, false only if explicitly set to false
+        return $this->getMetadataValue('isDBField', true) !== false;
+    }
+
+    /**
+     * Check if this field is required
+     */
+    public function isRequired(): bool {
+        return $this->metadataIsTrue('required');
+    }
+
+    /**
+     * Check if this field is readonly
+     */
+    public function isReadonly(): bool {
+        return $this->metadataIsTrue('readonly');
+    }
+
+    /**
+     * Check if this field is unique
+     */
+    public function isUnique(): bool {
+        return $this->metadataIsTrue('unique');
+    }
 }

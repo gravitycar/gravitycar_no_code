@@ -292,4 +292,12 @@ class ServiceLocator {
 
         return $reflection->newInstanceArgs($dependencies);
     }
+
+    /**
+     * Initialize the service locator and container
+     */
+    public static function initialize(): void {
+        // This forces the container to be created and configured
+        self::getContainer();
+    }
 }
