@@ -24,7 +24,8 @@ abstract class FieldBase {
 
     public function __construct(array $metadata, Logger $logger) {
         if (empty($metadata['name'])) {
-            throw new GCException('Field metadata missing name', $logger);
+            throw new GCException('Field metadata missing name',
+                ['metadata' => $metadata]);
         }
         $this->name = $metadata['name'];
         $this->metadata = $metadata;

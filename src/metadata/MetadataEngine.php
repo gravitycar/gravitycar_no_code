@@ -19,8 +19,11 @@ class MetadataEngine {
     /** @var array */
     protected array $metadataCache = [];
 
-    public function __construct() {
-        $this->logger = new Logger(static::class);
+    public function __construct(Logger $logger, string $modelsDirPath = 'src/models', string $relationshipsDirPath = 'src/relationships', string $cacheDirPath = 'cache/') {
+        $this->logger = $logger;
+        $this->modelsDirPath = $modelsDirPath;
+        $this->relationshipsDirPath = $relationshipsDirPath;
+        $this->cacheDirPath = $cacheDirPath;
     }
 
     /**

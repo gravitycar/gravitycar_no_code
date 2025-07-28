@@ -21,10 +21,9 @@ class SchemaGenerator {
     /** @var Logger */
     protected Logger $logger;
 
-    public function __construct() {
-        $this->logger = new Logger(static::class);
-        $this->config = new Config();
-        $this->dbConnector = new DatabaseConnector();
+    public function __construct(Logger $logger, DatabaseConnector $dbConnector) {
+        $this->logger = $logger;
+        $this->dbConnector = $dbConnector;
     }
 
     /**
@@ -342,7 +341,8 @@ class SchemaGenerator {
                 $this->logger->info("Executed: " . $sql);
             } catch (\Exception $e) {
                 $this->logger->error("Failed to execute: " . $sql . " - Error: " . $e->getMessage());
-                throw new GCException("Schema generation failed: " . $e->getMessage(), $this->logger);
+                throw new GCException("Schema generation failed: " . $e->getMessage(),
+                    ['sql' => $sql, 'error' => $e->getMessage()], 0, $e);
             }
         }
 

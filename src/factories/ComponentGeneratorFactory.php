@@ -45,7 +45,8 @@ class ComponentGeneratorFactory {
         $type = $metadata['type'] ?? 'Default';
         $className = $this->availableComponentGenerators[$type] ?? "Gravitycar\\ComponentGenerator\\DefaultComponentGenerator";
         if (!class_exists($className)) {
-            throw new GCException("Component generator class not found for type: $type", $this->logger);
+            throw new GCException("Component generator class not found for type: $type",
+                ['generator_type' => $type, 'expected_class' => $className]);
         }
         return new $className($metadata, $this->logger);
     }

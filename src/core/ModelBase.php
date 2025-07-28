@@ -33,8 +33,9 @@ abstract class ModelBase {
     /** @var string|null */
     protected ?string $deletedBy = null;
 
-    public function __construct() {
-        $this->logger = new Logger(static::class);
+    public function __construct(Logger $logger, array $metadata = []) {
+        $this->logger = $logger;
+        $this->metadata = $metadata;
         $this->ingestMetadata();
         $this->initializeFields();
         $this->initializeRelationships();
@@ -68,8 +69,14 @@ abstract class ModelBase {
             }
         }
 
-        if (empty($this->metadata)) {
-            throw new GCException('No metadata found for model ' . static::class, $this->logger);
+        if (empty($this->metadata['fields'])) {
+            throw new GCException('No metadata found for model ' . static::class,
+                ['model_class' => static::class]);
+        }
+
+        if (!is_array($this->metadata['fields'])) {
+            throw new GCException('Model metadata missing fields definition',
+                ['model_class' => static::class, 'metadata' => $this->metadata]);
         }
     }
 
@@ -78,7 +85,8 @@ abstract class ModelBase {
      */
     protected function initializeFields(): void {
         if (!isset($this->metadata['fields'])) {
-            throw new GCException('Model metadata missing fields definition', $this->logger);
+            throw new GCException('Model metadata missing fields definition',
+                ['model_class' => static::class, 'metadata' => $this->metadata]);
         }
 
         foreach ($this->metadata['fields'] as $fieldName => $fieldMeta) {
@@ -87,7 +95,8 @@ abstract class ModelBase {
                 $this->logger->warning("Field class $fieldClass does not exist for field $fieldName");
                 continue;
             }
-            $this->fields[$fieldName] = new $fieldClass($fieldMeta, $this->logger);
+            // Use ServiceLocator to create field with automatic dependency injection
+            $this->fields[$fieldName] = \Gravitycar\Core\ServiceLocator::createField($fieldClass, $fieldMeta);
         }
     }
 
@@ -210,7 +219,8 @@ abstract class ModelBase {
     public function set(string $fieldName, $value): void {
         $field = $this->getField($fieldName);
         if (!$field) {
-            throw new GCException("Field $fieldName not found in model", $this->logger);
+            throw new GCException("Field $fieldName not found in model",
+                ['field_name' => $fieldName, 'model_class' => static::class, 'available_fields' => array_keys($this->fields)]);
         }
         $field->setValue($value);
     }

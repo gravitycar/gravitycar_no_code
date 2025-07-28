@@ -52,6 +52,7 @@ cannot work out how to implement a model, ask for help.
 
 
 ## Coding Best Practices
+**Claude Code Instruction**: All classes defined in this project should be in the 'Gravitycar' namespace.
 
 - **Follow PSR Standards:** Adhere to PSR-1, PSR-4, and PSR-12 for PHP code style and autoloading.
 - **Type Declarations:** Use strict type declarations and type hints for all functions and methods.
@@ -153,7 +154,7 @@ function processUserInput($input) {
 
 **Claude Code Instruction**: Always treat any file path as if its from the root of the project. 
 
-
+**Claude Code Instruction**: When you define an array in a method, and the contents of the array are only used in that method and not intended to be changed programmatically, define the array as a constant at the top of the class.
 
 ## Critical Rules
 
@@ -180,6 +181,7 @@ function processUserInput($input) {
 7. Extract complex logic to separate functions
 8. Put business logic in models or API services
 9. Refer to file paths as "<some_name>FilePath" and directory names as "<some_name>DirPath" in code and comments.
+10. Handle dependencies internally where possible either via dependency injection or by instantiating them in the constructor. Don't pass dependencies as constructor arguments unless absolutely necessary.
 
 
 

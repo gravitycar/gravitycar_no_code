@@ -44,7 +44,8 @@ class ValidationRuleFactory {
     public function createValidationRule(string $ruleName): ValidationRuleBase {
         $className = $this->availableValidationRules[$ruleName] ?? null;
         if (!$className || !class_exists($className)) {
-            throw new GCException("Validation rule class not found for rule: $ruleName", $this->logger);
+            throw new GCException("Validation rule class not found for rule: $ruleName",
+                ['rule_name' => $ruleName, 'expected_class' => $className]);
         }
         return new $className($this->logger);
     }

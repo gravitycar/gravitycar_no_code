@@ -12,10 +12,13 @@ class Router {
     protected APIRouteRegistry $routeRegistry;
     /** @var Logger */
     protected Logger $logger;
+    /** @var \Gravitycar\Metadata\MetadataEngine */
+    protected $metadataEngine;
 
-    public function __construct() {
+    public function __construct(\Gravitycar\Metadata\MetadataEngine $metadataEngine, Logger $logger) {
         $this->routeRegistry = new APIRouteRegistry();
-        $this->logger = new Logger(static::class);
+        $this->logger = $logger;
+        $this->metadataEngine = $metadataEngine;
     }
 
     /**
@@ -30,19 +33,69 @@ class Router {
                 $handlerMethod = $info['handler'];
 
                 if (!class_exists($controllerClass)) {
-                    throw new GCException("API controller class not found: $controllerClass", $this->logger);
+                    throw new GCException("API controller class not found: $controllerClass",
+                        ['controller_class' => $controllerClass, 'route' => $route]);
                 }
 
                 $controller = new $controllerClass([], $this->logger);
                 if (!method_exists($controller, $handlerMethod)) {
-                    throw new GCException("Handler method not found: $handlerMethod in $controllerClass", $this->logger);
+                    throw new GCException("Handler method not found: $handlerMethod in $controllerClass",
+                        ['handler_method' => $handlerMethod, 'controller_class' => $controllerClass]);
                 }
 
                 return $controller->$handlerMethod($params);
             }
         }
 
-        throw new GCException("No matching route found for $method $path", $this->logger);
+        throw new GCException("No matching route found for $method $path",
+            ['method' => $method, 'path' => $path, 'available_routes' => array_keys($routes)]);
+    }
+
+    /**
+     * Handle incoming HTTP request
+     */
+    public function handleRequest(): void {
+        $method = $_SERVER['REQUEST_METHOD'];
+        $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+        $params = $this->getRequestParams();
+
+        $this->logger->info("Routing request: $method $path");
+
+        try {
+            $result = $this->route($method, $path, $params);
+
+            // Set content type and output result
+            header('Content-Type: application/json');
+            echo json_encode($result);
+
+        } catch (GCException $e) {
+            $this->logger->error("Routing error: " . $e->getMessage());
+            http_response_code(404);
+            echo json_encode(['error' => 'Route not found', 'message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Get request parameters from various sources
+     */
+    protected function getRequestParams(): array {
+        $params = [];
+
+        // GET parameters
+        $params = array_merge($params, $_GET);
+
+        // POST/PUT/PATCH body
+        if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'PATCH'])) {
+            $input = file_get_contents('php://input');
+            $jsonData = json_decode($input, true);
+            if ($jsonData) {
+                $params = array_merge($params, $jsonData);
+            } else {
+                $params = array_merge($params, $_POST);
+            }
+        }
+
+        return $params;
     }
 
     /**

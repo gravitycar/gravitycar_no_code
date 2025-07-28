@@ -3,14 +3,15 @@ namespace Gravitycar\Models;
 
 use Gravitycar\Core\ModelBase;
 use Gravitycar\Exceptions\GCException;
+use Monolog\Logger;
 
 /**
  * Installer model class for Gravitycar framework.
  * Handles the installation workflow and setup process.
  */
 class Installer extends ModelBase {
-    public function __construct() {
-        parent::__construct();
+    public function __construct(Logger $logger, array $metadata = []) {
+        parent::__construct($logger, $metadata);
     }
 
     /**
@@ -18,10 +19,16 @@ class Installer extends ModelBase {
      */
     public function runInstallation(array $dbCredentials, string $adminUsername): bool {
         try {
+            // Get services from container - no manual dependency passing needed!
+            $config = \Gravitycar\Core\ServiceLocator::getConfig();
+            $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
+            $metadataEngine = \Gravitycar\Core\ServiceLocator::getMetadataEngine();
+            $schemaGenerator = \Gravitycar\Core\ServiceLocator::getSchemaGenerator();
+
             // 1. Check if config file exists and is writable
-            $config = new \Gravitycar\Core\Config();
             if (!$config->configFileExists()) {
-                throw new GCException('Config file does not exist or is not writable for installation', $this->logger);
+                throw new GCException('Config file does not exist or is not writable for installation',
+                    ['config_file_path' => $config->getConfigFilePath()]);
             }
 
             // 2. Validate DB credentials and write config
@@ -29,17 +36,14 @@ class Installer extends ModelBase {
             $config->write();
 
             // 3. Create database if not exists
-            $dbConnector = new \Gravitycar\Database\DatabaseConnector();
             $dbConnector->createDatabaseIfNotExists();
 
             // 4. Load metadata and generate schema
-            $metadataEngine = new \Gravitycar\Metadata\MetadataEngine();
             $metadata = $metadataEngine->loadAllMetadata();
-            $schemaGenerator = new \Gravitycar\Schema\SchemaGenerator();
             $schemaGenerator->generateSchema($metadata);
 
             // 5. Create initial admin user
-            $usersModel = new \Gravitycar\models\users\Users();
+            $usersModel = \Gravitycar\Core\ServiceLocator::createModel(\Gravitycar\Models\Users\Users::class);
             $this->createInitialAdmin($usersModel, $adminUsername);
 
             // 6. Mark installation as complete

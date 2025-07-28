@@ -21,7 +21,7 @@ class OneToManyRelationship extends RelationshipBase {
             $this->logger->error("OneToMany relationship missing model_a or model_b");
             return false;
         }
-
+        
         return parent::validate();
     }
 }

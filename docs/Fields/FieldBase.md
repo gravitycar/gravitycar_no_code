@@ -1,7 +1,7 @@
-# FieldsBase
+# FieldBase
 
 ## Overview
-The FieldsBase class is the base class for all field types in the Gravitycar framework.
+The FieldBase class is the base class for all field types in the Gravitycar framework.
 It provides the common properties and methods that all field types must implement. This class is used to define the structure and behavior of fields in models and relationships. It's also used by the SchemaGenerator to generate the database schema based on the metadata files.
 The FieldBase class DOES NOT contain a property for the model it belongs to. Instead, 
 it is expected that the model will pass itself as the third parameter to the `set` method 

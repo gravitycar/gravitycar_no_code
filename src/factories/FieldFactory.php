@@ -45,9 +45,12 @@ class FieldFactory {
         $type = $metadata['type'] ?? 'Text';
         $className = $this->availableFieldTypes[$type] ?? "Gravitycar\\Fields\\TextField";
         if (!class_exists($className)) {
-            throw new GCException("Field class not found for type: $type", $this->logger);
+            throw new GCException("Field class not found for type: $type",
+                ['field_type' => $type, 'expected_class' => $className]);
         }
-        return new $className($metadata, $this->logger);
+        
+        // Use ServiceLocator to create field with proper dependencies
+        return \Gravitycar\Core\ServiceLocator::createField($className, $metadata);
     }
 
     /**

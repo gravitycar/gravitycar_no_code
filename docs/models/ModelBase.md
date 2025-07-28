@@ -22,6 +22,7 @@ Database fields should not be defined as properties of the ModelBase class, or o
 - `validationErrors`: [] - An array of validation error messages. This is used to store any validation errors that occur when validating the model's fields.
 - `coreFieldsMetadataFilePath`: '' - The file path to the core fields metadata file. This file contains the definitions of the core fields that are used by all models. The metadata for these core fields should be stored in a separate metadata file, which is loaded when the model is instantiated.
 - `validationStatus`: 'pending' - The validation status of the model. This can be 'pending', 'passed', or 'failed'. It is used to track the validation state of all of the model's fields. If any field fails validation the validation status should be set to 'failed'. If all fields pass validation, the validation status should be set to 'passed'. If no validation has been performed yet, the validation status should be set to 'pending'. If any field's value is changed, the validation status should be set to 'pending'.
+
 ## Methods, their return types and descriptions
 - `getMetaDataFilePaths`: function(): array returns an array of these file paths for the metadata files: this->coreFieldsMetadataFilePath and `src/Models/{modelName}/metadata.php`
   - Returns an array of file paths for the field files associated with the model. All models start with the same set of fields, which will be stored in the same location
@@ -97,21 +98,19 @@ Database fields should not be defined as properties of the ModelBase class, or o
   - This method will NOT prepare the SQL UPDATE statement. That's done by the DatabaseConnector class.
   - Should be called after the model's fields have been populated and validated. The `populateFromRequest` method will set the fields values using each field's `set` method, which will validate the values.
   - If the model's `id` field is not set, it should throw a GCException with a descriptive error message.
-  - Set the `updated_by` field to the current user's ID, and update the `updated_at` field to the current timestamp.`
+  - Set the `updated_by` field to the current user's ID, and update the `updated_at` field to the current timestamp.
   - This method will confirm that all the model's fields have been validated and that there are no validation errors in the `validationErrors` array.
   - If there are validation errors, the record will not be updated, and the method should return false.
   - If there are no validation errors, the model will pass itself to `db->update()` and return the value of that method.
 - `delete(): bool`
-  - Performs a soft delete on the existing record in the database for the model.
+  - Soft-deletes the record in the database by setting the `deleted_at` timestamp and `deleted_by` user ID.
   - This method will NOT prepare the SQL UPDATE statement. That's done by the DatabaseConnector class.
-  - Should be called after confirming that the model's `id` field is set.
   - If the model's `id` field is not set, it should throw a GCException with a descriptive error message.
-  - Set the `deleted_by` field to the current user's ID, and update the `deleted_at` field to the current timestamp.
-  - This method will pass itself to `db->softDelete()` and return the value of that method. Note: this is an update, a soft-delete, not a hard delete.
-  - If the update fails, it should throw a GCException with a descriptive error message.
-- `retrieve(string $id): bool`
-  - Retrieves a record from the database by its ID and populates the model's fields with the retrieved data.
-  - This method will NOT prepare the SQL SELECT statement. That's done by the DatabaseConnector class.
-  - It should set the `id` field to `$id` and then call `db->retrieve($this)`.
-  - If the record is found, it should populate the model's fields with the retrieved data and set `recordExistsInDb` to true. If not found, it should set `recordExistsInDb` to false.
-  - If any error occurs during this process, it should throw a GCException with a descriptive error message.`
+  - Set the `deleted_by` field to the current user's ID, and the `deleted_at` field to the current timestamp.
+  - The model will pass itself to `db->update()` and return the value of that method.
+- `restore(): bool`
+  - Restores a soft-deleted record by setting the `deleted_at` field to null and `deleted_by` to null.
+  - This method will NOT prepare the SQL UPDATE statement. That's done by the DatabaseConnector class.
+  - If the model's `id` field is not set, it should throw a GCException with a descriptive error message.
+  - Set the `deleted_at` field and `deleted_by` field to null, and update the `updated_at` field to the current timestamp.
+  - The model will pass itself to `db->update()` and return the value of that method.

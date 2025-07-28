@@ -16,8 +16,8 @@ class Config {
     /** @var Logger */
     protected Logger $logger;
 
-    public function __construct() {
-        $this->logger = new Logger(static::class);
+    public function __construct(Logger $logger) {
+        $this->logger = $logger;
         $this->loadConfig();
     }
 
@@ -26,11 +26,13 @@ class Config {
      */
     protected function loadConfig(): void {
         if (!file_exists($this->configFilePath)) {
-            throw new GCException('Config file not found', $this->logger);
+            throw new GCException('Config file not found',
+                ['config_file_path' => $this->configFilePath]);
         }
         $config = include $this->configFilePath;
         if (!is_array($config)) {
-            throw new GCException('Config file is not a valid array', $this->logger);
+            throw new GCException('Config file is not a valid array',
+                ['config_file_path' => $this->configFilePath, 'config_type' => gettype($this->config)]);
         }
         $this->config = $config;
     }
@@ -72,7 +74,8 @@ class Config {
     public function write(): void {
         $content = '<?php return ' . var_export($this->config, true) . ';';
         if (file_put_contents($this->configFilePath, $content) === false) {
-            throw new GCException('Failed to write config file', $this->logger);
+            throw new GCException('Failed to write config file',
+                ['config_file_path' => $this->configFilePath, 'file_writable' => is_writable($this->configFilePath)]);
         }
     }
 

@@ -17,17 +17,9 @@ class DatabaseConnector {
     /** @var Connection|null */
     protected ?Connection $connection = null;
 
-    public function __construct() {
-        $this->logger = new Logger(static::class);
-        $this->loadDbParams();
-    }
-
-    /**
-     * Load database parameters from Config
-     */
-    protected function loadDbParams(): void {
-        $config = new \Gravitycar\Core\Config();
-        $this->dbParams = $config->getDatabaseParams();
+    public function __construct(Logger $logger, array $dbParams) {
+        $this->logger = $logger;
+        $this->dbParams = $dbParams;
     }
 
     /**
@@ -38,7 +30,8 @@ class DatabaseConnector {
             try {
                 $this->connection = DriverManager::getConnection($this->dbParams);
             } catch (\Exception $e) {
-                throw new GCException('Database connection failed: ' . $e->getMessage(), $this->logger);
+                throw new GCException('Database connection failed: ' . $e->getMessage(),
+                    ['db_params' => $this->dbParams, 'error' => $e->getMessage()], 0, $e);
             }
         }
         return $this->connection;
@@ -78,7 +71,8 @@ class DatabaseConnector {
     public function createDatabaseIfNotExists(): bool {
         $dbName = $this->dbParams['dbname'] ?? null;
         if (!$dbName) {
-            throw new GCException('Database name not specified in config', $this->logger);
+            throw new GCException('Database name not specified in config',
+                ['db_params' => $this->dbParams]);
         }
         try {
             $params = $this->dbParams;
