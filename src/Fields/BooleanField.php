@@ -19,11 +19,6 @@ class BooleanField extends FieldBase {
 
     public function __construct(array $metadata, Logger $logger) {
         parent::__construct($metadata, $logger);
-        $this->label = $metadata['label'] ?? $metadata['name'] ?? '';
-        $this->required = $metadata['required'] ?? false;
-        $this->defaultValue = $metadata['defaultValue'] ?? null;
-        $this->trueLabel = $metadata['trueLabel'] ?? 'Yes';
-        $this->falseLabel = $metadata['falseLabel'] ?? 'No';
-        $this->displayAs = $metadata['displayAs'] ?? 'checkbox';
+        // ingestMetadata() in parent constructor now handles all property assignments
     }
 }

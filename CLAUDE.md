@@ -71,6 +71,7 @@ cannot work out how to implement a model, ask for help.
 - **Avoid Global State:** Minimize the use of global variables and singletons.
 - **Use Composer:** Manage dependencies using Composer. Avoid including libraries manually.
 - **Naming Conventions:** Use descriptive names for classes, methods, and variables. Follow camelCase for variables/methods and PascalCase for classes.
+- **Method signatures:** IMPORTANT: always use type hints for all method arguments. Keep method signatures simple. Avoid methods with more than 3 parameters. Use value objects or arrays to group related parameters.
 
 ## Examples of bad practices to avoid and good practices to follow
 ### Excessive Complexity Examples

@@ -22,24 +22,17 @@ class RadioButtonSetField extends FieldBase {
 
     public function __construct(array $metadata, Logger $logger) {
         parent::__construct($metadata, $logger);
-        $this->label = $metadata['label'] ?? $metadata['name'] ?? '';
-        $this->required = $metadata['required'] ?? false;
-        $this->className = $metadata['optionsClass'] ?? '';
-        $this->methodName = $metadata['optionsMethod'] ?? '';
-        $this->defaultValue = $metadata['defaultValue'] ?? null;
-        $this->layout = $metadata['layout'] ?? 'vertical';
-        $this->allowClear = $metadata['allowClear'] ?? false;
-        $this->clearLabel = $metadata['clearLabel'] ?? 'None';
+        // ingestMetadata() in parent constructor now handles all property assignments
 
-        if (isset($metadata['options'])) {
-            $this->options = $metadata['options'];
-        } else {
-            $this->loadOptions();
-        }
+        // Special handling for options loading after properties are set
+        $this->loadOptions();
     }
 
     protected function loadOptions(): void {
-        if ($this->className && $this->methodName && class_exists($this->className) && method_exists($this->className, $this->methodName)) {
+        // Handle static options or dynamic options
+        if (isset($this->metadata['options'])) {
+            $this->options = $this->metadata['options'];
+        } elseif ($this->className && $this->methodName && class_exists($this->className) && method_exists($this->className, $this->methodName)) {
             $this->options = call_user_func([$this->className, $this->methodName]);
         } else {
             $this->options = [];

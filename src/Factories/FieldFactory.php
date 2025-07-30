@@ -2,6 +2,7 @@
 namespace Gravitycar\Factories;
 
 use Gravitycar\Core\FieldBase;
+use Gravitycar\Core\ModelBase;
 use Monolog\Logger;
 use Gravitycar\Exceptions\GCException;
 
@@ -10,12 +11,15 @@ use Gravitycar\Exceptions\GCException;
  * Discovers available field types and instantiates them dynamically.
  */
 class FieldFactory {
+    /** @var ModelBase */
+    protected ModelBase $model;
     /** @var Logger */
     protected Logger $logger;
     /** @var array */
     protected array $availableFieldTypes = [];
 
-    public function __construct(Logger $logger) {
+    public function __construct(ModelBase $model, Logger $logger) {
+        $this->model = $model;
         $this->logger = $logger;
         $this->discoverFieldTypes();
     }
@@ -50,7 +54,12 @@ class FieldFactory {
         }
         
         // Use ServiceLocator to create field with proper dependencies
-        return \Gravitycar\Core\ServiceLocator::createField($className, $metadata);
+        $field = \Gravitycar\Core\ServiceLocator::createField($className, $metadata);
+
+        // Set the table name from the model
+        $field->setTableName($this->model->getTableName());
+
+        return $field;
     }
 
     /**

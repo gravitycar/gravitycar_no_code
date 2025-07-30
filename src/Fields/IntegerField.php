@@ -21,13 +21,6 @@ class IntegerField extends FieldBase {
 
     public function __construct(array $metadata, Logger $logger) {
         parent::__construct($metadata, $logger);
-        $this->label = $metadata['label'] ?? $metadata['name'] ?? '';
-        $this->required = $metadata['required'] ?? false;
-        $this->defaultValue = $metadata['defaultValue'] ?? null;
-        $this->minValue = $metadata['minValue'] ?? null;
-        $this->maxValue = $metadata['maxValue'] ?? null;
-        $this->allowNegative = $metadata['allowNegative'] ?? true;
-        $this->step = $metadata['step'] ?? 1;
-        $this->placeholder = $metadata['placeholder'] ?? 'Enter a number';
+        // ingestMetadata() in parent constructor now handles all property assignments
     }
 }

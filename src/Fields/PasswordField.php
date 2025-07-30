@@ -20,12 +20,6 @@ class PasswordField extends FieldBase {
 
     public function __construct(array $metadata, Logger $logger) {
         parent::__construct($metadata, $logger);
-        $this->label = $metadata['label'] ?? $metadata['name'] ?? '';
-        $this->required = $metadata['required'] ?? true;
-        $this->maxLength = $metadata['maxLength'] ?? 100;
-        $this->minLength = $metadata['minLength'] ?? 8;
-        $this->showButton = $metadata['showButton'] ?? true;
-        $this->placeholder = $metadata['placeholder'] ?? 'Enter password';
-        $this->hashOnSave = $metadata['hashOnSave'] ?? true;
+        // ingestMetadata() in parent constructor now handles all property assignments
     }
 }

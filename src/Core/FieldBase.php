@@ -1,6 +1,7 @@
 <?php
 namespace Gravitycar\Core;
 
+use Gravitycar\Validation\ValidationRuleBase;
 use Monolog\Logger;
 use Gravitycar\Exceptions\GCException;
 
@@ -17,23 +18,36 @@ abstract class FieldBase {
     protected $originalValue;
     /** @var array */
     protected array $metadata;
-    /** @var array */
+    /** @var ValidationRuleBase[] */
     protected array $validationRules = [];
+    /** @var array */
+    protected array $validationErrors = [];
     /** @var Logger */
     protected Logger $logger;
+    /** @var string */
+    protected string $tableName = '';
 
     public function __construct(array $metadata, Logger $logger) {
         if (empty($metadata['name'])) {
             throw new GCException('Field metadata missing name',
                 ['metadata' => $metadata]);
         }
-        $this->name = $metadata['name'];
-        $this->metadata = $metadata;
         $this->logger = $logger;
-        $this->value = $metadata['defaultValue'] ?? null;
+
+        // Use ingestMetadata to automatically populate properties from metadata
+        $this->ingestMetadata($metadata);
+
+        // Set up validation rules after metadata ingestion
+        $this->setUpValidationRules();
+
+        // Set default value from trusted source (metadata) without validation
+        $defaultValue = $metadata['defaultValue'] ?? null;
+        $this->setValueFromTrustedSource($defaultValue);
         $this->originalValue = $this->value;
-        $this->validationRules = $metadata['validationRules'] ?? [];
     }
+
+
+
 
     public function getName(): string {
         return $this->name;
@@ -49,20 +63,232 @@ abstract class FieldBase {
         $this->validate();
     }
 
-    public function validate(): bool {
-        foreach ($this->validationRules as $ruleName) {
-            $ruleClass = "\\Gravitycar\\Validation\\" . $ruleName . "Validation";
-            if (!class_exists($ruleClass)) {
-                $this->logger->warning("Validation rule class $ruleClass does not exist for field {$this->name}");
+    /**
+     * Set field value from a trusted source (e.g., database) without validation
+     * Use this method when loading data from trusted sources where validation
+     * has already been performed or is not needed (like database records)
+     */
+    public function setValueFromTrustedSource($value): void {
+        $this->originalValue = $this->value;
+        $this->value = $value;
+        // No validation performed - data is from trusted source
+    }
+
+    /**
+     * Set the table name for this field
+     */
+    public function setTableName(string $tableName): void {
+        $this->tableName = $tableName;
+    }
+
+    /**
+     * Get the table name for this field
+     */
+    public function getTableName(): string {
+        return $this->tableName;
+    }
+
+    /**
+     * Set up validation rules by converting rule names to instantiated objects
+     */
+    protected function setUpValidationRules(): void {
+        if (empty($this->validationRules)) {
+            return;
+        }
+
+        $validationRuleFactory = \Gravitycar\Core\ServiceLocator::get('Gravitycar\Factories\ValidationRuleFactory');
+        $instantiatedRules = [];
+
+        foreach ($this->validationRules as $index => $rule) {
+            // Skip if already an object (already instantiated)
+            if (is_object($rule)) {
+                $instantiatedRules[$index] = $rule;
                 continue;
             }
-            $rule = new $ruleClass($this->logger);
-            if (!$rule->validate($this->value)) {
-                $this->logger->error("Validation failed for field {$this->name} with rule $ruleName");
-                return false;
+
+            // Convert string rule name to instantiated validation rule object
+            if (is_string($rule)) {
+                try {
+                    $ruleObject = $validationRuleFactory->createValidationRule($rule);
+                    
+                    // Set field context on the validation rule
+                    $ruleObject->setField($this);
+                    
+                    $instantiatedRules[$index] = $ruleObject;
+                    
+                    $this->logger->debug("Validation rule '{$rule}' instantiated successfully for field '{$this->name}'");
+                } catch (\Exception $e) {
+                    $this->logger->error("Failed to instantiate validation rule '{$rule}' for field '{$this->name}': " . $e->getMessage(), [
+                        'field_name' => $this->name,
+                        'rule_name' => $rule,
+                        'error' => $e->getMessage()
+                    ]);
+                    
+                    // Continue with other rules even if one fails
+                    continue;
+                }
             }
         }
-        return true;
+
+        // Replace the validationRules array with instantiated objects
+        $this->validationRules = $instantiatedRules;
+    }
+
+    /**
+     * Ingest metadata into field properties using reflection for type safety
+     */
+    protected function ingestMetadata(array $metadata): void {
+        $this->metadata = $metadata;
+        $reflection = new \ReflectionClass($this);
+
+        foreach ($metadata as $key => $value) {
+            // Skip if property doesn't exist
+            if (!property_exists($this, $key)) {
+                continue;
+            }
+
+            try {
+                $property = $reflection->getProperty($key);
+                $type = $property->getType();
+
+                if (!$type) {
+                    // No type hint, set directly
+                    $this->$key = $value;
+                    continue;
+                }
+
+                $expectedType = $type->getName();
+
+                // Handle nullable types
+                if ($value === null && $type->allowsNull()) {
+                    $this->$key = null;
+                    continue;
+                }
+
+                // Type validation and conversion
+                if ($this->isCompatibleType($value, $expectedType)) {
+                    $this->$key = $this->convertToType($value, $expectedType);
+                } else {
+                    $this->logger->warning("Type mismatch for property {$key}", [
+                        'field_name' => $this->name ?? 'unknown',
+                        'expected_type' => $expectedType,
+                        'actual_type' => gettype($value),
+                        'value' => $value
+                    ]);
+                }
+
+            } catch (\ReflectionException $e) {
+                $this->logger->error("Reflection error for property {$key}: " . $e->getMessage(), [
+                    'field_name' => $this->name ?? 'unknown',
+                    'property' => $key,
+                    'error' => $e->getMessage()
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Check if a value is compatible with the expected type
+     */
+    private function isCompatibleType($value, string $expectedType): bool {
+        $actualType = gettype($value);
+
+        // Direct type matches
+        $typeMap = [
+            'string' => 'string',
+            'integer' => 'int',
+            'double' => 'float',
+            'boolean' => 'bool',
+            'array' => 'array'
+        ];
+
+        $mappedType = $typeMap[$actualType] ?? $actualType;
+
+        if ($mappedType === $expectedType) {
+            return true;
+        }
+
+        // Check if value can be converted
+        switch ($expectedType) {
+            case 'string':
+                return is_scalar($value);
+            case 'int':
+                return is_numeric($value);
+            case 'float':
+                return is_numeric($value);
+            case 'bool':
+                return is_scalar($value);
+            case 'array':
+                return is_array($value) || is_object($value);
+            default:
+                // For class types, check with instanceof
+                return is_object($value) && is_a($value, $expectedType);
+        }
+    }
+
+    /**
+     * Convert a value to the specified type
+     */
+    private function convertToType($value, string $expectedType) {
+        switch ($expectedType) {
+            case 'string':
+                return (string) $value;
+            case 'int':
+                return (int) $value;
+            case 'float':
+                return (float) $value;
+            case 'bool':
+                return (bool) $value;
+            case 'array':
+                return is_array($value) ? $value : (array) $value;
+            default:
+                return $value; // Return as-is for object types
+        }
+    }
+
+    /**
+     * Register a validation error for this field
+     */
+    public function registerValidationError(string $error): void {
+        $this->validationErrors[] = $error;
+    }
+
+    /**
+     * Get all validation errors for this field
+     */
+    public function getValidationErrors(): array {
+        return $this->validationErrors;
+    }
+
+    public function validate(): bool {
+        // Clear previous validation errors
+        $this->validationErrors = [];
+
+        $isValid = true;
+
+        foreach ($this->validationRules as $rule) {
+            // Ensure the rule is a ValidationRuleBase instance
+            if (!$rule instanceof \Gravitycar\Validation\ValidationRuleBase) {
+                $this->logger->warning("Invalid validation rule type found for field '{$this->name}'", [
+                    'rule_type' => gettype($rule),
+                    'rule_class' => is_object($rule) ? get_class($rule) : 'not_object'
+                ]);
+                continue;
+            }
+
+            // Call the rule's validate method with the field's current value
+            if (!$rule->validate($this->getValue())) {
+                // Get the formatted error message from the rule
+                $errorMessage = $rule->getFormatErrorMessage();
+
+                // Register the validation error
+                $this->registerValidationError($errorMessage);
+
+                $isValid = false;
+            }
+        }
+
+        return $isValid;
     }
 
     /**

@@ -125,4 +125,3 @@ return [
         'createFields' => ['username', 'password', 'email', 'first_name', 'last_name', 'user_type', 'user_timezone'],
     ],
 ];
-

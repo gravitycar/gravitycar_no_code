@@ -17,9 +17,6 @@ class IDField extends FieldBase {
 
     public function __construct(array $metadata, Logger $logger) {
         parent::__construct($metadata, $logger);
-        $this->label = $metadata['label'] ?? $metadata['name'] ?? 'ID';
-        $this->required = $metadata['required'] ?? true;
-        $this->unique = $metadata['unique'] ?? true;
-        $this->readOnly = $metadata['readOnly'] ?? true;
+        // ingestMetadata() in parent constructor now handles all property assignments
     }
 }

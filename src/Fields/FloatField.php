@@ -24,16 +24,6 @@ class FloatField extends FieldBase {
 
     public function __construct(array $metadata, Logger $logger) {
         parent::__construct($metadata, $logger);
-        $this->label = $metadata['label'] ?? $metadata['name'] ?? '';
-        $this->required = $metadata['required'] ?? false;
-        $this->defaultValue = $metadata['defaultValue'] ?? null;
-        $this->minValue = $metadata['minValue'] ?? null;
-        $this->maxValue = $metadata['maxValue'] ?? null;
-        $this->allowNegative = $metadata['allowNegative'] ?? true;
-        $this->precision = $metadata['precision'] ?? 2;
-        $this->step = $metadata['step'] ?? 0.01;
-        $this->placeholder = $metadata['placeholder'] ?? 'Enter a decimal number';
-        $this->showSpinners = $metadata['showSpinners'] ?? true;
-        $this->formatDisplay = $metadata['formatDisplay'] ?? false;
+        // ingestMetadata() in parent constructor now handles all property assignments
     }
 }

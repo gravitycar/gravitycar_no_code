@@ -16,8 +16,6 @@ class DateTimeField extends FieldBase {
 
     public function __construct(array $metadata, Logger $logger) {
         parent::__construct($metadata, $logger);
-        $this->label = $metadata['label'] ?? $metadata['name'] ?? '';
-        $this->required = $metadata['required'] ?? false;
-        $this->maxLength = $metadata['maxLength'] ?? 19;
+        // ingestMetadata() in parent constructor now handles all property assignments
     }
 }

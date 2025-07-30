@@ -9,7 +9,6 @@ use Gravitycar\Core\Config;
 use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Metadata\MetadataEngine;
 use Gravitycar\Schema\SchemaGenerator;
-use Gravitycar\Factories\FieldFactory;
 use Gravitycar\Factories\ValidationRuleFactory;
 use Exception;
 
@@ -179,11 +178,10 @@ class ContainerConfig {
      * Configure factory services
      */
     private static function configureFactories(Container $di): void {
-        // FieldFactory - singleton
-        $di->set('field_factory', $di->lazyNew(FieldFactory::class, [
-            'logger' => $di->lazyGet('logger')
-        ]));
-
+        // FieldFactory - Note: This is now created per-model, not as a singleton
+        // Individual models will create their own FieldFactory instances as needed
+        // The container can still create instances when requested with parameters
+        
         // ValidationRuleFactory - singleton
         $di->set('validation_rule_factory', $di->lazyNew(ValidationRuleFactory::class, [
             'logger' => $di->lazyGet('logger')
@@ -356,7 +354,6 @@ class ContainerConfig {
             'Gravitycar\\Core\\Config' => 'config',
             'Gravitycar\\Database\\DatabaseConnector' => 'database_connector',
             'Gravitycar\\Metadata\\MetadataEngine' => 'metadata_engine',
-            'Gravitycar\\Factories\\FieldFactory' => 'field_factory',
             'Gravitycar\\Factories\\ValidationRuleFactory' => 'validation_rule_factory',
         ];
 

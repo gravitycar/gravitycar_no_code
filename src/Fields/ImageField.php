@@ -22,14 +22,6 @@ class ImageField extends FieldBase {
 
     public function __construct(array $metadata, Logger $logger) {
         parent::__construct($metadata, $logger);
-        $this->label = $metadata['label'] ?? $metadata['name'] ?? '';
-        $this->required = $metadata['required'] ?? false;
-        $this->maxLength = $metadata['maxLength'] ?? 500;
-        $this->width = $metadata['width'] ?? null;
-        $this->height = $metadata['height'] ?? null;
-        $this->altText = $metadata['altText'] ?? '';
-        $this->allowLocal = $metadata['allowLocal'] ?? true;
-        $this->allowRemote = $metadata['allowRemote'] ?? true;
-        $this->placeholder = $metadata['placeholder'] ?? 'Enter image path or URL';
+        // ingestMetadata() in parent constructor now handles all property assignments
     }
 }

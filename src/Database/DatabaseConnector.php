@@ -17,6 +17,8 @@ class DatabaseConnector {
     protected Logger $logger;
     /** @var Connection|null */
     protected ?Connection $connection = null;
+    /** @var int */
+    protected int $joinCounter = 0;
 
     public function __construct(Logger $logger, array $dbParams) {
         $this->logger = $logger;
@@ -344,31 +346,66 @@ class DatabaseConnector {
     /**
      * Find records by criteria
      */
-    public function find(string $modelClass, array $criteria = [], array $orderBy = [], int $limit = null, int $offset = null): array {
+    public function find(string $modelClass, array $criteria = [], array $fields = [], array $parameters = []): array {
         try {
             $conn = $this->getConnection();
             $queryBuilder = $conn->createQueryBuilder();
 
-            // Create a temporary model instance to get table name
+            // Create a temporary model instance to get table name and fields
             $tempModel = ServiceLocator::get($modelClass);
             $tableName = $tempModel->getTableName();
+            $mainAlias = $tempModel->getAlias();
+            $modelFields = $tempModel->getFields();
 
-            $queryBuilder->select('*')->from($tableName);
+            // Start with main table using model's alias
+            $queryBuilder->from($tableName, $mainAlias);
 
-            // Add WHERE conditions
+            // Determine which fields to select
+            $fieldsToSelect = empty($fields) ? array_keys($modelFields) : $fields;
+
+            // Build SELECT clause and handle RelatedRecord joins
+            $selectFields = [];
+
+            foreach ($fieldsToSelect as $fieldName) {
+                $field = $modelFields[$fieldName] ?? null;
+
+                if (!$field) {
+                    $this->logger->warning("Field {$fieldName} not found in model {$modelClass}");
+                    continue;
+                }
+
+                if ($field instanceof \Gravitycar\Fields\RelatedRecordField) {
+                    // Handle RelatedRecord field with JOIN
+                    $relatedFields = $this->handleRelatedRecordField($queryBuilder, $tempModel, $field);
+                    $selectFields = array_merge($selectFields, $relatedFields);
+                } else {
+                    // Regular field - select from main table using alias
+                    $selectFields[] = "{$mainAlias}.{$fieldName}";
+                }
+            }
+
+            // Apply SELECT clause
+            $queryBuilder->select(implode(', ', $selectFields));
+
+            // Add WHERE conditions using main table alias
             foreach ($criteria as $field => $value) {
                 if (is_array($value)) {
-                    $queryBuilder->andWhere("$field IN (:$field)");
+                    $queryBuilder->andWhere("{$mainAlias}.{$field} IN (:{$field})");
                     $queryBuilder->setParameter($field, $value);
                 } else {
-                    $queryBuilder->andWhere("$field = :$field");
+                    $queryBuilder->andWhere("{$mainAlias}.{$field} = :{$field}");
                     $queryBuilder->setParameter($field, $value);
                 }
             }
 
-            // Add ORDER BY
+            // Handle parameters (orderBy, limit, offset)
+            $orderBy = $parameters['orderBy'] ?? [];
+            $limit = $parameters['limit'] ?? null;
+            $offset = $parameters['offset'] ?? null;
+
+            // Add ORDER BY using main table alias
             foreach ($orderBy as $field => $direction) {
-                $queryBuilder->orderBy($field, $direction);
+                $queryBuilder->orderBy("{$mainAlias}.{$field}", $direction);
             }
 
             // Add LIMIT and OFFSET
@@ -390,10 +427,13 @@ class DatabaseConnector {
                 $models[] = $model;
             }
 
-            $this->logger->debug('Models found', [
+            $this->logger->debug('Models found with joins', [
                 'model_class' => $modelClass,
                 'criteria' => $criteria,
-                'count' => count($models)
+                'selected_fields' => $fieldsToSelect,
+                'main_alias' => $mainAlias,
+                'count' => count($models),
+                'joins_applied' => $this->joinCounter
             ]);
 
             return $models;
@@ -439,11 +479,170 @@ class DatabaseConnector {
     /**
      * Populate a model from a database row
      */
-    protected function populateModelFromRow($model, array $row): void {
+    protected function populateModelFromRow(\Gravitycar\Core\ModelBase $model, array $row): void {
         foreach ($row as $fieldName => $value) {
             if ($model->hasField($fieldName)) {
-                $model->set($fieldName, $value);
+                $field = $model->getField($fieldName);
+                $field->setValueFromTrustedSource($value);
             }
         }
     }
+
+    /**
+     * Handle RelatedRecord field joins and select clauses
+     */
+    private function handleRelatedRecordField(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        $mainModel,
+        \Gravitycar\Fields\RelatedRecordField $field
+    ): array {
+        $selectFields = [];
+        $fieldName = $field->getName();
+        $mainAlias = $mainModel->getAlias();
+
+        try {
+            // Get the related model instance
+            $relatedModel = $field->getRelatedModel();
+
+        } catch (\Exception $e) {
+            // If we can't get the related model, just select the foreign key
+            $this->logger->warning("Failed to get related model for RelatedRecord field {$fieldName}: " . $e->getMessage());
+            $selectFields[] = "{$mainAlias}.{$fieldName}";
+            return $selectFields;
+        }
+
+        $joinAlias = "rel_{$this->joinCounter}";
+        $this->joinCounter++;
+
+        try {
+            // Add LEFT JOIN for related table
+            $queryBuilder->leftJoin(
+                $mainAlias,
+                $relatedModel->getTableName(),
+                $joinAlias,
+                "{$mainAlias}.{$fieldName} = {$joinAlias}.id"
+            );
+
+            // Add the foreign key field
+            $selectFields[] = "{$mainAlias}.{$fieldName}";
+
+            // Add concatenated display name from the related model
+            $concatDisplayName = $this->concatDisplayName($relatedModel, $field);
+            $selectFields[] = "{$concatDisplayName} as " . $field->getDisplayFieldName();
+
+            $this->logger->debug("Added RelatedRecord join", [
+                'field_name' => $fieldName,
+                'main_alias' => $mainAlias,
+                'related_model' => get_class($relatedModel),
+                'related_table' => $relatedModel->getTableName(),
+                'display_columns' => $relatedModel->getDisplayColumns(),
+                'join_alias' => $joinAlias
+            ]);
+
+        } catch (\Exception $e) {
+            $this->logger->warning("Failed to create join for RelatedRecord field {$fieldName}: " . $e->getMessage());
+            // Fall back to just selecting the foreign key
+            $selectFields[] = "{$mainAlias}.{$fieldName}";
+        }
+
+        return $selectFields;
+    }
+
+    /**
+     * Create SQL CONCAT() function call for related model display columns
+     */
+    private function concatDisplayName($relatedModel, \Gravitycar\Fields\RelatedRecordField $field): string {
+        try {
+            $displayColumns = $relatedModel->getDisplayColumns();
+            $fieldName = $field->getName();
+
+            if (empty($displayColumns)) {
+                // Fallback to 'name' if no display columns defined
+                return "COALESCE(rel_{$this->joinCounter}.name, '')";
+            }
+
+            if (count($displayColumns) === 1) {
+                // Single column - use COALESCE to handle NULL values
+                return "COALESCE(rel_{$this->joinCounter}.{$displayColumns[0]}, '')";
+            }
+
+            // Multiple columns - use CONCAT with COALESCE to handle NULL values
+            $concatParts = [];
+            foreach ($displayColumns as $column) {
+                $concatParts[] = "COALESCE(rel_{$this->joinCounter}.{$column}, '')";
+            }
+
+            // Join with spaces between columns, using CONCAT_WS to handle empty strings
+            return "CONCAT_WS(' ', " . implode(", ", $concatParts) . ")";
+
+        } catch (\Exception $e) {
+            $this->logger->warning("Failed to create CONCAT for RelatedRecord field {$field->getName()}: " . $e->getMessage());
+            // Fallback to simple name field with NULL handling
+            return "COALESCE(rel_{$this->joinCounter}.name, '')";
+        }
+    }
+
+    /**
+     * Check if a record exists in a table where a specific field has a specific value
+     * Used for validation to ensure field values exist in their target tables
+     */
+    public function recordExists(\Gravitycar\Core\FieldBase $field, $value): bool {
+        // Skip validation for null or empty values
+        if ($value === null || $value === '') {
+            return true;
+        }
+
+        // Field must have a table name set
+        $tableName = $field->getTableName();
+        if (empty($tableName)) {
+            throw new GCException('Field must have a table name set to check record existence', [
+                'field_name' => $field->getName(),
+                'field_type' => get_class($field),
+                'value' => $value
+            ]);
+        }
+
+        try {
+            // Check if value exists in the field's table
+            $conn = $this->getConnection();
+            $queryBuilder = $conn->createQueryBuilder();
+
+            $queryBuilder
+                ->select('COUNT(*) as count')
+                ->from($tableName)
+                ->where($field->getName() . ' = :value')
+                ->setParameter('value', $value);
+
+            $result = $queryBuilder->executeQuery();
+            $count = $result->fetchOne();
+
+            $exists = $count > 0;
+
+            $this->logger->debug('Field value existence check completed', [
+                'field_name' => $field->getName(),
+                'field_type' => get_class($field),
+                'table_name' => $tableName,
+                'field_value' => $value,
+                'exists' => $exists
+            ]);
+
+            return $exists;
+
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to check record existence for field validation', [
+                'field_name' => $field->getName(),
+                'field_type' => get_class($field),
+                'table_name' => $tableName,
+                'field_value' => $value,
+                'error' => $e->getMessage()
+            ]);
+
+            // Re-throw as GCException for consistent error handling
+            throw new GCException('Record existence check failed: ' . $e->getMessage(), [
+                'field_name' => $field->getName(),
+                'value' => $value
+            ], 0, $e);
+        }
+    }
+
 }

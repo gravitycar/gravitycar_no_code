@@ -47,7 +47,9 @@ class ValidationRuleFactory {
             throw new GCException("Validation rule class not found for rule: $ruleName",
                 ['rule_name' => $ruleName, 'expected_class' => $className]);
         }
-        return new $className($this->logger);
+
+        // Use ServiceLocator to create validation rule with proper dependencies
+        return \Gravitycar\Core\ServiceLocator::create($className);
     }
 
     /**

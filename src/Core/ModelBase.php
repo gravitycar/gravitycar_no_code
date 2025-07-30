@@ -89,14 +89,25 @@ abstract class ModelBase {
                 ['model_class' => static::class, 'metadata' => $this->metadata]);
         }
 
+        // Create FieldFactory instance and pass this model to it
+        $fieldFactory = new \Gravitycar\Factories\FieldFactory($this, $this->logger);
+
         foreach ($this->metadata['fields'] as $fieldName => $fieldMeta) {
-            $fieldClass = "\\Gravitycar\\Fields\\" . ($fieldMeta['type'] ?? 'Text') . "Field";
-            if (!class_exists($fieldClass)) {
-                $this->logger->warning("Field class $fieldClass does not exist for field $fieldName");
+            // Ensure field name is included in metadata
+            $fieldMeta['name'] = $fieldName;
+
+            try {
+                // Use FieldFactory to create field - it will automatically set table name
+                $this->fields[$fieldName] = $fieldFactory->createField($fieldMeta);
+            } catch (\Exception $e) {
+                $this->logger->warning("Failed to create field $fieldName: " . $e->getMessage(), [
+                    'field_name' => $fieldName,
+                    'field_metadata' => $fieldMeta,
+                    'model_class' => static::class,
+                    'error' => $e->getMessage()
+                ]);
                 continue;
             }
-            // Use ServiceLocator to create field with automatic dependency injection
-            $this->fields[$fieldName] = \Gravitycar\Core\ServiceLocator::createField($fieldClass, $fieldMeta);
         }
     }
 
@@ -322,32 +333,41 @@ abstract class ModelBase {
     /**
      * Find records by criteria
      */
-    public static function find(array $criteria = [], array $orderBy = [], int $limit = null, int $offset = null): array {
+    public static function find(array $criteria = [], array $fields = [], array $parameters = []): array {
         $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
-        return $dbConnector->find(static::class, $criteria, $orderBy, $limit, $offset);
+        return $dbConnector->find(static::class, $criteria, $fields, $parameters);
     }
 
     /**
      * Find a single record by ID
      */
-    public static function findById($id) {
+    public static function findById($id, array $fields = []) {
         $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
-        return $dbConnector->findById(static::class, $id);
+        $results = $dbConnector->find(static::class, ['id' => $id], $fields, ['limit' => 1]);
+        return empty($results) ? null : $results[0];
     }
 
     /**
      * Find the first record matching criteria
      */
-    public static function findFirst(array $criteria = [], array $orderBy = []) {
-        $results = static::find($criteria, $orderBy, 1);
+    public static function findFirst(array $criteria = [], array $fields = [], array $orderBy = []) {
+        $parameters = ['limit' => 1];
+        if (!empty($orderBy)) {
+            $parameters['orderBy'] = $orderBy;
+        }
+        $results = static::find($criteria, $fields, $parameters);
         return empty($results) ? null : $results[0];
     }
 
     /**
      * Find all records
      */
-    public static function findAll(array $orderBy = []): array {
-        return static::find([], $orderBy);
+    public static function findAll(array $fields = [], array $orderBy = []): array {
+        $parameters = [];
+        if (!empty($orderBy)) {
+            $parameters['orderBy'] = $orderBy;
+        }
+        return static::find([], $fields, $parameters);
     }
 
     /**
@@ -491,5 +511,62 @@ abstract class ModelBase {
      */
     public function getTableName(): string {
         return $this->metadata['table'] ?? strtolower(static::class);
+    }
+
+    /**
+     * Get alias for the model (defaults to table name)
+     * Can be overridden by subclasses if a different alias is needed
+     */
+    public function getAlias(): string {
+        return $this->getTableName();
+    }
+
+    /**
+     * Get display columns for UI representation
+     * Returns array of field names to display in lists or as related records
+     */
+    public function getDisplayColumns(): array {
+        $displayColumns = $this->metadata['displayColumns'] ?? ['name'];
+
+        // Ensure it's an array
+        if (!is_array($displayColumns)) {
+            $this->logger->warning("Model displayColumns should be an array, got " . gettype($displayColumns), [
+                'model_class' => static::class,
+                'display_columns' => $displayColumns
+            ]);
+            return ['name'];
+        }
+        
+        // Validate that the specified fields exist on this model
+        $validColumns = [];
+        foreach ($displayColumns as $column) {
+            if ($this->hasField($column)) {
+                $validColumns[] = $column;
+            } else {
+                $this->logger->warning("Display column '$column' does not exist as a field", [
+                    'model_class' => static::class,
+                    'missing_column' => $column,
+                    'available_fields' => array_keys($this->fields)
+                ]);
+            }
+        }
+        
+        // If no valid columns found, fall back to 'name' or first available field
+        if (empty($validColumns)) {
+            if ($this->hasField('name')) {
+                $validColumns = ['name'];
+            } else {
+                // Use the first available field as last resort
+                $fieldNames = array_keys($this->fields);
+                $validColumns = !empty($fieldNames) ? [$fieldNames[0]] : [];
+                
+                $this->logger->warning("No valid display columns found, using fallback", [
+                    'model_class' => static::class,
+                    'fallback_column' => $validColumns
+                ]);
+            }
+        }
+        
+        return $validColumns;
     }
 }
