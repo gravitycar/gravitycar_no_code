@@ -12,7 +12,33 @@ class RequiredValidation extends ValidationRuleBase {
     }
 
     public function validate($value): bool {
-        return !empty($value) || $value === '0' || $value === 0;
+        // Handle null explicitly
+        if ($value === null) {
+            return false;
+        }
+
+        // Handle empty string
+        if ($value === '') {
+            return false;
+        }
+
+        // Handle boolean false
+        if ($value === false) {
+            return false;
+        }
+
+        // Handle empty arrays
+        if (is_array($value) && empty($value)) {
+            return false;
+        }
+
+        // Special cases: string '0' and number 0 should be valid
+        if ($value === '0' || $value === 0 || $value === 0.0) {
+            return true;
+        }
+
+        // Everything else is valid
+        return true;
     }
 
     /**

@@ -1,5 +1,5 @@
 <?php
-namespace Gravitycar\Models;
+namespace Gravitycar\Models\installer;
 
 use Gravitycar\Core\ModelBase;
 use Gravitycar\Exceptions\GCException;

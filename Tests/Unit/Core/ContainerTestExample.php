@@ -1,5 +1,5 @@
 <?php
-namespace Gravitycar\Tests;
+namespace Gravitycar\Tests\Unit\Core;
 
 use PHPUnit\Framework\TestCase;
 use Gravitycar\Core\ServiceLocator;

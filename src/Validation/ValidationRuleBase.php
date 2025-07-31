@@ -3,8 +3,8 @@ namespace Gravitycar\Validation;
 
 use Monolog\Logger;
 use Gravitycar\Exceptions\GCException;
-use Gravitycar\Core\FieldBase;
-use Gravitycar\Core\ModelBase;
+use Gravitycar\Fields\FieldBase;
+use Gravitycar\Models\ModelBase;
 
 /**
  * Abstract base class for all validation rules in Gravitycar.

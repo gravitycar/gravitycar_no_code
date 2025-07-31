@@ -1,5 +1,5 @@
 <?php
-namespace Gravitycar\Core;
+namespace Gravitycar\Fields;
 
 use Gravitycar\Validation\ValidationRuleBase;
 use Monolog\Logger;
@@ -36,6 +36,9 @@ abstract class FieldBase {
 
         // Use ingestMetadata to automatically populate properties from metadata
         $this->ingestMetadata($metadata);
+
+        // Sync current property values back to metadata to include defaults
+        $this->syncPropertiesToMetadata();
 
         // Set up validation rules after metadata ingestion
         $this->setUpValidationRules();
@@ -182,6 +185,59 @@ abstract class FieldBase {
                     'field_name' => $this->name ?? 'unknown',
                     'property' => $key,
                     'error' => $e->getMessage()
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Sync current property values back to metadata after ingestion
+     */
+    protected function syncPropertiesToMetadata(): void {
+        $reflection = new \ReflectionClass($this);
+        $properties = $reflection->getProperties(\ReflectionProperty::IS_PROTECTED | \ReflectionProperty::IS_PRIVATE);
+
+        foreach ($properties as $property) {
+            $propertyName = $property->getName();
+
+            // Skip certain internal properties that shouldn't be in metadata
+            if (in_array($propertyName, ['value', 'originalValue', 'metadata', 'validationRules', 'validationErrors', 'logger', 'tableName'])) {
+                continue;
+            }
+
+            try {
+                $property->setAccessible(true);
+
+                // Check if the property is initialized before trying to access it
+                // This prevents errors with typed properties that haven't been set
+                if (!$property->isInitialized($this)) {
+                    // For uninitialized properties, only add to metadata if it was explicitly provided
+                    if (array_key_exists($propertyName, $this->metadata)) {
+                        // The metadata value is already there, no need to sync
+                        continue;
+                    } else {
+                        // Property is uninitialized and not in metadata, skip it
+                        continue;
+                    }
+                }
+
+                $currentValue = $property->getValue($this);
+
+                // Always sync the property value to metadata
+                // This ensures default values from field classes are included
+                $this->metadata[$propertyName] = $currentValue;
+
+            } catch (\ReflectionException $e) {
+                $this->logger->error("Reflection error for property {$propertyName} during sync: " . $e->getMessage(), [
+                    'field_name' => $this->name ?? 'unknown',
+                    'property' => $propertyName,
+                    'error' => $e->getMessage()
+                ]);
+            } catch (\Error $e) {
+                // Handle uninitialized typed property errors
+                $this->logger->debug("Property {$propertyName} is uninitialized, skipping sync", [
+                    'field_name' => $this->name ?? 'unknown',
+                    'property' => $propertyName
                 ]);
             }
         }

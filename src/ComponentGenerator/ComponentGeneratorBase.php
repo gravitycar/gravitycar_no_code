@@ -1,5 +1,5 @@
 <?php
-namespace Gravitycar\Core;
+namespace Gravitycar\ComponentGenerator;
 
 use Monolog\Logger;
 use Gravitycar\Exceptions\GCException;

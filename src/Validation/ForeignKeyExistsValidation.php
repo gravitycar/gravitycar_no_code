@@ -2,6 +2,8 @@
 namespace Gravitycar\Validation;
 
 use Gravitycar\Fields\RelatedRecordField;
+use Gravitycar\Fields\FieldBase;
+use Gravitycar\Models\ModelBase;
 use Gravitycar\Exceptions\GCException;
 use Monolog\Logger;
 
@@ -41,7 +43,7 @@ class ForeignKeyExistsValidation extends ValidationRuleBase {
         try {
             // Get the related field for validation
             $relatedField = $this->getRelatedField();
-
+            
             // Check if the foreign key exists
             return $this->checkForeignKeyExists($relatedField, $value);
 
@@ -69,7 +71,7 @@ class ForeignKeyExistsValidation extends ValidationRuleBase {
     /**
      * Get the related field for validation
      */
-    private function getRelatedField(): \Gravitycar\Core\FieldBase {
+    private function getRelatedField(): FieldBase {
         // Get the related model instance
         $relatedModelInstance = $this->field->getRelatedModelInstance();
 
@@ -91,7 +93,7 @@ class ForeignKeyExistsValidation extends ValidationRuleBase {
     /**
      * Check if the foreign key value exists in the related table
      */
-    private function checkForeignKeyExists(\Gravitycar\Core\FieldBase $relatedField, mixed $value): bool {
+    private function checkForeignKeyExists(FieldBase $relatedField, mixed $value): bool {
         // Use DatabaseConnector to check if record exists
         $databaseConnector = \Gravitycar\Core\ServiceLocator::get('Gravitycar\Database\DatabaseConnector');
         $exists = $databaseConnector->recordExists($relatedField, $value);
@@ -131,21 +133,21 @@ class ForeignKeyExistsValidation extends ValidationRuleBase {
     /**
      * Set the field object this validation rule is associated with
      */
-    public function setField(\Gravitycar\Core\FieldBase $field): void {
+    public function setField(FieldBase $field): void {
         $this->field = $field;
     }
 
     /**
      * Set the model object this validation rule is associated with
      */
-    public function setModel(\Gravitycar\Core\ModelBase $model): void {
+    public function setModel(ModelBase $model): void {
         $this->model = $model;
     }
 
     /**
      * Check if this validation rule is applicable
      */
-    public function isApplicable(mixed $value, \Gravitycar\Core\FieldBase $field, ?\Gravitycar\Core\ModelBase $model = null): bool {
+    public function isApplicable(mixed $value, FieldBase $field, ?ModelBase $model = null): bool {
         // Only apply to RelatedRecord fields
         if (!($field instanceof RelatedRecordField)) {
             return false;

@@ -1,10 +1,11 @@
 <?php
-namespace Gravitycar\Core;
+namespace Gravitycar\Models;
 
-use Gravitycar\Core\FieldBase;
-use Gravitycar\Core\ValidationRuleBase;
-use Gravitycar\Core\RelationshipBase;
+use Gravitycar\Fields\FieldBase;
+use Gravitycar\Validation\ValidationRuleBase;
+use Gravitycar\Relationships\RelationshipBase;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Core\ServiceLocator;
 use Monolog\Logger;
 
 /**
@@ -33,9 +34,16 @@ abstract class ModelBase {
     /** @var string|null */
     protected ?string $deletedBy = null;
 
-    public function __construct(Logger $logger, array $metadata = []) {
+    public function __construct(Logger $logger) {
         $this->logger = $logger;
-        $this->metadata = $metadata;
+        $this->metadata = []; // Initialize empty, will be populated by ingestMetadata
+        $this->initializeModel();
+    }
+
+    /**
+     * Initialize all model components in the correct order
+     */
+    protected function initializeModel(): void {
         $this->ingestMetadata();
         $this->initializeFields();
         $this->initializeRelationships();
@@ -58,25 +66,48 @@ abstract class ModelBase {
      */
     protected function ingestMetadata(): void {
         $metadataFiles = $this->getMetaDataFilePaths();
-        $this->metadata = [];
+        $loadedMetadata = $this->loadMetadataFromFiles($metadataFiles);
+        $this->metadata = $loadedMetadata;
+        $this->validateMetadata($this->metadata);
+    }
 
-        foreach ($metadataFiles as $file) {
+    /**
+     * Load metadata from multiple files and merge them
+     */
+    protected function loadMetadataFromFiles(array $filePaths): array {
+        $mergedMetadata = [];
+
+        foreach ($filePaths as $file) {
             if (file_exists($file)) {
                 $data = include $file;
                 if (is_array($data)) {
-                    $this->metadata = array_merge_recursive($this->metadata, $data);
+                    $mergedMetadata = $this->mergeMetadataArrays($mergedMetadata, $data);
                 }
             }
         }
 
-        if (empty($this->metadata['fields'])) {
+        return $mergedMetadata;
+    }
+
+    /**
+     * Merge two metadata arrays recursively
+     */
+    protected function mergeMetadataArrays(array $existing, array $new): array {
+        return array_merge_recursive($existing, $new);
+    }
+
+    /**
+     * Validate that required metadata is present and correctly formatted
+     */
+    protected function validateMetadata(array $metadata): void {
+        if (empty($metadata['fields'])) {
             throw new GCException('No metadata found for model ' . static::class,
                 ['model_class' => static::class]);
         }
 
-        if (!is_array($this->metadata['fields'])) {
+        if (!is_array($metadata['fields'])) {
             throw new GCException('Model metadata missing fields definition',
-                ['model_class' => static::class, 'metadata' => $this->metadata]);
+                ['model_class' => static::class, 'metadata' => $metadata]);
         }
     }
 
@@ -89,26 +120,44 @@ abstract class ModelBase {
                 ['model_class' => static::class, 'metadata' => $this->metadata]);
         }
 
-        // Create FieldFactory instance and pass this model to it
-        $fieldFactory = new \Gravitycar\Factories\FieldFactory($this, $this->logger);
+        // Create FieldFactory instance using DI system
+        $fieldFactory = \Gravitycar\Core\ServiceLocator::createFieldFactory($this);
 
         foreach ($this->metadata['fields'] as $fieldName => $fieldMeta) {
-            // Ensure field name is included in metadata
-            $fieldMeta['name'] = $fieldName;
-
-            try {
-                // Use FieldFactory to create field - it will automatically set table name
-                $this->fields[$fieldName] = $fieldFactory->createField($fieldMeta);
-            } catch (\Exception $e) {
-                $this->logger->warning("Failed to create field $fieldName: " . $e->getMessage(), [
-                    'field_name' => $fieldName,
-                    'field_metadata' => $fieldMeta,
-                    'model_class' => static::class,
-                    'error' => $e->getMessage()
-                ]);
-                continue;
+            $field = $this->createSingleField($fieldName, $fieldMeta, $fieldFactory);
+            if ($field !== null) {
+                $this->fields[$fieldName] = $field;
             }
         }
+    }
+
+    /**
+     * Create a single field with error handling
+     */
+    protected function createSingleField(string $fieldName, array $fieldMeta, $fieldFactory): ?FieldBase {
+        $preparedMetadata = $this->prepareFieldMetadata($fieldName, $fieldMeta);
+
+        try {
+            // Use FieldFactory to create field - it will automatically set table name
+            return $fieldFactory->createField($preparedMetadata);
+        } catch (\Exception $e) {
+            $this->logger->warning("Failed to create field $fieldName: " . $e->getMessage(), [
+                'field_name' => $fieldName,
+                'field_metadata' => $fieldMeta,
+                'model_class' => static::class,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Prepare field metadata with required field name
+     */
+    protected function prepareFieldMetadata(string $fieldName, array $fieldMeta): array {
+        // Ensure field name is included in metadata
+        $fieldMeta['name'] = $fieldName;
+        return $fieldMeta;
     }
 
     /**
@@ -280,71 +329,95 @@ abstract class ModelBase {
      * Create a new record in the database for the model
      */
     public function create(): bool {
-        // Check for validation errors first
-        if (!empty($this->getValidationErrors())) {
-            $this->logger->error('Cannot create model with validation errors', [
-                'model_class' => static::class,
-                'validation_errors' => $this->getValidationErrors()
-            ]);
+        if (!$this->validateForPersistence()) {
             return false;
         }
 
-        // Generate UUID for ID field if not set
-        if (!$this->get('id')) {
-            $this->set('id', $this->generateUuid());
-        }
-
-        // Set audit fields
+        $this->prepareIdForCreate();
         $this->setAuditFieldsForCreate();
 
-        // Delegate to DatabaseConnector
-        $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
-        return $dbConnector->create($this);
+        return $this->persistToDatabase('create');
     }
 
     /**
      * Update an existing record in the database for the model
      */
     public function update(): bool {
-        // Check for validation errors first
-        if (!empty($this->getValidationErrors())) {
-            $this->logger->error('Cannot update model with validation errors', [
-                'model_class' => static::class,
-                'validation_errors' => $this->getValidationErrors()
-            ]);
+        if (!$this->validateForPersistence()) {
             return false;
         }
 
-        // Ensure ID field is set
+        // Ensure ID field is set for updates
         if (!$this->get('id')) {
             throw new GCException('Cannot update model without ID field set', [
                 'model_class' => static::class
             ]);
         }
 
-        // Set audit fields
         $this->setAuditFieldsForUpdate();
 
-        // Delegate to DatabaseConnector
+        return $this->persistToDatabase('update');
+    }
+
+    /**
+     * Validate model before persistence operations
+     */
+    protected function validateForPersistence(): bool {
+        $validationErrors = $this->getValidationErrors();
+
+        if (!empty($validationErrors)) {
+            $this->logger->error('Cannot persist model with validation errors', [
+                'model_class' => static::class,
+                'validation_errors' => $validationErrors
+            ]);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Prepare ID field for create operation
+     */
+    protected function prepareIdForCreate(): void {
+        // Generate UUID for ID field if not set
+        if (!$this->get('id')) {
+            $this->set('id', $this->generateUuid());
+        }
+    }
+
+    /**
+     * Persist model to database using the specified operation
+     */
+    protected function persistToDatabase(string $operation): bool {
         $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
-        return $dbConnector->update($this);
+
+        return match($operation) {
+            'create' => $dbConnector->create($this),
+            'update' => $dbConnector->update($this),
+            default => throw new GCException("Unknown persistence operation: $operation", [
+                'operation' => $operation,
+                'model_class' => static::class
+            ])
+        };
     }
 
     /**
      * Find records by criteria
      */
     public static function find(array $criteria = [], array $fields = [], array $parameters = []): array {
-        $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
-        return $dbConnector->find(static::class, $criteria, $fields, $parameters);
+        $dbConnector = ServiceLocator::getDatabaseConnector();
+        $rows = $dbConnector->find(static::class, $criteria, $fields, $parameters);
+        return static::fromRows($rows);
     }
 
     /**
      * Find a single record by ID
      */
     public static function findById($id, array $fields = []) {
-        $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
-        $results = $dbConnector->find(static::class, ['id' => $id], $fields, ['limit' => 1]);
-        return empty($results) ? null : $results[0];
+        $dbConnector = ServiceLocator::getDatabaseConnector();
+        $rows = $dbConnector->find(static::class, ['id' => $id], $fields, ['limit' => 1]);
+        return empty($rows) ? null : static::fromRow($rows[0]);
     }
 
     /**
@@ -355,8 +428,8 @@ abstract class ModelBase {
         if (!empty($orderBy)) {
             $parameters['orderBy'] = $orderBy;
         }
-        $results = static::find($criteria, $fields, $parameters);
-        return empty($results) ? null : $results[0];
+        $rows = static::findRaw($criteria, $fields, $parameters);
+        return empty($rows) ? null : static::fromRow($rows[0]);
     }
 
     /**
@@ -368,6 +441,14 @@ abstract class ModelBase {
             $parameters['orderBy'] = $orderBy;
         }
         return static::find([], $fields, $parameters);
+    }
+
+    /**
+     * Find records by criteria and return raw database rows
+     */
+    public static function findRaw(array $criteria = [], array $fields = [], array $parameters = []): array {
+        $dbConnector = ServiceLocator::getDatabaseConnector();
+        return $dbConnector->find(static::class, $criteria, $fields, $parameters);
     }
 
     /**
@@ -538,8 +619,23 @@ abstract class ModelBase {
         }
         
         // Validate that the specified fields exist on this model
+        $validColumns = $this->filterExistingColumns($displayColumns);
+
+        // If no valid columns found, fall back to default columns
+        if (empty($validColumns)) {
+            $validColumns = $this->getFallbackDisplayColumns();
+        }
+
+        return $validColumns;
+    }
+
+    /**
+     * Filter display columns to only include fields that exist on this model
+     */
+    protected function filterExistingColumns(array $columns): array {
         $validColumns = [];
-        foreach ($displayColumns as $column) {
+
+        foreach ($columns as $column) {
             if ($this->hasField($column)) {
                 $validColumns[] = $column;
             } else {
@@ -551,22 +647,64 @@ abstract class ModelBase {
             }
         }
         
-        // If no valid columns found, fall back to 'name' or first available field
-        if (empty($validColumns)) {
-            if ($this->hasField('name')) {
-                $validColumns = ['name'];
-            } else {
-                // Use the first available field as last resort
-                $fieldNames = array_keys($this->fields);
-                $validColumns = !empty($fieldNames) ? [$fieldNames[0]] : [];
-                
-                $this->logger->warning("No valid display columns found, using fallback", [
-                    'model_class' => static::class,
-                    'fallback_column' => $validColumns
-                ]);
+        return $validColumns;
+    }
+
+    /**
+     * Get fallback display columns when no valid columns are found
+     */
+    protected function getFallbackDisplayColumns(): array {
+        // Try 'name' field first
+        if ($this->hasField('name')) {
+            return ['name'];
+        }
+
+        // Use the first available field as last resort
+        $fieldNames = array_keys($this->fields);
+        $fallbackColumns = !empty($fieldNames) ? [$fieldNames[0]] : [];
+
+        $this->logger->warning("No valid display columns found, using fallback", [
+            'model_class' => static::class,
+            'fallback_column' => $fallbackColumns
+        ]);
+
+        return $fallbackColumns;
+    }
+
+    /**
+     * Populate this model instance from a database row
+     */
+    public function populateFromRow(array $row): void {
+        foreach ($row as $fieldName => $value) {
+            if ($this->hasField($fieldName)) {
+                $field = $this->getField($fieldName);
+                if (method_exists($field, 'setValueFromTrustedSource')) {
+                    $field->setValueFromTrustedSource($value);
+                } else {
+                    // Fallback for fields that don't have setValueFromTrustedSource
+                    $this->set($fieldName, $value);
+                }
             }
         }
-        
-        return $validColumns;
+    }
+
+    /**
+     * Create a new instance from a database row
+     */
+    public static function fromRow(array $row): static {
+        $instance = new static(ServiceLocator::getLogger());
+        $instance->populateFromRow($row);
+        return $instance;
+    }
+
+    /**
+     * Create multiple instances from database rows
+     */
+    public static function fromRows(array $rows): array {
+        $instances = [];
+        foreach ($rows as $row) {
+            $instances[] = static::fromRow($row);
+        }
+        return $instances;
     }
 }

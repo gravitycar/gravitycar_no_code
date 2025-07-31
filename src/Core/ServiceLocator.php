@@ -9,7 +9,6 @@ use Gravitycar\Core\Config;
 use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Metadata\MetadataEngine;
 use Gravitycar\Schema\SchemaGenerator;
-use Gravitycar\Factories\FieldFactory;
 use Gravitycar\Factories\ValidationRuleFactory;
 
 /**
@@ -146,13 +145,6 @@ class ServiceLocator {
     }
 
     /**
-     * Get the field factory service
-     */
-    public static function getFieldFactory(): FieldFactory {
-        return self::getContainer()->get('field_factory');
-    }
-
-    /**
      * Get the validation rule factory service
      */
     public static function getValidationRuleFactory(): ValidationRuleFactory {
@@ -162,15 +154,15 @@ class ServiceLocator {
     /**
      * Get a new installer model instance
      */
-    public static function getInstaller(): \Gravitycar\Models\Installer {
+    public static function getInstaller(): \Gravitycar\Models\installer\Installer {
         return self::getContainer()->get('installer');
     }
 
     /**
      * Create a new model instance with proper dependencies
      */
-    public static function createModel(string $modelClass, array $metadata = []): object {
-        return ContainerConfig::createModel($modelClass, $metadata);
+    public static function createModel(string $modelClass): object {
+        return ContainerConfig::createModel($modelClass);
     }
 
     /**
@@ -185,6 +177,13 @@ class ServiceLocator {
      */
     public static function createValidationRule(string $ruleClass): object {
         return ContainerConfig::createValidationRule($ruleClass);
+    }
+
+    /**
+     * Create a new FieldFactory instance with proper dependencies and specific model
+     */
+    public static function createFieldFactory(\Gravitycar\Models\ModelBase $model): \Gravitycar\Factories\FieldFactory {
+        return ContainerConfig::createFieldFactory($model);
     }
 
     /**

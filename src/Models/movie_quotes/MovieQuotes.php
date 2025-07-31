@@ -1,5 +1,5 @@
 <?php
-namespace Gravitycar\Models;
+namespace Gravitycar\Models\movie_quotes;
 
 use Gravitycar\Core\ModelBase;
 

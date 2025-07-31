@@ -178,10 +178,6 @@ class ContainerConfig {
      * Configure factory services
      */
     private static function configureFactories(Container $di): void {
-        // FieldFactory - Note: This is now created per-model, not as a singleton
-        // Individual models will create their own FieldFactory instances as needed
-        // The container can still create instances when requested with parameters
-        
         // ValidationRuleFactory - singleton
         $di->set('validation_rule_factory', $di->lazyNew(ValidationRuleFactory::class, [
             'logger' => $di->lazyGet('logger')
@@ -205,20 +201,26 @@ class ContainerConfig {
         ]));
 
         // Installer model - prototype
-        $di->set('installer', $di->lazyNew(\Gravitycar\Models\Installer::class, [
-            'logger' => $di->lazyGet('logger'),
-            'metadata' => []
+        $di->set('installer', $di->lazyNew(\Gravitycar\Models\installer\Installer::class, [
+            'logger' => $di->lazyGet('logger')
         ]));
     }
 
     /**
      * Create a new model instance with dependencies
      */
-    public static function createModel(string $modelClass, array $metadata = []): object {
+    public static function createModel(string $modelClass): object {
+        // Check if the model class exists before trying to instantiate it
+        if (!class_exists($modelClass)) {
+            throw new \Gravitycar\Exceptions\GCException(
+                "Model class does not exist: {$modelClass}",
+                ['model_class' => $modelClass]
+            );
+        }
+
         $di = self::getContainer();
         return new $modelClass(
-            $di->get('logger'),
-            $metadata
+            $di->get('logger')
         );
     }
 
@@ -239,6 +241,17 @@ class ContainerConfig {
     public static function createValidationRule(string $ruleClass): object {
         $di = self::getContainer();
         return new $ruleClass(
+            $di->get('logger')
+        );
+    }
+
+    /**
+     * Create a new FieldFactory instance with dependencies and specific model
+     */
+    public static function createFieldFactory(\Gravitycar\Models\ModelBase $model): object {
+        $di = self::getContainer();
+        return new \Gravitycar\Factories\FieldFactory(
+            $model,
             $di->get('logger')
         );
     }

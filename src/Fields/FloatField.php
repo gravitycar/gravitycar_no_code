@@ -1,7 +1,7 @@
 <?php
 namespace Gravitycar\Fields;
 
-use Gravitycar\Core\FieldBase;
+use Gravitycar\Fields\FieldBase;
 use Gravitycar\Exceptions\GCException;
 use Monolog\Logger;
 

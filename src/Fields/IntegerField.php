@@ -1,7 +1,7 @@
 <?php
 namespace Gravitycar\Fields;
 
-use Gravitycar\Core\FieldBase;
+use Gravitycar\Fields\FieldBase;
 use Gravitycar\Exceptions\GCException;
 use Monolog\Logger;
 
@@ -18,6 +18,7 @@ class IntegerField extends FieldBase {
     protected bool $allowNegative = true;
     protected int $step = 1;
     protected string $placeholder = 'Enter a number';
+    protected bool $showSpinners = true;
 
     public function __construct(array $metadata, Logger $logger) {
         parent::__construct($metadata, $logger);

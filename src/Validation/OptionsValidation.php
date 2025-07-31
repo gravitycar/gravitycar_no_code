@@ -18,7 +18,18 @@ class OptionsValidation extends ValidationRuleBase {
         if (empty($this->options)) {
             return true; // If no options defined, allow any value
         }
-        return in_array($value, array_keys($this->options), true);
+
+        // For OptionsValidation, we need to validate ALL values including null and empty string
+        // Don't use shouldValidateValue() as it would skip null/empty values
+
+        // Only validate scalar values and null - arrays/objects can't be array keys
+        if (!is_scalar($value) && !is_null($value)) {
+            return false;
+        }
+
+        // Use array_key_exists for proper type-strict checking
+        // This will return false for null if null is not explicitly an option key
+        return array_key_exists($value, $this->options);
     }
 
     public function setOptions(array $options): void {

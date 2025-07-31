@@ -1,7 +1,7 @@
 <?php
 namespace Gravitycar\Models\users;
 
-use Gravitycar\Core\ModelBase;
+use Gravitycar\Models\ModelBase;
 
 /**
  * Users model for Gravitycar framework

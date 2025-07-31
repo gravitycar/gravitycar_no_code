@@ -16,6 +16,22 @@ class AlphanumericValidation extends ValidationRuleBase {
             return true;
         }
 
+        // Convert value to string for validation, handling edge cases
+        if (is_object($value)) {
+            // Check if object has __toString method
+            if (method_exists($value, '__toString')) {
+                $value = (string) $value;
+            } else {
+                // Objects without __toString are not alphanumeric
+                return false;
+            }
+        } elseif (is_array($value)) {
+            // Arrays are not alphanumeric
+            return false;
+        } elseif (!is_string($value)) {
+            $value = (string) $value;
+        }
+
         return ctype_alnum(str_replace(' ', '', $value));
     }
 

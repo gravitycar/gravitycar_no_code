@@ -1,7 +1,7 @@
 <?php
 namespace Gravitycar\Factories;
 
-use Gravitycar\Core\ComponentGeneratorBase;
+use Gravitycar\ComponentGenerator\ComponentGeneratorBase;
 use Monolog\Logger;
 use Gravitycar\Exceptions\GCException;
 

@@ -4,6 +4,7 @@ namespace Gravitycar\Database;
 use Doctrine\DBAL\DriverManager;
 use Doctrine\DBAL\Connection;
 use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Fields\FieldBase;
 use Gravitycar\Exceptions\GCException;
 use Monolog\Logger;
 
@@ -351,92 +352,39 @@ class DatabaseConnector {
             $conn = $this->getConnection();
             $queryBuilder = $conn->createQueryBuilder();
 
-            // Create a temporary model instance to get table name and fields
-            $tempModel = ServiceLocator::get($modelClass);
-            $tableName = $tempModel->getTableName();
-            $mainAlias = $tempModel->getAlias();
-            $modelFields = $tempModel->getFields();
+            // Setup query builder with model info
+            $querySetup = $this->setupQueryBuilder($modelClass);
+            $tempModel = $querySetup['model'];
+            $tableName = $querySetup['tableName'];
+            $mainAlias = $querySetup['mainAlias'];
+            $modelFields = $querySetup['modelFields'];
 
             // Start with main table using model's alias
             $queryBuilder->from($tableName, $mainAlias);
 
-            // Determine which fields to select
-            $fieldsToSelect = empty($fields) ? array_keys($modelFields) : $fields;
+            // Build SELECT clause and handle field selection
+            $this->buildSelectClause($queryBuilder, $tempModel, $modelFields, $fields);
 
-            // Build SELECT clause and handle RelatedRecord joins
-            $selectFields = [];
+            // Apply WHERE conditions
+            $this->applyCriteria($queryBuilder, $criteria, $mainAlias);
 
-            foreach ($fieldsToSelect as $fieldName) {
-                $field = $modelFields[$fieldName] ?? null;
+            // Apply query parameters (ORDER BY, LIMIT, OFFSET)
+            $this->applyQueryParameters($queryBuilder, $parameters, $mainAlias);
 
-                if (!$field) {
-                    $this->logger->warning("Field {$fieldName} not found in model {$modelClass}");
-                    continue;
-                }
-
-                if ($field instanceof \Gravitycar\Fields\RelatedRecordField) {
-                    // Handle RelatedRecord field with JOIN
-                    $relatedFields = $this->handleRelatedRecordField($queryBuilder, $tempModel, $field);
-                    $selectFields = array_merge($selectFields, $relatedFields);
-                } else {
-                    // Regular field - select from main table using alias
-                    $selectFields[] = "{$mainAlias}.{$fieldName}";
-                }
-            }
-
-            // Apply SELECT clause
-            $queryBuilder->select(implode(', ', $selectFields));
-
-            // Add WHERE conditions using main table alias
-            foreach ($criteria as $field => $value) {
-                if (is_array($value)) {
-                    $queryBuilder->andWhere("{$mainAlias}.{$field} IN (:{$field})");
-                    $queryBuilder->setParameter($field, $value);
-                } else {
-                    $queryBuilder->andWhere("{$mainAlias}.{$field} = :{$field}");
-                    $queryBuilder->setParameter($field, $value);
-                }
-            }
-
-            // Handle parameters (orderBy, limit, offset)
-            $orderBy = $parameters['orderBy'] ?? [];
-            $limit = $parameters['limit'] ?? null;
-            $offset = $parameters['offset'] ?? null;
-
-            // Add ORDER BY using main table alias
-            foreach ($orderBy as $field => $direction) {
-                $queryBuilder->orderBy("{$mainAlias}.{$field}", $direction);
-            }
-
-            // Add LIMIT and OFFSET
-            if ($limit !== null) {
-                $queryBuilder->setMaxResults($limit);
-            }
-            if ($offset !== null) {
-                $queryBuilder->setFirstResult($offset);
-            }
-
+            // Execute query and return raw rows
             $result = $queryBuilder->executeQuery();
             $rows = $result->fetchAllAssociative();
 
-            // Convert rows to model instances
-            $models = [];
-            foreach ($rows as $row) {
-                $model = ServiceLocator::get($modelClass);
-                $this->populateModelFromRow($model, $row);
-                $models[] = $model;
-            }
-
-            $this->logger->debug('Models found with joins', [
+            $this->logger->debug('Database find operation completed', [
                 'model_class' => $modelClass,
                 'criteria' => $criteria,
-                'selected_fields' => $fieldsToSelect,
+                'selected_fields' => $fields,
                 'main_alias' => $mainAlias,
-                'count' => count($models),
+                'row_count' => count($rows),
                 'joins_applied' => $this->joinCounter
             ]);
 
-            return $models;
+            return $rows;
 
         } catch (\Exception $e) {
             $this->logger->error('Failed to find models', [
@@ -451,8 +399,8 @@ class DatabaseConnector {
     /**
      * Find a single record by ID
      */
-    public function findById(string $modelClass, $id) {
-        $results = $this->find($modelClass, ['id' => $id], [], 1);
+    public function findById(string $modelClass, $id): ?array {
+        $results = $this->find($modelClass, ['id' => $id], [], ['limit' => 1]);
         return empty($results) ? null : $results[0];
     }
 
@@ -477,18 +425,6 @@ class DatabaseConnector {
     }
 
     /**
-     * Populate a model from a database row
-     */
-    protected function populateModelFromRow(\Gravitycar\Core\ModelBase $model, array $row): void {
-        foreach ($row as $fieldName => $value) {
-            if ($model->hasField($fieldName)) {
-                $field = $model->getField($fieldName);
-                $field->setValueFromTrustedSource($value);
-            }
-        }
-    }
-
-    /**
      * Handle RelatedRecord field joins and select clauses
      */
     private function handleRelatedRecordField(
@@ -502,7 +438,7 @@ class DatabaseConnector {
 
         try {
             // Get the related model instance
-            $relatedModel = $field->getRelatedModel();
+            $relatedModel = $field->getRelatedModelInstance();
 
         } catch (\Exception $e) {
             // If we can't get the related model, just select the foreign key
@@ -586,7 +522,7 @@ class DatabaseConnector {
      * Check if a record exists in a table where a specific field has a specific value
      * Used for validation to ensure field values exist in their target tables
      */
-    public function recordExists(\Gravitycar\Core\FieldBase $field, $value): bool {
+    public function recordExists(FieldBase $field, $value): bool {
         // Skip validation for null or empty values
         if ($value === null || $value === '') {
             return true;
@@ -642,6 +578,108 @@ class DatabaseConnector {
                 'field_name' => $field->getName(),
                 'value' => $value
             ], 0, $e);
+        }
+    }
+
+    /**
+     * Setup query builder with model information
+     */
+    protected function setupQueryBuilder(string $modelClass): array {
+        // Create a temporary model instance to get table name and fields
+        $tempModel = ServiceLocator::get($modelClass);
+        $tableName = $tempModel->getTableName();
+        $mainAlias = $tempModel->getAlias();
+        $modelFields = $tempModel->getFields();
+
+        return [
+            'model' => $tempModel,
+            'tableName' => $tableName,
+            'mainAlias' => $mainAlias,
+            'modelFields' => $modelFields
+        ];
+    }
+
+    /**
+     * Build SELECT clause for the query
+     */
+    protected function buildSelectClause(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        $tempModel,
+        $modelFields,
+        $fields
+    ): void {
+        $mainAlias = $tempModel->getAlias();
+
+        // Determine which fields to select
+        $fieldsToSelect = empty($fields) ? array_keys($modelFields) : $fields;
+
+        $selectFields = [];
+
+        foreach ($fieldsToSelect as $fieldName) {
+            $field = $modelFields[$fieldName] ?? null;
+
+            if (!$field) {
+                $this->logger->warning("Field {$fieldName} not found in model {$modelClass}");
+                continue;
+            }
+
+            if ($field instanceof \Gravitycar\Fields\RelatedRecordField) {
+                // Handle RelatedRecord field with JOIN
+                $relatedFields = $this->handleRelatedRecordField($queryBuilder, $tempModel, $field);
+                $selectFields = array_merge($selectFields, $relatedFields);
+            } else {
+                // Regular field - select from main table using alias
+                $selectFields[] = "{$mainAlias}.{$fieldName}";
+            }
+        }
+
+        // Apply SELECT clause
+        $queryBuilder->select(implode(', ', $selectFields));
+    }
+
+    /**
+     * Apply WHERE criteria to the query
+     */
+    protected function applyCriteria(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        array $criteria,
+        string $mainAlias
+    ): void {
+        // Add WHERE conditions using main table alias
+        foreach ($criteria as $field => $value) {
+            if (is_array($value)) {
+                $queryBuilder->andWhere("{$mainAlias}.{$field} IN (:{$field})");
+                $queryBuilder->setParameter($field, $value);
+            } else {
+                $queryBuilder->andWhere("{$mainAlias}.{$field} = :{$field}");
+                $queryBuilder->setParameter($field, $value);
+            }
+        }
+    }
+
+    /**
+     * Apply query parameters like ORDER BY, LIMIT, OFFSET
+     */
+    protected function applyQueryParameters(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        array $parameters,
+        string $mainAlias
+    ): void {
+        $orderBy = $parameters['orderBy'] ?? [];
+        $limit = $parameters['limit'] ?? null;
+        $offset = $parameters['offset'] ?? null;
+
+        // Add ORDER BY using main table alias
+        foreach ($orderBy as $field => $direction) {
+            $queryBuilder->orderBy("{$mainAlias}.{$field}", $direction);
+        }
+
+        // Add LIMIT and OFFSET
+        if ($limit !== null) {
+            $queryBuilder->setMaxResults($limit);
+        }
+        if ($offset !== null) {
+            $queryBuilder->setFirstResult($offset);
         }
     }
 

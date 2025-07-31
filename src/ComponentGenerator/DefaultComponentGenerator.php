@@ -1,7 +1,7 @@
 <?php
 namespace Gravitycar\ComponentGenerator;
 
-use Gravitycar\Core\ComponentGeneratorBase;
+use Gravitycar\ComponentGenerator\ComponentGeneratorBase;
 use Monolog\Logger;
 
 /**

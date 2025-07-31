@@ -11,9 +11,34 @@ class DateTimeValidation extends ValidationRuleBase {
         parent::__construct($logger, 'DateTime', 'Invalid date-time format.');
     }
 
+    /**
+     * Override shouldValidateValue to allow null but not empty strings
+     * Null represents "no date provided" which is valid
+     * Empty string represents "invalid date input" which should be validated and fail
+     */
+    protected function shouldValidateValue($value): bool {
+        // Skip validation if value is empty and skipIfEmpty is true
+        if (empty($value) && $this->skipIfEmpty) {
+            return false;
+        }
+
+        // Allow null to skip validation (null = no date provided)
+        if ($value === null) {
+            return false;
+        }
+
+        // Always validate empty strings and all other values
+        return true;
+    }
+
     public function validate($value): bool {
         if (!$this->shouldValidateValue($value)) {
             return true;
+        }
+
+        // Ensure value is a string before attempting DateTime parsing
+        if (!is_string($value)) {
+            return false;
         }
 
         $dt = \DateTime::createFromFormat('Y-m-d H:i:s', $value);
