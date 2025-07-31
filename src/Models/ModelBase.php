@@ -1,11 +1,13 @@
 <?php
 namespace Gravitycar\Models;
 
+use Gravitycar\Factories\FieldFactory;
 use Gravitycar\Fields\FieldBase;
 use Gravitycar\Validation\ValidationRuleBase;
 use Gravitycar\Relationships\RelationshipBase;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Metadata\CoreFieldsMetadata;
 use Monolog\Logger;
 
 /**
@@ -54,10 +56,11 @@ abstract class ModelBase {
      * Get metadata file paths for this model
      */
     protected function getMetaDataFilePaths(): array {
-        $modelName = strtolower(static::class);
+        $modelName = static::class;
         $modelName = basename(str_replace('\\', '/', $modelName));
+        $modelNameLc = strtolower($modelName);
         return [
-            "src/models/{$modelName}/{$modelName}_metadata.php"
+            "src/Models/{$modelName}/{$modelNameLc}_metadata.php"
         ];
     }
 
@@ -68,6 +71,10 @@ abstract class ModelBase {
         $metadataFiles = $this->getMetaDataFilePaths();
         $loadedMetadata = $this->loadMetadataFromFiles($metadataFiles);
         $this->metadata = $loadedMetadata;
+
+        // Automatically include core fields metadata
+        $this->includeCoreFieldsMetadata();
+
         $this->validateMetadata($this->metadata);
     }
 
@@ -120,8 +127,14 @@ abstract class ModelBase {
                 ['model_class' => static::class, 'metadata' => $this->metadata]);
         }
 
-        // Create FieldFactory instance using DI system
-        $fieldFactory = \Gravitycar\Core\ServiceLocator::createFieldFactory($this);
+        // Try to get FieldFactory from container first, fall back to creating new one
+        $fieldFactory = null;
+        if (\Gravitycar\Core\ServiceLocator::hasService('field_factory')) {
+            $fieldFactory = \Gravitycar\Core\ServiceLocator::get('field_factory');
+        } else {
+            // Create FieldFactory instance using DI system
+            $fieldFactory = \Gravitycar\Core\ServiceLocator::createFieldFactory($this);
+        }
 
         foreach ($this->metadata['fields'] as $fieldName => $fieldMeta) {
             $field = $this->createSingleField($fieldName, $fieldMeta, $fieldFactory);
@@ -134,7 +147,7 @@ abstract class ModelBase {
     /**
      * Create a single field with error handling
      */
-    protected function createSingleField(string $fieldName, array $fieldMeta, $fieldFactory): ?FieldBase {
+    protected function createSingleField(string $fieldName, array $fieldMeta, FieldFactory $fieldFactory): ?FieldBase {
         $preparedMetadata = $this->prepareFieldMetadata($fieldName, $fieldMeta);
 
         try {
@@ -295,6 +308,9 @@ abstract class ModelBase {
      * Get all fields
      */
     public function getFields(): array {
+        if (!$this->fields || empty($this->fields)) {
+            $this->initializeFields();
+        }
         return $this->fields;
     }
 
@@ -706,5 +722,31 @@ abstract class ModelBase {
             $instances[] = static::fromRow($row);
         }
         return $instances;
+    }
+
+    /**
+     * Include core fields metadata automatically
+     */
+    protected function includeCoreFieldsMetadata(): void {
+        // Get core fields metadata service from DI container
+        $coreFieldsMetadata = \Gravitycar\Core\ServiceLocator::getCoreFieldsMetadata();
+
+        // Get core fields for this specific model class
+        $coreFields = $coreFieldsMetadata->getAllCoreFieldsForModel(static::class);
+
+        // Initialize fields array if it doesn't exist
+        if (!isset($this->metadata['fields'])) {
+            $this->metadata['fields'] = [];
+        }
+
+        // Merge core fields with existing metadata
+        // Existing model metadata takes precedence over core fields (allows overrides)
+        $this->metadata['fields'] = array_merge($coreFields, $this->metadata['fields']);
+
+        $this->logger->debug('Included core fields metadata', [
+            'model_class' => static::class,
+            'core_fields_added' => array_keys($coreFields),
+            'total_fields' => count($this->metadata['fields'])
+        ]);
     }
 }

@@ -213,6 +213,15 @@ class ServiceLocator {
         }
     }
 
+    public static function hasService(string $serviceName): bool {
+        try {
+            self::getContainer()->get($serviceName);
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+
     /**
      * Create any class with auto-wiring
      */
@@ -298,5 +307,23 @@ class ServiceLocator {
     public static function initialize(): void {
         // This forces the container to be created and configured
         self::getContainer();
+    }
+
+    /**
+     * Get the core fields metadata service
+     */
+    public static function getCoreFieldsMetadata(): \Gravitycar\Metadata\CoreFieldsMetadata {
+        try {
+            return self::getContainer()->get('core_fields_metadata');
+        } catch (Exception $e) {
+            $logger = self::getLogger();
+            $logger->error('Failed to get CoreFieldsMetadata service: ' . $e->getMessage());
+            throw new \Gravitycar\Exceptions\GCException(
+                'CoreFieldsMetadata service unavailable: ' . $e->getMessage(),
+                ['service_error' => $e->getMessage()],
+                0,
+                $e
+            );
+        }
     }
 }

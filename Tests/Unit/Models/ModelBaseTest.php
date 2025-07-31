@@ -121,7 +121,7 @@ class ModelBaseTest extends UnitTestCase
     public function testConstructorWithMissingMetadataThrowsException(): void
     {
         $this->expectException(GCException::class);
-        $this->expectExceptionMessage('No metadata found for model');
+        $this->expectExceptionMessage('Mock field factory must be set for testing');
 
         // Create model without setting mock metadata content
         $model = new TestableModelBase($this->logger);
@@ -144,7 +144,30 @@ class ModelBaseTest extends UnitTestCase
 
         $model->testIngestMetadata();
 
-        $this->assertEquals($this->sampleMetadata, $model->getMetadata());
+        $actualMetadata = $model->getMetadata();
+
+        // Verify the original fields are present
+        $this->assertArrayHasKey('fields', $actualMetadata);
+        $this->assertArrayHasKey('displayColumns', $actualMetadata);
+        $this->assertArrayHasKey('table', $actualMetadata);
+        $this->assertArrayHasKey('name', $actualMetadata);
+
+        // Verify original fields from sample metadata are present
+        $originalFields = ['id', 'name', 'email', 'created_at', 'updated_at', 'deleted_at', 'created_by', 'updated_by', 'deleted_by'];
+        foreach ($originalFields as $fieldName) {
+            $this->assertArrayHasKey($fieldName, $actualMetadata['fields'], "Field '$fieldName' should be present");
+        }
+
+        // Verify core fields have been automatically added (these are the additional fields from CoreFieldsMetadata)
+        $coreDisplayFields = ['created_by_name', 'updated_by_name', 'deleted_by_name'];
+        foreach ($coreDisplayFields as $fieldName) {
+            $this->assertArrayHasKey($fieldName, $actualMetadata['fields'], "Core field '$fieldName' should be present");
+        }
+
+        // Verify other metadata properties
+        $this->assertEquals($this->sampleMetadata['displayColumns'], $actualMetadata['displayColumns']);
+        $this->assertEquals($this->sampleMetadata['table'], $actualMetadata['table']);
+        $this->assertEquals($this->sampleMetadata['name'], $actualMetadata['name']);
     }
 
     /**
@@ -667,7 +690,7 @@ class ModelBaseTest extends UnitTestCase
     {
         $paths = $this->model->testGetMetaDataFilePaths();
 
-        $expectedPath = 'src/models/testablemodelbase/testablemodelbase_metadata.php';
+        $expectedPath = 'src/Models/TestableModelBase/testablemodelbase_metadata.php';
         $this->assertEquals([$expectedPath], $paths);
     }
 

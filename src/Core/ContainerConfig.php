@@ -141,6 +141,11 @@ class ContainerConfig {
                 return new \Gravitycar\Metadata\MetadataEngineStub($logger, $e);
             }
         }));
+
+        // CoreFieldsMetadata - singleton service for managing core field definitions
+        $di->set('core_fields_metadata', $di->lazy(function() use ($di) {
+            return new \Gravitycar\Metadata\CoreFieldsMetadata($di->get('logger'));
+        }));
     }
 
     /**
