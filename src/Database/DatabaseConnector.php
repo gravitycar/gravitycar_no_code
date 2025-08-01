@@ -6,6 +6,7 @@ use Doctrine\DBAL\Connection;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Fields\FieldBase;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Models\ModelBase;
 use Monolog\Logger;
 
 /**
@@ -87,6 +88,66 @@ class DatabaseConnector {
             return true;
         } catch (\Exception $e) {
             $this->logger->error('Database creation failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Check if a database exists
+     */
+    public function databaseExists(string $databaseName): bool {
+        try {
+            // Create connection without specifying a database
+            $params = $this->dbParams;
+            unset($params['dbname']);
+            $conn = DriverManager::getConnection($params);
+
+            // Query information_schema to check if database exists
+            $sql = "SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = :dbname";
+            $result = $conn->executeQuery($sql, ['dbname' => $databaseName]);
+            $exists = $result->fetchOne() !== false;
+
+            $this->logger->debug('Database existence check completed', [
+                'database_name' => $databaseName,
+                'exists' => $exists
+            ]);
+
+            return $exists;
+
+        } catch (\Exception $e) {
+            $this->logger->error('Database existence check failed', [
+                'database_name' => $databaseName,
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Drop a database if it exists
+     */
+    public function dropDatabase(string $databaseName): bool {
+        try {
+            // Create connection without specifying a database
+            $params = $this->dbParams;
+            unset($params['dbname']);
+            $conn = DriverManager::getConnection($params);
+
+            // Drop the database
+            $sql = "DROP DATABASE IF EXISTS `$databaseName`";
+            $conn->executeStatement($sql);
+
+            $this->logger->info('Database dropped successfully', [
+                'database_name' => $databaseName
+            ]);
+
+            return true;
+
+        } catch (\Exception $e) {
+            $this->logger->error('Database drop failed', [
+                'database_name' => $databaseName,
+                'error' => $e->getMessage()
+            ]);
             return false;
         }
     }
@@ -604,7 +665,7 @@ class DatabaseConnector {
      */
     protected function buildSelectClause(
         \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
-        $tempModel,
+        ModelBase $tempModel,
         $modelFields,
         $fields
     ): void {
@@ -619,7 +680,7 @@ class DatabaseConnector {
             $field = $modelFields[$fieldName] ?? null;
 
             if (!$field) {
-                $this->logger->warning("Field {$fieldName} not found in model {$modelClass}");
+                $this->logger->warning("Field {$fieldName} not found in model {$tempModel->getName()}");
                 continue;
             }
 

@@ -35,7 +35,7 @@ return [
             'name' => 'poster',
             'type' => 'Text',
             'label' => 'Poster',
-            'nonDb' => true,
+            'isDBField' => false,
         ],
         // Core fields
         'created_at' => [

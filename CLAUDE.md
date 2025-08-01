@@ -196,6 +196,7 @@ function processUserInput($input) {
 - **Continuous Testing:** Run tests automatically before merging code (CI pipeline recommended).
 - **Test Data:** Use fixtures or factories to generate test data, avoid hardcoding.
 - **Error Scenarios:** Test for error conditions, edge cases, and invalid input.
+- **DO NOT TEST LOGGING:** IMPORTANT! Do not write tests that depend on log output. Instead, test the behavior that would cause logs to be written.
 
 ## Code Review
 - **Checklist:** Review for code style, test coverage, documentation, and security.

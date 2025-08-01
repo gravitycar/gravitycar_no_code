@@ -749,4 +749,8 @@ abstract class ModelBase {
             'total_fields' => count($this->metadata['fields'])
         ]);
     }
+
+    public function getName():string {
+        return $this->name;
+    }
 }

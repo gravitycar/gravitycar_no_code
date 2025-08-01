@@ -1,7 +1,7 @@
 <?php
 namespace Gravitycar\Models\installer;
 
-use Gravitycar\Core\ModelBase;
+use Gravitycar\Models\ModelBase;
 use Gravitycar\Exceptions\GCException;
 use Monolog\Logger;
 
@@ -10,8 +10,8 @@ use Monolog\Logger;
  * Handles the installation workflow and setup process.
  */
 class Installer extends ModelBase {
-    public function __construct(Logger $logger, array $metadata = []) {
-        parent::__construct($logger, $metadata);
+    public function __construct(Logger $logger) {
+        parent::__construct($logger);
     }
 
     /**
