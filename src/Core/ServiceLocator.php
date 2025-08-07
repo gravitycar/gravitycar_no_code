@@ -187,6 +187,41 @@ class ServiceLocator {
     }
 
     /**
+     * Create a new RelationshipFactory instance with proper dependencies and specific model
+     */
+    public static function createRelationshipFactory(\Gravitycar\Models\ModelBase $model): \Gravitycar\Factories\RelationshipFactory {
+        return ContainerConfig::createRelationshipFactory($model);
+    }
+
+    /**
+     * Create a new relationship instance with proper dependencies
+     */
+    public static function createRelationship(string $relationshipClass, array $metadata): object {
+        return ContainerConfig::createRelationship($relationshipClass, $metadata);
+    }
+
+    /**
+     * Get the current user (for relationship soft deletes)
+     */
+    public static function getCurrentUser(): ?\Gravitycar\Models\ModelBase {
+        try {
+            // This would integrate with your authentication system
+            // For now, return null - each relationship can handle this gracefully
+            return null;
+        } catch (Exception $e) {
+            self::getLogger()->warning('Failed to get current user: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Get FieldFactory for a specific model (for relationship dynamic field creation)
+     */
+    public static function getFieldFactory(\Gravitycar\Models\ModelBase $model): \Gravitycar\Factories\FieldFactory {
+        return self::createFieldFactory($model);
+    }
+
+    /**
      * Set container for testing
      */
     public static function setContainer(Container $container): void {

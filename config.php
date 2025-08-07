@@ -21,6 +21,6 @@ return [
     ],
     'site_name' => 'GravitycarAI',
     'open_imdb_api_key' => '19a9f496',
-    'graviton_list_limit' => 20,
+    'default_page_limit' => 20,
 ];
 

@@ -181,13 +181,33 @@ abstract class ModelBase {
             return;
         }
 
+        // Create RelationshipFactory instance using DI system
+        $relationshipFactory = ServiceLocator::createRelationshipFactory($this);
+
         foreach ($this->metadata['relationships'] as $relName => $relMeta) {
-            $relClass = "\\Gravitycar\\Relationships\\" . ($relMeta['type'] ?? 'RelationshipBase');
-            if (!class_exists($relClass)) {
-                $this->logger->warning("Relationship class $relClass does not exist for relationship $relName");
-                continue;
+            try {
+                // Add name to metadata if not present
+                $relMeta['name'] = $relName;
+                
+                // Use RelationshipFactory to create relationship with validation
+                $relationship = $relationshipFactory->createRelationship($relMeta);
+                $this->relationships[$relName] = $relationship;
+                
+                $this->logger->debug('Relationship initialized successfully', [
+                    'relationship_name' => $relName,
+                    'relationship_type' => $relMeta['type'] ?? 'unknown',
+                    'model_class' => static::class
+                ]);
+                
+            } catch (\Exception $e) {
+                $this->logger->error("Failed to create relationship $relName: " . $e->getMessage(), [
+                    'relationship_name' => $relName,
+                    'relationship_metadata' => $relMeta,
+                    'model_class' => static::class,
+                    'error' => $e->getMessage()
+                ]);
+                // Continue with other relationships instead of failing completely
             }
-            $this->relationships[$relName] = new $relClass($relMeta, $this->logger);
         }
     }
 
@@ -748,6 +768,199 @@ abstract class ModelBase {
             'core_fields_added' => array_keys($coreFields),
             'total_fields' => count($this->metadata['fields'])
         ]);
+    }
+
+    /**
+     * Get all relationships
+     */
+    public function getRelationships(): array {
+        return $this->relationships;
+    }
+
+    /**
+     * Get a specific relationship
+     */
+    public function getRelationship(string $relationshipName): ?RelationshipBase {
+        return $this->relationships[$relationshipName] ?? null;
+    }
+
+    /**
+     * Get related records for a specific relationship
+     * Returns raw database records as associative arrays
+     */
+    public function getRelated(string $relationshipName): array {
+        $relationship = $this->getRelationship($relationshipName);
+        if (!$relationship) {
+            throw new GCException("Relationship '{$relationshipName}' not found", [
+                'relationship_name' => $relationshipName,
+                'model_class' => static::class,
+                'available_relationships' => array_keys($this->relationships)
+            ]);
+        }
+
+        return $relationship->getRelatedRecords($this);
+    }
+
+    /**
+     * Get related records as model instances (when needed)
+     * This is more expensive than getRelated() but returns full model objects
+     */
+    public function getRelatedModels(string $relationshipName): array {
+        $records = $this->getRelated($relationshipName);
+        $models = [];
+
+        // Determine the related model class from the relationship
+        $relationship = $this->getRelationship($relationshipName);
+        $relatedModelClass = $this->getRelatedModelClass($relationship);
+
+        foreach ($records as $record) {
+            $models[] = $relatedModelClass::fromRow($record);
+        }
+
+        return $models;
+    }
+
+    /**
+     * Add a relationship to another model
+     */
+    public function addRelation(string $relationshipName, ModelBase $relatedModel, array $additionalData = []): bool {
+        $relationship = $this->getRelationship($relationshipName);
+        if (!$relationship) {
+            throw new GCException("Relationship '{$relationshipName}' not found", [
+                'relationship_name' => $relationshipName,
+                'model_class' => static::class
+            ]);
+        }
+
+        return $relationship->addRelation($this, $relatedModel, $additionalData);
+    }
+
+    /**
+     * Remove a relationship to another model
+     */
+    public function removeRelation(string $relationshipName, ModelBase $relatedModel): bool {
+        $relationship = $this->getRelationship($relationshipName);
+        if (!$relationship) {
+            throw new GCException("Relationship '{$relationshipName}' not found", [
+                'relationship_name' => $relationshipName,
+                'model_class' => static::class
+            ]);
+        }
+
+        return $relationship->removeRelation($this, $relatedModel);
+    }
+
+    /**
+     * Check if a relationship exists with another model
+     */
+    public function hasRelation(string $relationshipName, ModelBase $relatedModel): bool {
+        $relationship = $this->getRelationship($relationshipName);
+        if (!$relationship) {
+            return false;
+        }
+
+        return $relationship->hasRelation($this, $relatedModel);
+    }
+
+    /**
+     * Get paginated related records
+     */
+    public function getRelatedPaginated(string $relationshipName, int $page = 1, int $perPage = 20): array {
+        $relationship = $this->getRelationship($relationshipName);
+        if (!$relationship) {
+            throw new GCException("Relationship '{$relationshipName}' not found", [
+                'relationship_name' => $relationshipName,
+                'model_class' => static::class
+            ]);
+        }
+
+        // Check if the relationship supports pagination
+        if (method_exists($relationship, 'getRelatedPaginated')) {
+            return $relationship->getRelatedPaginated($this, $page, $perPage);
+        }
+
+        // Fallback to regular getRelated with manual pagination
+        $allRecords = $relationship->getRelatedRecords($this);
+        $total = count($allRecords);
+        $offset = ($page - 1) * $perPage;
+        $records = array_slice($allRecords, $offset, $perPage);
+
+        return [
+            'records' => $records,
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'has_more' => ($offset + $perPage) < $total,
+                'total_pages' => ceil($total / $perPage)
+            ]
+        ];
+    }
+
+    /**
+     * Handle cascade operations when this model is deleted
+     */
+    protected function handleRelationshipCascades(string $cascadeAction): bool {
+        foreach ($this->relationships as $relationshipName => $relationship) {
+            try {
+                if (!$relationship->handleModelDeletion($this, $cascadeAction)) {
+                    $this->logger->error("Cascade operation failed for relationship", [
+                        'relationship_name' => $relationshipName,
+                        'cascade_action' => $cascadeAction,
+                        'model_class' => static::class,
+                        'model_id' => $this->get('id')
+                    ]);
+                    return false;
+                }
+            } catch (\Exception $e) {
+                $this->logger->error("Exception during cascade operation", [
+                    'relationship_name' => $relationshipName,
+                    'cascade_action' => $cascadeAction,
+                    'model_class' => static::class,
+                    'model_id' => $this->get('id'),
+                    'error' => $e->getMessage()
+                ]);
+                throw $e;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Get the related model class from a relationship
+     */
+    protected function getRelatedModelClass(RelationshipBase $relationship): string {
+        $metadata = $relationship->getRelationshipMetadata();
+        $currentModelName = basename(str_replace('\\', '/', static::class));
+
+        // Determine which model is the related one based on relationship type
+        switch ($metadata['type']) {
+            case 'OneToOne':
+                $modelA = $metadata['modelA'];
+                $modelB = $metadata['modelB'];
+                $relatedModelName = ($currentModelName === $modelA) ? $modelB : $modelA;
+                break;
+
+            case 'OneToMany':
+                $modelOne = $metadata['modelOne'];
+                $modelMany = $metadata['modelMany'];
+                $relatedModelName = ($currentModelName === $modelOne) ? $modelMany : $modelOne;
+                break;
+
+            case 'ManyToMany':
+                $modelA = $metadata['modelA'];
+                $modelB = $metadata['modelB'];
+                $relatedModelName = ($currentModelName === $modelA) ? $modelB : $modelA;
+                break;
+
+            default:
+                throw new GCException("Unknown relationship type: {$metadata['type']}", [
+                    'relationship_metadata' => $metadata,
+                    'model_class' => static::class
+                ]);
+        }
+
+        return "Gravitycar\\Models\\{$relatedModelName}";
     }
 
     public function getName():string {

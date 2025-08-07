@@ -262,6 +262,28 @@ class ContainerConfig {
     }
 
     /**
+     * Create a new RelationshipFactory instance with dependencies and specific model
+     */
+    public static function createRelationshipFactory(\Gravitycar\Models\ModelBase $model): object {
+        $di = self::getContainer();
+        return new \Gravitycar\Factories\RelationshipFactory(
+            $model,
+            $di->get('logger')
+        );
+    }
+
+    /**
+     * Create a new relationship instance with dependencies
+     */
+    public static function createRelationship(string $relationshipClass, array $metadata): object {
+        $di = self::getContainer();
+        return new $relationshipClass(
+            $metadata,
+            $di->get('logger')
+        );
+    }
+
+    /**
      * Reset container for testing
      */
     public static function resetContainer(): void {

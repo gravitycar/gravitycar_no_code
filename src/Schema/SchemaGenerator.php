@@ -4,6 +4,8 @@ namespace Gravitycar\Schema;
 use Gravitycar\Core\Config;
 use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Relationships\RelationshipBase;
+use Gravitycar\Metadata\CoreFieldsMetadata;
 use Monolog\Logger;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
@@ -20,10 +22,13 @@ class SchemaGenerator {
     protected DatabaseConnector $dbConnector;
     /** @var Logger */
     protected Logger $logger;
+    /** @var CoreFieldsMetadata */
+    protected CoreFieldsMetadata $coreFieldsMetadata;
 
-    public function __construct(Logger $logger, DatabaseConnector $dbConnector) {
+    public function __construct(Logger $logger, DatabaseConnector $dbConnector, ?CoreFieldsMetadata $coreFieldsMetadata = null) {
         $this->logger = $logger;
         $this->dbConnector = $dbConnector;
+        $this->coreFieldsMetadata = $coreFieldsMetadata ?? new CoreFieldsMetadata($logger);
     }
 
     /**
@@ -57,6 +62,33 @@ class SchemaGenerator {
     }
 
     /**
+     * Create relationship table from relationship instance
+     */
+    public function createRelationshipTable(RelationshipBase $relationship): void {
+        $connection = $this->dbConnector->getConnection();
+        $schemaManager = $connection->createSchemaManager();
+        $fromSchema = $schemaManager->introspectSchema();
+        $toSchema = clone $fromSchema;
+
+        $tableName = $relationship->getTableName();
+        $relationshipMeta = $relationship->getRelationshipMetadata();
+
+        if (!$toSchema->hasTable($tableName)) {
+            $table = $toSchema->createTable($tableName);
+            $this->createRelationshipTableStructure($table, $relationship);
+
+            $this->logger->info("Created relationship table", [
+                'table_name' => $tableName,
+                'relationship_name' => $relationship->getName(),
+                'relationship_type' => $relationship->getType()
+            ]);
+        }
+
+        // Execute the schema changes
+        $this->executeSchemaChanges($fromSchema, $toSchema);
+    }
+
+    /**
      * Generate or update a table for a model
      */
     protected function generateModelTable(Schema $schema, string $modelName, array $modelMeta): void {
@@ -73,8 +105,6 @@ class SchemaGenerator {
             return;
         }
 
-        $tableName = $modelMeta['table'] ?? strtolower($modelName);
-
         if ($schema->hasTable($tableName)) {
             $table = $schema->getTable($tableName);
             $this->updateModelTable($table, $modelMeta);
@@ -84,6 +114,60 @@ class SchemaGenerator {
         }
 
         $this->logger->info("Generated/updated table for model: $modelName -> $tableName");
+    }
+
+    /**
+     * Generate or update a table for a relationship
+     */
+    protected function generateRelationshipTable(Schema $schema, string $relationshipName, array $relationshipMeta): void {
+        $tableName = $this->generateRelationshipTableName($relationshipMeta);
+
+        if ($schema->hasTable($tableName)) {
+            $table = $schema->getTable($tableName);
+            $this->updateRelationshipTable($table, $relationshipMeta);
+        } else {
+            $table = $schema->createTable($tableName);
+            $this->createRelationshipTableFromMeta($table, $relationshipMeta);
+        }
+
+        $this->logger->info("Generated/updated relationship table: $relationshipName -> $tableName");
+    }
+
+    /**
+     * Generate relationship table name from metadata
+     */
+    protected function generateRelationshipTableName(array $relationshipMeta): string {
+        $type = $relationshipMeta['type'];
+
+        switch ($type) {
+            case 'OneToOne':
+                $modelA = strtolower($relationshipMeta['modelA']);
+                $modelB = strtolower($relationshipMeta['modelB']);
+                $tableName = "rel_1_{$modelA}_1_{$modelB}";
+                break;
+
+            case 'OneToMany':
+                $modelOne = strtolower($relationshipMeta['modelOne']);
+                $modelMany = strtolower($relationshipMeta['modelMany']);
+                $tableName = "rel_1_{$modelOne}_M_{$modelMany}";
+                break;
+
+            case 'ManyToMany':
+                $modelA = strtolower($relationshipMeta['modelA']);
+                $modelB = strtolower($relationshipMeta['modelB']);
+                $tableName = "rel_N_{$modelA}_M_{$modelB}";
+                break;
+
+            default:
+                throw new GCException("Unknown relationship type: {$type}");
+        }
+
+        // Ensure table name doesn't exceed database limits
+        if (strlen($tableName) > 64) {
+            $tableName = substr($tableName, 0, 64);
+        }
+
+        return $tableName;
     }
 
     /**
@@ -108,6 +192,240 @@ class SchemaGenerator {
         if (isset($fields['id'])) {
             $table->setPrimaryKey(['id']);
         }
+    }
+
+    /**
+     * Create a relationship table structure from RelationshipBase instance
+     */
+    protected function createRelationshipTableStructure(Table $table, RelationshipBase $relationship): void {
+        // Add core model fields (id, created_at, updated_at, etc.)
+        $this->addCoreModelFields($table);
+
+        // Add relationship-specific ID fields based on type
+        $relationshipMeta = $relationship->getRelationshipMetadata();
+        $this->addRelationshipIdFields($table, $relationshipMeta);
+
+        // Add any additional fields specified in metadata
+        $additionalFields = $relationshipMeta['additionalFields'] ?? [];
+        foreach ($additionalFields as $fieldName => $fieldMeta) {
+            $this->addColumnFromFieldMeta($table, $fieldName, $fieldMeta);
+        }
+
+        // Set primary key
+        $table->setPrimaryKey(['id']);
+
+        // Add indexes for relationship fields
+        $this->addRelationshipIndexes($table, $relationshipMeta);
+    }
+
+    /**
+     * Create relationship table from metadata (used by generateRelationshipTable)
+     */
+    protected function createRelationshipTableFromMeta(Table $table, array $relationshipMeta): void {
+        // Add core model fields
+        $this->addCoreModelFields($table);
+
+        // Add relationship-specific ID fields
+        $this->addRelationshipIdFields($table, $relationshipMeta);
+
+        // Add any additional fields
+        $additionalFields = $relationshipMeta['additionalFields'] ?? [];
+        foreach ($additionalFields as $fieldName => $fieldMeta) {
+            $this->addColumnFromFieldMeta($table, $fieldName, $fieldMeta);
+        }
+
+        // Set primary key
+        $table->setPrimaryKey(['id']);
+
+        // Add indexes
+        $this->addRelationshipIndexes($table, $relationshipMeta);
+    }
+
+    /**
+     * Add core model fields to a table (id, timestamps, etc.)
+     */
+    protected function addCoreModelFields(Table $table): void {
+        try {
+            $coreFields = $this->coreFieldsMetadata->getStandardCoreFields();
+
+            foreach ($coreFields as $fieldName => $fieldMeta) {
+                $this->addColumnFromFieldMeta($table, $fieldName, $fieldMeta);
+            }
+
+            $this->logger->debug('Added core model fields to table', [
+                'table_name' => $table->getName(),
+                'core_fields_count' => count($coreFields)
+            ]);
+
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to add core model fields to table', [
+                'table_name' => $table->getName(),
+                'error' => $e->getMessage()
+            ]);
+
+            // Fallback to hardcoded core fields if CoreFieldsMetadata fails
+            $this->addFallbackCoreModelFields($table);
+        }
+    }
+
+    /**
+     * Fallback method to add core model fields if CoreFieldsMetadata fails
+     */
+    protected function addFallbackCoreModelFields(Table $table): void {
+        $this->logger->warning('Using fallback core model fields', [
+            'table_name' => $table->getName()
+        ]);
+
+        // ID field
+        $table->addColumn('id', Types::STRING, [
+            'length' => 36,
+            'notnull' => true,
+            'comment' => 'Primary key UUID'
+        ]);
+
+        // Timestamp fields
+        $table->addColumn('created_at', Types::DATETIME_MUTABLE, [
+            'notnull' => true,
+            'default' => 'CURRENT_TIMESTAMP'
+        ]);
+
+        $table->addColumn('updated_at', Types::DATETIME_MUTABLE, [
+            'notnull' => true,
+            'default' => 'CURRENT_TIMESTAMP'
+        ]);
+
+        // Soft delete fields
+        $table->addColumn('deleted_at', Types::DATETIME_MUTABLE, [
+            'notnull' => false,
+            'default' => null
+        ]);
+
+        // User tracking fields
+        $table->addColumn('created_by', Types::STRING, [
+            'length' => 36,
+            'notnull' => false,
+            'default' => null
+        ]);
+
+        $table->addColumn('updated_by', Types::STRING, [
+            'length' => 36,
+            'notnull' => false,
+            'default' => null
+        ]);
+
+        $table->addColumn('deleted_by', Types::STRING, [
+            'length' => 36,
+            'notnull' => false,
+            'default' => null
+        ]);
+    }
+
+    /**
+     * Add relationship-specific ID fields based on relationship type
+     */
+    protected function addRelationshipIdFields(Table $table, array $relationshipMeta): void {
+        $type = $relationshipMeta['type'];
+
+        switch ($type) {
+            case 'OneToOne':
+                $modelA = strtolower($relationshipMeta['modelA']);
+                $modelB = strtolower($relationshipMeta['modelB']);
+
+                $table->addColumn("{$modelA}_id", Types::STRING, [
+                    'length' => 36,
+                    'notnull' => true,
+                    'comment' => "Foreign key to {$relationshipMeta['modelA']} table"
+                ]);
+
+                $table->addColumn("{$modelB}_id", Types::STRING, [
+                    'length' => 36,
+                    'notnull' => true,
+                    'comment' => "Foreign key to {$relationshipMeta['modelB']} table"
+                ]);
+                break;
+
+            case 'OneToMany':
+                $modelOne = strtolower($relationshipMeta['modelOne']);
+                $modelMany = strtolower($relationshipMeta['modelMany']);
+
+                $table->addColumn("one_{$modelOne}_id", Types::STRING, [
+                    'length' => 36,
+                    'notnull' => true,
+                    'comment' => "Foreign key to {$relationshipMeta['modelOne']} table (one side)"
+                ]);
+
+                $table->addColumn("many_{$modelMany}_id", Types::STRING, [
+                    'length' => 36,
+                    'notnull' => true,
+                    'comment' => "Foreign key to {$relationshipMeta['modelMany']} table (many side)"
+                ]);
+                break;
+
+            case 'ManyToMany':
+                $modelA = strtolower($relationshipMeta['modelA']);
+                $modelB = strtolower($relationshipMeta['modelB']);
+
+                $table->addColumn("{$modelA}_id", Types::STRING, [
+                    'length' => 36,
+                    'notnull' => true,
+                    'comment' => "Foreign key to {$relationshipMeta['modelA']} table"
+                ]);
+
+                $table->addColumn("{$modelB}_id", Types::STRING, [
+                    'length' => 36,
+                    'notnull' => true,
+                    'comment' => "Foreign key to {$relationshipMeta['modelB']} table"
+                ]);
+                break;
+        }
+    }
+
+    /**
+     * Add indexes for relationship tables
+     */
+    protected function addRelationshipIndexes(Table $table, array $relationshipMeta): void {
+        $type = $relationshipMeta['type'];
+
+        switch ($type) {
+            case 'OneToOne':
+                $modelA = strtolower($relationshipMeta['modelA']);
+                $modelB = strtolower($relationshipMeta['modelB']);
+
+                // Unique constraint for OneToOne
+                $table->addUniqueIndex(["{$modelA}_id", "{$modelB}_id"], "uniq_{$modelA}_{$modelB}");
+
+                // Individual indexes for lookups
+                $table->addIndex(["{$modelA}_id"], "idx_{$modelA}_id");
+                $table->addIndex(["{$modelB}_id"], "idx_{$modelB}_id");
+                break;
+
+            case 'OneToMany':
+                $modelOne = strtolower($relationshipMeta['modelOne']);
+                $modelMany = strtolower($relationshipMeta['modelMany']);
+
+                // Compound index for relationship lookups
+                $table->addIndex(["one_{$modelOne}_id", "many_{$modelMany}_id"], "idx_one_many_lookup");
+
+                // Individual indexes
+                $table->addIndex(["one_{$modelOne}_id"], "idx_one_{$modelOne}_id");
+                $table->addIndex(["many_{$modelMany}_id"], "idx_many_{$modelMany}_id");
+                break;
+
+            case 'ManyToMany':
+                $modelA = strtolower($relationshipMeta['modelA']);
+                $modelB = strtolower($relationshipMeta['modelB']);
+
+                // Compound unique index to prevent duplicate relationships
+                $table->addUniqueIndex(["{$modelA}_id", "{$modelB}_id"], "uniq_{$modelA}_{$modelB}");
+
+                // Individual indexes for lookups
+                $table->addIndex(["{$modelA}_id"], "idx_{$modelA}_id");
+                $table->addIndex(["{$modelB}_id"], "idx_{$modelB}_id");
+                break;
+        }
+
+        // Add index for soft delete queries
+        $table->addIndex(['deleted_at'], 'idx_deleted_at');
     }
 
     /**
@@ -143,31 +461,40 @@ class SchemaGenerator {
     }
 
     /**
+     * Update an existing relationship table
+     */
+    protected function updateRelationshipTable(Table $table, array $relationshipMeta): void {
+        // For now, just log that we're updating - full update logic can be added later
+        $this->logger->info("Updating existing relationship table", [
+            'table_name' => $table->getName(),
+            'relationship_type' => $relationshipMeta['type']
+        ]);
+
+        // Add any missing additional fields
+        $additionalFields = $relationshipMeta['additionalFields'] ?? [];
+        foreach ($additionalFields as $fieldName => $fieldMeta) {
+            if (!$table->hasColumn($fieldName)) {
+                $this->addColumnFromFieldMeta($table, $fieldName, $fieldMeta);
+            }
+        }
+    }
+
+    /**
      * Add a column to a table based on field metadata
      */
     protected function addColumnFromFieldMeta(Table $table, string $fieldName, array $fieldMeta): void {
-        $type = $this->getDoctrineTypeFromFieldType($fieldMeta['type'] ?? 'Text');
+        $type = $this->getDoctrineTypeFromFieldType($fieldMeta['type'] ?? 'TextField');
         $options = $this->getColumnOptionsFromFieldMeta($fieldMeta);
 
         $table->addColumn($fieldName, $type, $options);
-
-        // Add indexes if needed
-        if (isset($fieldMeta['unique']) && $fieldMeta['unique']) {
-            $table->addUniqueIndex([$fieldName], $fieldName . '_unique');
-        }
     }
 
     /**
      * Update a column in a table based on field metadata
      */
     protected function updateColumnFromFieldMeta(Table $table, string $fieldName, array $fieldMeta): void {
-        $column = $table->getColumn($fieldName);
-        $type = $this->getDoctrineTypeFromFieldType($fieldMeta['type'] ?? 'Text');
-        $options = $this->getColumnOptionsFromFieldMeta($fieldMeta);
-
-        // Update column type and options
-        $column->setType(\Doctrine\DBAL\Types\Type::getType($type));
-        $column->setOptions($options);
+        // For now, just log that we're updating - full update logic can be added later
+        $this->logger->debug("Column '$fieldName' already exists, skipping update");
     }
 
     /**
@@ -175,21 +502,21 @@ class SchemaGenerator {
      */
     protected function getDoctrineTypeFromFieldType(string $fieldType): string {
         $typeMap = [
-            'ID' => Types::GUID,
-            'Text' => Types::STRING,
-            'BigText' => Types::TEXT,
-            'Email' => Types::STRING,
-            'Password' => Types::STRING,
-            'Integer' => Types::INTEGER,
-            'Float' => Types::FLOAT,
-            'Boolean' => Types::BOOLEAN,
-            'DateTime' => Types::DATETIME_MUTABLE,
-            'Date' => Types::DATE_MUTABLE,
+            'TextField' => Types::STRING,
+            'BigTextField' => Types::TEXT,
+            'IntegerField' => Types::INTEGER,
+            'FloatField' => Types::FLOAT,
+            'BooleanField' => Types::BOOLEAN,
+            'DateField' => Types::DATE_MUTABLE,
+            'DateTimeField' => Types::DATETIME_MUTABLE,
+            'EmailField' => Types::STRING,
+            'PasswordField' => Types::STRING,
+            'IDField' => Types::STRING,
+            'ImageField' => Types::STRING,
             'Enum' => Types::STRING,
-            'MultiEnum' => Types::TEXT,
-            'RadioButtonSet' => Types::STRING,
-            'Image' => Types::STRING,
-            'RelatedRecord' => Types::GUID,
+            'MultiEnum' => Types::JSON,
+            'RadioButtonSetField' => Types::STRING,
+            'RelatedRecord' => Types::STRING,
         ];
 
         return $typeMap[$fieldType] ?? Types::STRING;
@@ -202,148 +529,59 @@ class SchemaGenerator {
         $options = [];
 
         // Set nullable based on required field
-        $options['notnull'] = isset($fieldMeta['required']) && $fieldMeta['required'];
+        $options['notnull'] = $fieldMeta['required'] ?? false;
+
+        // Set default value if specified
+        if (isset($fieldMeta['default'])) {
+            $options['default'] = $fieldMeta['default'];
+        }
 
         // Set length for string fields
         if (isset($fieldMeta['maxLength'])) {
             $options['length'] = $fieldMeta['maxLength'];
-        } else {
-            // Default lengths by field type
-            $type = $fieldMeta['type'] ?? 'Text';
-            switch ($type) {
-                case 'Text':
-                case 'Email':
-                case 'Password':
-                case 'Enum':
-                case 'RadioButtonSet':
-                    $options['length'] = 255;
-                    break;
-                case 'ID':
-                case 'RelatedRecord':
-                    $options['length'] = 36; // UUID length
-                    break;
-                case 'Image':
-                    $options['length'] = 500;
-                    break;
-            }
+        } elseif ($fieldMeta['type'] === 'TextField') {
+            $options['length'] = 255; // Default length for text fields
+        } elseif ($fieldMeta['type'] === 'EmailField') {
+            $options['length'] = 255;
+        } elseif ($fieldMeta['type'] === 'IDField') {
+            $options['length'] = 36; // UUID length
+        } elseif ($fieldMeta['type'] === 'ImageField') {
+            $options['length'] = 500; // Path length
         }
 
-        // Set default value
-        if (isset($fieldMeta['defaultValue'])) {
-            $options['default'] = $fieldMeta['defaultValue'];
-        }
-
-        // Set precision for float fields
-        if (($fieldMeta['type'] ?? '') === 'Float' && isset($fieldMeta['precision'])) {
-            $options['precision'] = $fieldMeta['precision'];
-            $options['scale'] = $fieldMeta['precision'];
+        // Add comment if label is provided
+        if (isset($fieldMeta['label'])) {
+            $options['comment'] = $fieldMeta['label'];
         }
 
         return $options;
     }
 
     /**
-     * Generate or update a table for a relationship
-     */
-    protected function generateRelationshipTable(Schema $schema, string $relName, array $relMeta): void {
-        // Only create tables for many-to-many relationships
-        if (($relMeta['type'] ?? 'N_M') !== 'N_M') {
-            return;
-        }
-
-        $tableName = $relMeta['table'] ?? $relName;
-
-        if ($schema->hasTable($tableName)) {
-            $table = $schema->getTable($tableName);
-            $this->updateRelationshipTable($table, $relMeta);
-        } else {
-            $table = $schema->createTable($tableName);
-            $this->createRelationshipTable($table, $relMeta);
-        }
-
-        $this->logger->info("Generated/updated relationship table: $relName -> $tableName");
-    }
-
-    /**
-     * Create a new table for a relationship
-     */
-    protected function createRelationshipTable(Table $table, array $relMeta): void {
-        // Add standard relationship fields
-        $table->addColumn('id', Types::GUID, ['length' => 36, 'notnull' => true]);
-        $table->addColumn('model_a_id', Types::GUID, ['length' => 36, 'notnull' => true]);
-        $table->addColumn('model_b_id', Types::GUID, ['length' => 36, 'notnull' => true]);
-
-        // Add audit fields
-        $table->addColumn('created_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
-        $table->addColumn('updated_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
-        $table->addColumn('deleted_at', Types::DATETIME_MUTABLE, ['notnull' => false]);
-        $table->addColumn('created_by', Types::GUID, ['length' => 36, 'notnull' => false]);
-        $table->addColumn('updated_by', Types::GUID, ['length' => 36, 'notnull' => false]);
-        $table->addColumn('deleted_by', Types::GUID, ['length' => 36, 'notnull' => false]);
-
-        // Add custom fields from metadata
-        $fields = $relMeta['fields'] ?? [];
-        foreach ($fields as $fieldName => $fieldMeta) {
-            if (!in_array($fieldName, ['id', 'model_a_id', 'model_b_id', 'created_at', 'updated_at', 'deleted_at', 'created_by', 'updated_by', 'deleted_by'])) {
-                $this->addColumnFromFieldMeta($table, $fieldName, $fieldMeta);
-            }
-        }
-
-        // Set primary key and indexes
-        $table->setPrimaryKey(['id']);
-        $table->addIndex(['model_a_id'], 'idx_model_a');
-        $table->addIndex(['model_b_id'], 'idx_model_b');
-        $table->addUniqueIndex(['model_a_id', 'model_b_id'], 'unique_relationship');
-    }
-
-    /**
-     * Update an existing relationship table
-     */
-    protected function updateRelationshipTable(Table $table, array $relMeta): void {
-        $fields = $relMeta['fields'] ?? [];
-        $standardFields = ['id', 'model_a_id', 'model_b_id', 'created_at', 'updated_at', 'deleted_at', 'created_by', 'updated_by', 'deleted_by'];
-
-        foreach ($fields as $fieldName => $fieldMeta) {
-            if (!in_array($fieldName, $standardFields)) {
-                if (!$table->hasColumn($fieldName)) {
-                    $this->addColumnFromFieldMeta($table, $fieldName, $fieldMeta);
-                } else {
-                    $this->updateColumnFromFieldMeta($table, $fieldName, $fieldMeta);
-                }
-            }
-        }
-    }
-
-    /**
-     * Execute schema changes by comparing from and to schemas
+     * Execute schema changes
      */
     protected function executeSchemaChanges(Schema $fromSchema, Schema $toSchema): void {
         $connection = $this->dbConnector->getConnection();
         $platform = $connection->getDatabasePlatform();
+        $queries = $fromSchema->getMigrateToSql($toSchema, $platform);
 
-        $comparator = new \Doctrine\DBAL\Schema\Comparator();
-        $schemaDiff = $comparator->compareSchemas($fromSchema, $toSchema);
-
-        $sqlStatements = $schemaDiff->toSql($platform);
-
-        if (empty($sqlStatements)) {
-            $this->logger->info("No schema changes needed");
-            return;
-        }
-
-        $this->logger->info("Executing " . count($sqlStatements) . " schema changes");
-
-        foreach ($sqlStatements as $sql) {
+        foreach ($queries as $query) {
             try {
-                $connection->executeStatement($sql);
-                $this->logger->info("Executed: " . $sql);
+                $connection->executeStatement($query);
+                $this->logger->debug("Executed schema query: $query");
             } catch (\Exception $e) {
-                $this->logger->error("Failed to execute: " . $sql . " - Error: " . $e->getMessage());
-                throw new GCException("Schema generation failed: " . $e->getMessage(),
-                    ['sql' => $sql, 'error' => $e->getMessage()], 0, $e);
+                $this->logger->error("Failed to execute schema query", [
+                    'query' => $query,
+                    'error' => $e->getMessage()
+                ]);
+                throw new GCException("Schema update failed: " . $e->getMessage(), [], 0, $e);
             }
         }
 
-        $this->logger->info("Schema generation completed successfully");
+        if (!empty($queries)) {
+            $this->logger->info("Schema update completed", [
+                'queries_executed' => count($queries)
+            ]);
+        }
     }
 }
