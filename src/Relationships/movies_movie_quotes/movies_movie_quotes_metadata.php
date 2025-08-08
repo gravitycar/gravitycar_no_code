@@ -1,9 +1,9 @@
 <?php
 return [
-    'name' => 'MoviesMovieQuotes',
+    'name' => 'movies_movie_quotes',
     'type' => 'OneToMany',
     'modelOne' => 'Movies',
-    'modelMany' => 'MovieQuotes',
+    'modelMany' => 'Movie_Quotes',
     'constraints' => [],
     'additionalFields' => [],
 ];

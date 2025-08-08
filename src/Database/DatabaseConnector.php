@@ -466,6 +466,53 @@ class DatabaseConnector {
     }
 
     /**
+     * Get count of records matching criteria
+     */
+    public function getCount(ModelBase $model, string $fieldName, $value, bool $includeDeleted = false): int {
+        try {
+            $conn = $this->getConnection();
+            $queryBuilder = $conn->createQueryBuilder();
+
+            $tableName = $model->getTableName();
+
+            $queryBuilder
+                ->select('COUNT(*) as count')
+                ->from($tableName)
+                ->where($fieldName . ' = :value')
+                ->setParameter('value', $value);
+
+            // Add soft delete filter unless including deleted records
+            if (!$includeDeleted && $model->hasField('deleted_at')) {
+                $queryBuilder->andWhere('deleted_at IS NULL');
+            }
+
+            $result = $queryBuilder->executeQuery();
+            $count = $result->fetchOne();
+
+            $this->logger->debug('Database count operation completed', [
+                'model_class' => get_class($model),
+                'table_name' => $tableName,
+                'field_name' => $fieldName,
+                'field_value' => $value,
+                'include_deleted' => $includeDeleted,
+                'count' => $count
+            ]);
+
+            return (int) $count;
+
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to get count from database', [
+                'model_class' => get_class($model),
+                'field_name' => $fieldName,
+                'field_value' => $value,
+                'include_deleted' => $includeDeleted,
+                'error' => $e->getMessage()
+            ]);
+            throw new GCException('Database count operation failed: ' . $e->getMessage(), [], 0, $e);
+        }
+    }
+
+    /**
      * Extract database field data from a model
      */
     protected function extractDBFieldData($model, bool $includeNulls = false): array {
@@ -711,6 +758,11 @@ class DatabaseConnector {
             if (is_array($value)) {
                 $queryBuilder->andWhere("{$mainAlias}.{$field} IN (:{$field})");
                 $queryBuilder->setParameter($field, $value);
+            } elseif ($value === null) {
+                $queryBuilder->andWhere("{$mainAlias}.{$field} IS NULL");
+            } elseif (is_string($value) && $value === '__NOT_NULL__') {
+                // Special marker for IS NOT NULL conditions
+                $queryBuilder->andWhere("{$mainAlias}.{$field} IS NOT NULL");
             } else {
                 $queryBuilder->andWhere("{$mainAlias}.{$field} = :{$field}");
                 $queryBuilder->setParameter($field, $value);
@@ -741,6 +793,170 @@ class DatabaseConnector {
         }
         if ($offset !== null) {
             $queryBuilder->setFirstResult($offset);
+        }
+    }
+
+    /**
+     * Bulk soft delete records by field value
+     * Updates deleted_at and deleted_by fields for all records where fieldName equals fieldValue
+     */
+    public function bulkSoftDeleteByFieldValue(
+        ModelBase $model,
+        string $fieldName,
+        $fieldValue,
+        ?string $currentUserId = null
+    ): int {
+        try {
+            $criteria = [
+                $fieldName => $fieldValue,
+                'deleted_at' => null  // Only soft delete non-deleted records
+            ];
+            
+            $currentDateTime = date('Y-m-d H:i:s');
+            $fieldValues = [
+                'deleted_at' => $currentDateTime,
+                'deleted_by' => $currentUserId
+            ];
+
+            return $this->bulkUpdateByCriteriaWithFieldValues($model, $criteria, $fieldValues);
+
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to bulk soft delete by field value', [
+                'model_class' => get_class($model),
+                'table_name' => $model->getTableName(),
+                'field_name' => $fieldName,
+                'field_value' => $fieldValue,
+                'deleted_by' => $currentUserId,
+                'error' => $e->getMessage()
+            ]);
+            throw new GCException('Bulk soft delete by field value failed: ' . $e->getMessage(), [], 0, $e);
+        }
+    }
+
+    /**
+     * Bulk update records by criteria with specified field values
+     * Updates specified fields for all records matching the given criteria
+     */
+    public function bulkUpdateByCriteriaWithFieldValues(
+        ModelBase $model,
+        array $criteria,
+        array $fieldValues
+    ): int {
+        try {
+            $conn = $this->getConnection();
+            $queryBuilder = $conn->createQueryBuilder();
+
+            $tableName = $model->getTableName();
+            $modelFields = $model->getFields();
+
+            $queryBuilder->update($tableName);
+
+            // Set field values - only if the field exists and is a DB field
+            foreach ($fieldValues as $fieldName => $value) {
+                $field = $modelFields[$fieldName] ?? null;
+                if ($field && $field->isDBField()) {
+                    $queryBuilder->set($fieldName, ":{$fieldName}_value");
+                    $queryBuilder->setParameter("{$fieldName}_value", $value);
+                }
+            }
+
+            // Apply criteria using existing applyCriteria method logic
+            foreach ($criteria as $field => $value) {
+                if (is_array($value)) {
+                    $queryBuilder->andWhere("{$field} IN (:{$field}_criteria)");
+                    $queryBuilder->setParameter("{$field}_criteria", $value);
+                } elseif ($value === null) {
+                    $queryBuilder->andWhere("{$field} IS NULL");
+                } elseif (is_string($value) && $value === '__NOT_NULL__') {
+                    $queryBuilder->andWhere("{$field} IS NOT NULL");
+                } else {
+                    $queryBuilder->andWhere("{$field} = :{$field}_criteria");
+                    $queryBuilder->setParameter("{$field}_criteria", $value);
+                }
+            }
+
+            $result = $queryBuilder->executeStatement();
+
+            $this->logger->info('Bulk update by criteria with field values completed', [
+                'model_class' => get_class($model),
+                'table_name' => $tableName,
+                'criteria' => $criteria,
+                'field_values' => $fieldValues,
+                'records_updated' => $result
+            ]);
+
+            return $result;
+
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to bulk update by criteria with field values', [
+                'model_class' => get_class($model),
+                'criteria' => $criteria,
+                'field_values' => $fieldValues,
+                'error' => $e->getMessage()
+            ]);
+            throw new GCException('Bulk update by criteria with field values failed: ' . $e->getMessage(), [], 0, $e);
+        }
+    }
+
+    /**
+     * Bulk soft delete records by criteria
+     * Updates deleted_at and deleted_by fields for all records matching the given criteria
+     */
+    public function bulkSoftDeleteByCriteria(
+        ModelBase $model,
+        array $criteria,
+        ?string $currentUserId = null
+    ): int {
+        try {
+            $currentDateTime = date('Y-m-d H:i:s');
+            $fieldValues = [
+                'deleted_at' => $currentDateTime,
+                'deleted_by' => $currentUserId
+            ];
+
+            // Add condition to only soft delete non-deleted records
+            $criteria['deleted_at'] = null;
+
+            return $this->bulkUpdateByCriteriaWithFieldValues($model, $criteria, $fieldValues);
+
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to bulk soft delete by criteria', [
+                'model_class' => get_class($model),
+                'table_name' => $model->getTableName(),
+                'criteria' => $criteria,
+                'deleted_by' => $currentUserId,
+                'error' => $e->getMessage()
+            ]);
+            throw new GCException('Bulk soft delete by criteria failed: ' . $e->getMessage(), [], 0, $e);
+        }
+    }
+
+    /**
+     * Bulk restore soft-deleted records by criteria
+     * Restores deleted_at and deleted_by fields for all soft-deleted records matching the given criteria
+     */
+    public function bulkRestoreByCriteria(
+        ModelBase $model,
+        array $criteria
+    ): int {
+        try {
+            $fieldValues = [
+                'deleted_at' => null,
+                'deleted_by' => null
+            ];
+
+            // Add condition to only restore deleted records
+            $criteria['deleted_at'] = '__NOT_NULL__';
+
+            return $this->bulkUpdateByCriteriaWithFieldValues($model, $criteria, $fieldValues);
+
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to bulk restore by criteria', [
+                'model_class' => get_class($model),
+                'criteria' => $criteria,
+                'error' => $e->getMessage()
+            ]);
+            throw new GCException('Bulk restore by criteria failed: ' . $e->getMessage(), [], 0, $e);
         }
     }
 

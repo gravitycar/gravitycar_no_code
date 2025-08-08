@@ -86,7 +86,7 @@ class Gravitycar {
 
         try {
             $this->handleRequest();
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->handleRuntimeError($e);
         }
     }
@@ -283,7 +283,7 @@ class Gravitycar {
     /**
      * Handle runtime errors
      */
-    private function handleRuntimeError(Exception $e): void {
+    private function handleRuntimeError(\Throwable $e): void {
         $this->logger->error('Runtime error', [
             'error' => $e->getMessage(),
             'trace' => $e->getTraceAsString()
@@ -355,7 +355,7 @@ class Gravitycar {
     /**
      * Handle uncaught exceptions
      */
-    public function handleUncaughtException(Exception $e): void {
+    public function handleUncaughtException(\Throwable $e): void {
         $this->handleRuntimeError($e);
     }
 

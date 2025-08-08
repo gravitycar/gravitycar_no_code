@@ -60,7 +60,7 @@ abstract class ModelBase {
         $modelName = basename(str_replace('\\', '/', $modelName));
         $modelNameLc = strtolower($modelName);
         return [
-            "src/Models/{$modelName}/{$modelNameLc}_metadata.php"
+            "src/Models/{$modelNameLc}/{$modelNameLc}_metadata.php"
         ];
     }
 
@@ -90,6 +90,8 @@ abstract class ModelBase {
                 if (is_array($data)) {
                     $mergedMetadata = $this->mergeMetadataArrays($mergedMetadata, $data);
                 }
+            } else {
+                throw new GCException("Metadata file not found: $file", ['file' => $file, 'model_class' => static::class]);
             }
         }
 
@@ -184,25 +186,19 @@ abstract class ModelBase {
         // Create RelationshipFactory instance using DI system
         $relationshipFactory = ServiceLocator::createRelationshipFactory($this);
 
-        foreach ($this->metadata['relationships'] as $relName => $relMeta) {
+        foreach ($this->metadata['relationships'] as $relName) {
             try {
-                // Add name to metadata if not present
-                $relMeta['name'] = $relName;
-                
                 // Use RelationshipFactory to create relationship with validation
-                $relationship = $relationshipFactory->createRelationship($relMeta);
+                $relationship = $relationshipFactory->createRelationship($relName);
                 $this->relationships[$relName] = $relationship;
                 
                 $this->logger->debug('Relationship initialized successfully', [
                     'relationship_name' => $relName,
-                    'relationship_type' => $relMeta['type'] ?? 'unknown',
-                    'model_class' => static::class
                 ]);
                 
             } catch (\Exception $e) {
                 $this->logger->error("Failed to create relationship $relName: " . $e->getMessage(), [
                     'relationship_name' => $relName,
-                    'relationship_metadata' => $relMeta,
                     'model_class' => static::class,
                     'error' => $e->getMessage()
                 ]);
@@ -832,7 +828,7 @@ abstract class ModelBase {
             ]);
         }
 
-        return $relationship->addRelation($this, $relatedModel, $additionalData);
+        return $relationship->add($this, $relatedModel, $additionalData);
     }
 
     /**
@@ -847,7 +843,7 @@ abstract class ModelBase {
             ]);
         }
 
-        return $relationship->removeRelation($this, $relatedModel);
+        return $relationship->remove($this, $relatedModel);
     }
 
     /**
@@ -859,13 +855,13 @@ abstract class ModelBase {
             return false;
         }
 
-        return $relationship->hasRelation($this, $relatedModel);
+        return $relationship->has($this, $relatedModel);
     }
 
     /**
      * Get paginated related records
      */
-    public function getRelatedPaginated(string $relationshipName, int $page = 1, int $perPage = 20): array {
+    public function getRelatedWithPagination(string $relationshipName, int $page = 1, int $perPage = 20): array {
         $relationship = $this->getRelationship($relationshipName);
         if (!$relationship) {
             throw new GCException("Relationship '{$relationshipName}' not found", [

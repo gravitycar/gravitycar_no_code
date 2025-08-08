@@ -7,7 +7,7 @@ use Monolog\Logger;
 /**
  * MovieQuotes model class for Gravitycar framework.
  */
-class MovieQuotes extends ModelBase {
+class Movie_Quotes extends ModelBase {
     public function __construct(Logger $logger) {
         parent::__construct($logger);
     }

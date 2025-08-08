@@ -80,18 +80,8 @@ return [
     ],
     'validationRules' => [],
     'relationships' => [
-        'movie' => [
-            'type' => '1_N',
-            'model_a' => 'movies',
-            'model_b' => 'movie_quotes',
-            'fields' => [
-                'movie_id' => [
-                    'type' => 'ID',
-                    'required' => true,
-                ],
-            ],
+        'movies_movie_quotes',
         ],
-    ],
     'ui' => [
         'listFields' => ['quote', 'movie', 'movie_poster'],
         'createFields' => ['quote', 'movie_id'],

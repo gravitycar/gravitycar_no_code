@@ -10,31 +10,7 @@ use Gravitycar\Exceptions\GCException;
  */
 class OneToOneRelationship extends RelationshipBase {
 
-    /**
-     * Get all related records for a given model instance
-     * For OneToOne, this returns at most one record
-     */
-    public function getRelatedRecords(ModelBase $model): array {
-        $sql = "SELECT * FROM {$this->getTableName()} 
-                WHERE {$this->getModelIdField($model)} = ? 
-                AND deleted_at IS NULL 
-                LIMIT 1";
 
-        $conn = $this->getDatabaseConnector()->getConnection();
-        $stmt = $conn->prepare($sql);
-        $stmt->execute([$model->get('id')]);
-
-        $records = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
-        $this->logger->debug('OneToOne getRelatedRecords completed', [
-            'model_class' => get_class($model),
-            'model_id' => $model->get('id'),
-            'relationship' => $this->getName(),
-            'records_found' => count($records)
-        ]);
-
-        return $records;
-    }
 
     /**
      * Get the single related record (convenience method)
@@ -46,160 +22,23 @@ class OneToOneRelationship extends RelationshipBase {
 
     /**
      * Add a new relationship record
-     * For OneToOne, this replaces any existing relationship
+     * For OneToOne, this soft deletes any existing relationships for both models first
      */
-    public function addRelation(ModelBase $modelA, ModelBase $modelB, array $additionalData = []): bool {
-        try {
-            // First, remove any existing relationships for both models (OneToOne constraint)
-            $this->removeAllRelations($modelA);
-            $this->removeAllRelations($modelB);
+    public function add(ModelBase $modelA, ModelBase $modelB, array $additionalData = []): bool {
+        // Soft delete any existing relationships for both models (OneToOne constraint)
+        $this->softDeleteExistingRelationships($modelA);
+        $this->softDeleteExistingRelationships($modelB);
 
-            $conn = $this->getDatabaseConnector()->getConnection();
-
-            // Prepare data for insertion
-            $data = array_merge([
-                $this->getModelIdField($modelA) => $modelA->get('id'),
-                $this->getModelIdField($modelB) => $modelB->get('id'),
-                'created_at' => date('Y-m-d H:i:s'),
-                'updated_at' => date('Y-m-d H:i:s')
-            ], $additionalData);
-
-            // Build INSERT query
-            $fields = array_keys($data);
-            $placeholders = array_fill(0, count($fields), '?');
-
-            $sql = "INSERT INTO {$this->getTableName()} 
-                    (" . implode(', ', $fields) . ") 
-                    VALUES (" . implode(', ', $placeholders) . ")";
-
-            $stmt = $conn->prepare($sql);
-            $result = $stmt->executeStatement(array_values($data));
-
-            $this->logger->info('OneToOne relationship added', [
-                'relationship' => $this->getName(),
-                'model_a_class' => get_class($modelA),
-                'model_a_id' => $modelA->get('id'),
-                'model_b_class' => get_class($modelB),
-                'model_b_id' => $modelB->get('id'),
-                'additional_data' => $additionalData
-            ]);
-
-            return $result > 0;
-
-        } catch (\Exception $e) {
-            $this->logger->error('Failed to add OneToOne relationship', [
-                'relationship' => $this->getName(),
-                'model_a_class' => get_class($modelA),
-                'model_a_id' => $modelA->get('id'),
-                'model_b_class' => get_class($modelB),
-                'model_b_id' => $modelB->get('id'),
-                'error' => $e->getMessage()
-            ]);
-
-            throw new GCException('Failed to add OneToOne relationship: ' . $e->getMessage(), [], 0, $e);
-        }
+        // Call parent method to handle the actual insertion
+        return parent::add($modelA, $modelB, $additionalData);
     }
 
     /**
      * Set or replace the relationship (removes existing if present)
      */
     public function setRelation(ModelBase $modelA, ModelBase $modelB, array $additionalData = []): bool {
-        // For OneToOne, setRelation is the same as addRelation since addRelation already handles replacement
-        return $this->addRelation($modelA, $modelB, $additionalData);
-    }
-
-    /**
-     * Remove a specific relationship record
-     */
-    public function removeRelation(ModelBase $modelA, ModelBase $modelB): bool {
-        try {
-            $conn = $this->getDatabaseConnector()->getConnection();
-
-            $sql = "DELETE FROM {$this->getTableName()} 
-                    WHERE {$this->getModelIdField($modelA)} = ? 
-                    AND {$this->getModelIdField($modelB)} = ?";
-
-            $stmt = $conn->prepare($sql);
-            $result = $stmt->executeStatement([
-                $modelA->get('id'),
-                $modelB->get('id')
-            ]);
-
-            $this->logger->info('OneToOne relationship removed', [
-                'relationship' => $this->getName(),
-                'model_a_class' => get_class($modelA),
-                'model_a_id' => $modelA->get('id'),
-                'model_b_class' => get_class($modelB),
-                'model_b_id' => $modelB->get('id')
-            ]);
-
-            return $result > 0;
-
-        } catch (\Exception $e) {
-            $this->logger->error('Failed to remove OneToOne relationship', [
-                'relationship' => $this->getName(),
-                'model_a_class' => get_class($modelA),
-                'model_a_id' => $modelA->get('id'),
-                'model_b_class' => get_class($modelB),
-                'model_b_id' => $modelB->get('id'),
-                'error' => $e->getMessage()
-            ]);
-
-            throw new GCException('Failed to remove OneToOne relationship: ' . $e->getMessage(), [], 0, $e);
-        }
-    }
-
-    /**
-     * Remove all relationships for a model
-     */
-    public function removeAllRelations(ModelBase $model): bool {
-        try {
-            $conn = $this->getDatabaseConnector()->getConnection();
-
-            $sql = "DELETE FROM {$this->getTableName()} 
-                    WHERE {$this->getModelIdField($model)} = ?";
-
-            $stmt = $conn->prepare($sql);
-            $result = $stmt->executeStatement([$model->get('id')]);
-
-            $this->logger->info('All OneToOne relationships removed for model', [
-                'relationship' => $this->getName(),
-                'model_class' => get_class($model),
-                'model_id' => $model->get('id'),
-                'relationships_removed' => $result
-            ]);
-
-            return $result > 0;
-
-        } catch (\Exception $e) {
-            $this->logger->error('Failed to remove all OneToOne relationships', [
-                'relationship' => $this->getName(),
-                'model_class' => get_class($model),
-                'model_id' => $model->get('id'),
-                'error' => $e->getMessage()
-            ]);
-
-            throw new GCException('Failed to remove all OneToOne relationships: ' . $e->getMessage(), [], 0, $e);
-        }
-    }
-
-    /**
-     * Check if a relationship exists between two models
-     */
-    public function hasRelation(ModelBase $modelA, ModelBase $modelB): bool {
-        $sql = "SELECT COUNT(*) FROM {$this->getTableName()} 
-                WHERE {$this->getModelIdField($modelA)} = ? 
-                AND {$this->getModelIdField($modelB)} = ? 
-                AND deleted_at IS NULL";
-
-        $conn = $this->getDatabaseConnector()->getConnection();
-        $stmt = $conn->prepare($sql);
-        $stmt->execute([
-            $modelA->get('id'),
-            $modelB->get('id')
-        ]);
-
-        return $stmt->fetchOne() > 0;
+        // For OneToOne, setRelation is the same as add since add already handles replacement
+        return $this->add($modelA, $modelB, $additionalData);
     }
 
     /**
@@ -211,40 +50,58 @@ class OneToOneRelationship extends RelationshipBase {
                 return true; // Nothing to update
             }
 
-            $conn = $this->getDatabaseConnector()->getConnection();
+            // First, find the existing relationship record
+            $criteria = [
+                $this->getModelIdField($modelA) => $modelA->get('id'),
+                $this->getModelIdField($modelB) => $modelB->get('id'),
+                'deleted_at' => null  // Only find non-deleted relationships
+            ];
 
-            // Add updated_at timestamp
-            $additionalData['updated_at'] = date('Y-m-d H:i:s');
+            $dbConnector = $this->getDatabaseConnector();
+            $results = $dbConnector->find(static::class, $criteria, [], ['limit' => 1]);
 
-            // Build UPDATE query
-            $setClauses = [];
-            foreach (array_keys($additionalData) as $field) {
-                $setClauses[] = "{$field} = ?";
+            if (empty($results)) {
+                $this->logger->warning('OneToOne relationship not found for update', [
+                    'relationship' => $this->getName(),
+                    'model_a_class' => get_class($modelA),
+                    'model_a_id' => $modelA->get('id'),
+                    'model_b_class' => get_class($modelB),
+                    'model_b_id' => $modelB->get('id')
+                ]);
+                return false;
             }
 
-            $sql = "UPDATE {$this->getTableName()} 
-                    SET " . implode(', ', $setClauses) . " 
-                    WHERE {$this->getModelIdField($modelA)} = ? 
-                    AND {$this->getModelIdField($modelB)} = ?";
+            // Create a relationship instance from the found record and populate it
+            $relationshipInstance = new static($this->metadata, $this->logger, $this->coreFieldsMetadata);
+            $relationshipInstance->populateFromRow($results[0]);
 
-            $params = array_merge(
-                array_values($additionalData),
-                [$modelA->get('id'), $modelB->get('id')]
-            );
+            // Update the fields with new data
+            foreach ($additionalData as $field => $value) {
+                if ($relationshipInstance->hasField($field)) {
+                    $relationshipInstance->set($field, $value);
+                }
+            }
 
-            $stmt = $conn->prepare($sql);
-            $result = $stmt->executeStatement($params);
+            // Set updated_at timestamp
+            if ($relationshipInstance->hasField('updated_at')) {
+                $relationshipInstance->set('updated_at', date('Y-m-d H:i:s'));
+            }
 
-            $this->logger->info('OneToOne relationship updated', [
-                'relationship' => $this->getName(),
-                'model_a_class' => get_class($modelA),
-                'model_a_id' => $modelA->get('id'),
-                'model_b_class' => get_class($modelB),
-                'model_b_id' => $modelB->get('id'),
-                'updated_data' => $additionalData
-            ]);
+            // Update the relationship record using DatabaseConnector
+            $success = $dbConnector->update($relationshipInstance);
 
-            return $result > 0;
+            if ($success) {
+                $this->logger->info('OneToOne relationship updated', [
+                    'relationship' => $this->getName(),
+                    'model_a_class' => get_class($modelA),
+                    'model_a_id' => $modelA->get('id'),
+                    'model_b_class' => get_class($modelB),
+                    'model_b_id' => $modelB->get('id'),
+                    'updated_data' => $additionalData
+                ]);
+            }
+
+            return $success;
 
         } catch (\Exception $e) {
             $this->logger->error('Failed to update OneToOne relationship', [
@@ -307,16 +164,16 @@ class OneToOneRelationship extends RelationshipBase {
             $sourceModelName = strtolower(basename(str_replace('\\', '/', get_class($sourceModel))));
 
             // Determine which is the related model
-            $modelA = strtolower($this->relationshipMetadata['modelA']);
-            $modelB = strtolower($this->relationshipMetadata['modelB']);
+            $modelA = strtolower($this->metadata['modelA']);
+            $modelB = strtolower($this->metadata['modelB']);
 
             if ($sourceModelName === $modelA) {
                 // Source is modelA, so related is modelB
-                $relatedModelClass = "Gravitycar\\Models\\{$this->relationshipMetadata['modelB']}";
+                $relatedModelClass = "Gravitycar\\Models\\{$this->metadata['modelB']}";
                 $relatedId = $relationshipRecord[$modelB . '_id'];
             } else {
                 // Source is modelB, so related is modelA
-                $relatedModelClass = "Gravitycar\\Models\\{$this->relationshipMetadata['modelA']}";
+                $relatedModelClass = "Gravitycar\\Models\\{$this->metadata['modelA']}";
                 $relatedId = $relationshipRecord[$modelA . '_id'];
             }
 

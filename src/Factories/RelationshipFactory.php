@@ -98,7 +98,9 @@ class RelationshipFactory {
      * Build metadata file path for relationship
      */
     protected function buildMetadataFilePath(string $relationshipName): string {
-        return __DIR__ . "/../Relationships/{$relationshipName}/{$relationshipName}_metadata.php";
+        // Get project root directory (go up from src/Factories to project root)
+        $projectRoot = dirname(dirname(__DIR__));
+        return $projectRoot . "/src/Relationships/{$relationshipName}/{$relationshipName}_metadata.php";
     }
 
     /**
@@ -219,7 +221,9 @@ class RelationshipFactory {
      * Scan src/relationships directory for available relationship types
      */
     protected function discoverRelationshipTypes(): void {
-        $relationshipsDir = __DIR__ . '/../Relationships';
+        // Get project root directory (go up from src/Factories to project root)
+        $projectRoot = dirname(dirname(__DIR__));
+        $relationshipsDir = $projectRoot . '/src/Relationships';
         if (!is_dir($relationshipsDir)) {
             $this->logger->warning("Relationships directory not found: $relationshipsDir");
             return;
@@ -314,7 +318,9 @@ class RelationshipFactory {
         if (isset($metadata['modelMany'])) $models[] = $metadata['modelMany'];
 
         foreach ($models as $modelName) {
-            $modelClass = "Gravitycar\\Models\\{$modelName}";
+            // Convert model name to lowercase for directory structure
+            $lowerModelName = strtolower($modelName);
+            $modelClass = "Gravitycar\\Models\\{$lowerModelName}\\{$modelName}";
             if (!class_exists($modelClass)) {
                 throw new GCException("Referenced model class does not exist: {$modelClass}", [
                     'model_name' => $modelName,

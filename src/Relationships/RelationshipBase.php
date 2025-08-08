@@ -20,12 +20,11 @@ abstract class RelationshipBase extends ModelBase {
     const CASCADE_SOFT_DELETE = 'softDelete';
     const CASCADE_SET_DEFAULT = 'setDefault';
 
-    protected array $relationshipMetadata = [];
     protected ?string $tableName = null;
     protected CoreFieldsMetadata $coreFieldsMetadata;
 
     public function __construct(array $metadata, Logger $logger, ?CoreFieldsMetadata $coreFieldsMetadata = null) {
-        $this->relationshipMetadata = $metadata;
+        $this->metadata = $metadata;
         $this->coreFieldsMetadata = $coreFieldsMetadata ?? new CoreFieldsMetadata($logger);
         parent::__construct($logger);
     }
@@ -36,7 +35,7 @@ abstract class RelationshipBase extends ModelBase {
     protected function ingestMetadata(): void {
         try {
             // Validate the metadata that was passed to constructor
-            $this->validateRelationshipMetadata($this->relationshipMetadata);
+            $this->validateRelationshipMetadata($this->metadata);
 
             // Generate table name based on relationship type and models
             $this->generateTableName();
@@ -47,16 +46,17 @@ abstract class RelationshipBase extends ModelBase {
             // Generate dynamic fields for the relationship
             $this->generateDynamicFields();
 
-            $this->logger->info('Relationship metadata ingested successfully', [
+                        $this->logger->info('Relationship metadata ingested successfully', [
                 'relationship_name' => $this->getName(),
-                'relationship_type' => $this->getType(),
-                'table_name' => $this->getTableName()
+                'metadata' => $this->metadata,
+                'table_name' => $this->tableName,
+                'total_fields' => count($this->fields)
             ]);
 
         } catch (\Exception $e) {
             $this->logger->error('Failed to ingest relationship metadata', [
                 'class_name' => get_class($this),
-                'metadata' => $this->relationshipMetadata,
+                'metadata' => $this->metadata,
                 'error' => $e->getMessage()
             ]);
             throw $e;
@@ -164,24 +164,24 @@ abstract class RelationshipBase extends ModelBase {
      * Generate table name based on relationship type and involved models
      */
     protected function generateTableName(): void {
-        $type = $this->relationshipMetadata['type'];
+        $type = $this->metadata['type'];
 
         switch ($type) {
             case 'OneToOne':
-                $modelA = strtolower($this->relationshipMetadata['modelA']);
-                $modelB = strtolower($this->relationshipMetadata['modelB']);
+                $modelA = strtolower($this->metadata['modelA']);
+                $modelB = strtolower($this->metadata['modelB']);
                 $this->tableName = "rel_1_{$modelA}_1_{$modelB}";
                 break;
 
             case 'OneToMany':
-                $modelOne = strtolower($this->relationshipMetadata['modelOne']);
-                $modelMany = strtolower($this->relationshipMetadata['modelMany']);
+                $modelOne = strtolower($this->metadata['modelOne']);
+                $modelMany = strtolower($this->metadata['modelMany']);
                 $this->tableName = "rel_1_{$modelOne}_M_{$modelMany}";
                 break;
 
             case 'ManyToMany':
-                $modelA = strtolower($this->relationshipMetadata['modelA']);
-                $modelB = strtolower($this->relationshipMetadata['modelB']);
+                $modelA = strtolower($this->metadata['modelA']);
+                $modelB = strtolower($this->metadata['modelB']);
                 $this->tableName = "rel_N_{$modelA}_M_{$modelB}";
                 break;
 
@@ -207,7 +207,7 @@ abstract class RelationshipBase extends ModelBase {
      * Generate dynamic fields for the relationship based on involved models
      */
     protected function generateDynamicFields(): void {
-        $type = $this->relationshipMetadata['type'];
+        $type = $this->metadata['type'];
 
         switch ($type) {
             case 'OneToOne':
@@ -231,8 +231,8 @@ abstract class RelationshipBase extends ModelBase {
      * Generate fields for OneToOne relationships
      */
     protected function generateOneToOneFields(): void {
-        $modelA = $this->relationshipMetadata['modelA'];
-        $modelB = $this->relationshipMetadata['modelB'];
+        $modelA = $this->metadata['modelA'];
+        $modelB = $this->metadata['modelB'];
 
         // Generate ID field for model A
         $fieldAName = strtolower($modelA) . '_id';
@@ -267,8 +267,8 @@ abstract class RelationshipBase extends ModelBase {
      * Generate fields for OneToMany relationships
      */
     protected function generateOneToManyFields(): void {
-        $modelOne = $this->relationshipMetadata['modelOne'];
-        $modelMany = $this->relationshipMetadata['modelMany'];
+        $modelOne = $this->metadata['modelOne'];
+        $modelMany = $this->metadata['modelMany'];
 
         // Generate ID field for "one" model
         $fieldOneName = 'one_' . strtolower($modelOne) . '_id';
@@ -301,8 +301,8 @@ abstract class RelationshipBase extends ModelBase {
      * Generate fields for ManyToMany relationships
      */
     protected function generateManyToManyFields(): void {
-        $modelA = $this->relationshipMetadata['modelA'];
-        $modelB = $this->relationshipMetadata['modelB'];
+        $modelA = $this->metadata['modelA'];
+        $modelB = $this->metadata['modelB'];
 
         // Generate ID field for model A
         $fieldAName = strtolower($modelA) . '_id';
@@ -335,7 +335,7 @@ abstract class RelationshipBase extends ModelBase {
      * Generate additional fields specified in relationship metadata
      */
     protected function generateAdditionalFields(): void {
-        $additionalFields = $this->relationshipMetadata['additionalFields'] ?? [];
+        $additionalFields = $this->metadata['additionalFields'] ?? [];
 
         foreach ($additionalFields as $fieldName => $fieldMetadata) {
             $this->addDynamicField($fieldName, $fieldMetadata);
@@ -350,6 +350,35 @@ abstract class RelationshipBase extends ModelBase {
     }
 
     /**
+     * Add field metadata to the relationship's field collection
+     * This method handles adding field definitions to the relationship's metadata structure
+     */
+    protected function addFieldFromMetadata(string $fieldName, array $fieldMetadata): void {
+        // Initialize fields array in relationship metadata if it doesn't exist
+        if (!isset($this->metadata['fields'])) {
+            $this->metadata['fields'] = [];
+        }
+
+        // Ensure the field name is set in the metadata
+        $fieldMetadata['name'] = $fieldName;
+
+        // Add the field to the relationship's field collection
+        $this->metadata['fields'][$fieldName] = $fieldMetadata;
+
+        // Also initialize in the inherited ModelBase metadata structure
+        if (!isset($this->metadata['fields'])) {
+            $this->metadata['fields'] = [];
+        }
+        $this->metadata['fields'][$fieldName] = $fieldMetadata;
+
+        $this->logger->debug('Field added to relationship metadata', [
+            'relationship_name' => $this->getName(),
+            'field_name' => $fieldName,
+            'field_type' => $fieldMetadata['type'] ?? 'unknown'
+        ]);
+    }
+
+    /**
      * Get the table name for this relationship
      */
     public function getTableName(): string {
@@ -360,21 +389,21 @@ abstract class RelationshipBase extends ModelBase {
      * Get relationship metadata
      */
     public function getRelationshipMetadata(): array {
-        return $this->relationshipMetadata;
+        return $this->metadata;
     }
 
     /**
      * Get relationship type
      */
     public function getType(): string {
-        return $this->relationshipMetadata['type'];
+        return $this->metadata['type'];
     }
 
     /**
      * Get relationship name
      */
     public function getName(): string {
-        return $this->relationshipMetadata['name'] ?? 'unknown';
+        return $this->metadata['name'] ?? 'unknown';
     }
 
     /**
@@ -408,8 +437,8 @@ abstract class RelationshipBase extends ModelBase {
 
             case 'OneToMany':
                 // Determine if this is the "one" or "many" model
-                $modelOne = strtolower($this->relationshipMetadata['modelOne']);
-                $modelMany = strtolower($this->relationshipMetadata['modelMany']);
+                $modelOne = strtolower($this->metadata['modelOne']);
+                $modelMany = strtolower($this->metadata['modelMany']);
 
                 if ($modelName === $modelOne) {
                     return 'one_' . $modelName . '_id';
@@ -426,23 +455,260 @@ abstract class RelationshipBase extends ModelBase {
 
     /**
      * Get all related records for a given model instance
+     * This implementation works for all relationship types
      */
-    abstract public function getRelatedRecords(ModelBase $model): array;
+    public function getRelatedRecords(ModelBase $model): array {
+        $modelIdFieldName = $this->getModelIdField($model);
+        
+        // Build criteria for active (non-deleted) relationships
+        $criteria = [
+            $modelIdFieldName => $model->get('id'),
+            'deleted_at' => null  // Only find non-deleted relationships
+        ];
+
+        // Set parameters based on relationship type
+        $parameters = [];
+        if ($this->getType() === 'OneToOne') {
+            $parameters['limit'] = 1; // OneToOne should return at most one record
+        }
+
+        // Use DatabaseConnector->find() for consistent data access
+        $dbConnector = $this->getDatabaseConnector();
+        $records = $dbConnector->find(static::class, $criteria, [], $parameters);
+
+        $this->logger->debug('{type} getRelatedRecords completed', [
+            'relationship_type' => $this->getType(),
+            'model_class' => get_class($model),
+            'model_id' => $model->get('id'),
+            'relationship' => $this->getName(),
+            'records_found' => count($records)
+        ]);
+
+        return $records;
+    }
 
     /**
      * Add a new relationship record
      */
-    abstract public function addRelation(ModelBase $modelA, ModelBase $modelB, array $additionalData = []): bool;
+    public function add(ModelBase $modelA, ModelBase $modelB, array $additionalData = []): bool {
+        try {
+            // For ManyToMany and OneToMany, check if relationship already exists
+            if ($this->has($modelA, $modelB)) {
+                $this->logger->warning('Relationship already exists', [
+                    'relationship' => $this->getName(),
+                    'relationship_type' => get_class($this),
+                    'model_a_class' => get_class($modelA),
+                    'model_a_id' => $modelA->get('id'),
+                    'model_b_class' => get_class($modelB),
+                    'model_b_id' => $modelB->get('id')
+                ]);
+                return false;
+            }
+
+            // Set the model ID fields on this relationship instance
+            $this->set($this->getModelIdField($modelA), $modelA->get('id'));
+            $this->set($this->getModelIdField($modelB), $modelB->get('id'));
+            
+            // Generate and set the ID field using existing UUID generation
+            if ($this->hasField('id') && !$this->get('id')) {
+                $this->set('id', $this->generateUuid());
+            }
+            
+            // Set audit fields
+            $currentTimestamp = date('Y-m-d H:i:s');
+            $currentUserId = $this->getCurrentUserId();
+            
+            if ($this->hasField('created_at')) {
+                $this->set('created_at', $currentTimestamp);
+            }
+            if ($this->hasField('updated_at')) {
+                $this->set('updated_at', $currentTimestamp);
+            }
+            if ($this->hasField('created_by') && $currentUserId) {
+                $this->set('created_by', $currentUserId);
+            }
+            if ($this->hasField('updated_by') && $currentUserId) {
+                $this->set('updated_by', $currentUserId);
+            }
+            
+            // Set any additional data provided
+            foreach ($additionalData as $fieldName => $value) {
+                if ($this->hasField($fieldName)) {
+                    $this->set($fieldName, $value);
+                }
+            }
+
+            // Use DatabaseConnector->create() to handle the insertion
+            $dbConnector = $this->getDatabaseConnector();
+            $success = $dbConnector->create($this);
+
+            if ($success) {
+                $this->logger->info('Relationship added', [
+                    'relationship' => $this->getName(),
+                    'relationship_type' => get_class($this),
+                    'model_a_class' => get_class($modelA),
+                    'model_a_id' => $modelA->get('id'),
+                    'model_b_class' => get_class($modelB),
+                    'model_b_id' => $modelB->get('id'),
+                    'additional_data' => $additionalData
+                ]);
+            }
+
+            return $success;
+
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to add relationship', [
+                'relationship' => $this->getName(),
+                'relationship_type' => get_class($this),
+                'model_a_class' => get_class($modelA),
+                'model_a_id' => $modelA->get('id'),
+                'model_b_class' => get_class($modelB),
+                'model_b_id' => $modelB->get('id'),
+                'error' => $e->getMessage()
+            ]);
+
+            throw new GCException('Failed to add relationship: ' . $e->getMessage(), [], 0, $e);
+        }
+    }
 
     /**
-     * Remove a relationship record
+     * Soft delete existing relationships for a model (used by OneToOne)
      */
-    abstract public function removeRelation(ModelBase $modelA, ModelBase $modelB): bool;
+    protected function softDeleteExistingRelationships(ModelBase $model): void {
+        try {
+            $currentUserId = $this->getCurrentUserId();
+            $fieldName = $this->getModelIdField($model);
+            $fieldValue = $model->get('id');
+
+            // Use DatabaseConnector for bulk soft delete
+            $this->getDatabaseConnector()->bulkSoftDeleteByFieldValue(
+                $this,
+                $fieldName,
+                $fieldValue,
+                $currentUserId
+            );
+
+            $this->logger->debug('Soft deleted existing relationships for model', [
+                'relationship' => $this->getName(),
+                'model_class' => get_class($model),
+                'model_id' => $model->get('id'),
+                'deleted_by' => $currentUserId
+            ]);
+
+        } catch (\Exception $e) {
+            $this->logger->warning('Failed to soft delete existing relationships', [
+                'relationship' => $this->getName(),
+                'model_class' => get_class($model),
+                'model_id' => $model->get('id'),
+                'error' => $e->getMessage()
+            ]);
+            // Don't throw here, let the main add operation continue
+        }
+    }
+
+    /**
+     * Remove a specific relationship record (soft delete)
+     */
+    public function remove(ModelBase $modelA, ModelBase $modelB): bool {
+        try {
+            // First, find the existing relationship record
+            $criteria = [
+                $this->getModelIdField($modelA) => $modelA->get('id'),
+                $this->getModelIdField($modelB) => $modelB->get('id'),
+                'deleted_at' => null  // Only find non-deleted relationships
+            ];
+
+            $dbConnector = $this->getDatabaseConnector();
+            $results = $dbConnector->find(static::class, $criteria, [], ['limit' => 1]);
+
+            if (empty($results)) {
+                $this->logger->warning('Relationship not found for removal', [
+                    'relationship_type' => $this->getType(),
+                    'model_a_class' => get_class($modelA),
+                    'model_a_id' => $modelA->get('id'),
+                    'model_b_class' => get_class($modelB),
+                    'model_b_id' => $modelB->get('id')
+                ]);
+                return false;
+            }
+
+            // Create a relationship instance from the found record and populate it
+            $relationshipInstance = new static($this->metadata, $this->logger, $this->coreFieldsMetadata);
+            $relationshipInstance->populateFromRow($results[0]);
+
+            // Set soft delete fields
+            $currentUserId = $this->getCurrentUserId();
+            $currentTimestamp = date('Y-m-d H:i:s');
+
+            if ($relationshipInstance->hasField('deleted_at')) {
+                $relationshipInstance->set('deleted_at', $currentTimestamp);
+            }
+            if ($relationshipInstance->hasField('deleted_by') && $currentUserId) {
+                $relationshipInstance->set('deleted_by', $currentUserId);
+            }
+
+            // Update the relationship record using DatabaseConnector
+            $success = $dbConnector->update($relationshipInstance);
+
+            if ($success) {
+                $this->logger->info('{type} relationship soft deleted successfully', [
+                    'relationship_type' => $this->getType(),
+                    'relationship_name' => $this->getName(),
+                    'model_a_class' => get_class($modelA),
+                    'model_a_id' => $modelA->get('id'),
+                    'model_b_class' => get_class($modelB),
+                    'model_b_id' => $modelB->get('id'),
+                    'deleted_at' => $currentTimestamp,
+                    'deleted_by' => $currentUserId
+                ]);
+            }
+
+            return $success;
+
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to remove {type} relationship', [
+                'relationship_type' => $this->getType(),
+                'model_a_class' => get_class($modelA),
+                'model_a_id' => $modelA->get('id'),
+                'model_b_class' => get_class($modelB),
+                'model_b_id' => $modelB->get('id'),
+                'error' => $e->getMessage()
+            ]);
+            throw new GCException('Failed to remove relationship: ' . $e->getMessage(), [], 0, $e);
+        }
+    }
 
     /**
      * Check if a relationship exists between two models
      */
-    abstract public function hasRelation(ModelBase $modelA, ModelBase $modelB): bool;
+    public function has(ModelBase $modelA, ModelBase $modelB): bool {
+        try {
+            // Build criteria to find a record in the relationship table
+            $criteria = [
+                $this->getModelIdField($modelA) => $modelA->get('id'),
+                $this->getModelIdField($modelB) => $modelB->get('id'),
+                'deleted_at' => null  // Only find non-deleted relationships
+            ];
+
+            // Use DatabaseConnector to find matching records
+            $dbConnector = $this->getDatabaseConnector();
+            $results = $dbConnector->find(static::class, $criteria, [], ['limit' => 1]);
+
+            // Return true if any record is found
+            return !empty($results);
+
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to check {type} relationship existence', [
+                'relationship_type' => $this->getType(),
+                'model_a_class' => get_class($modelA),
+                'model_a_id' => $modelA->get('id'),
+                'model_b_class' => get_class($modelB),
+                'model_b_id' => $modelB->get('id'),
+                'error' => $e->getMessage()
+            ]);
+            throw new GCException('Failed to check relationship existence: ' . $e->getMessage(), [], 0, $e);
+        }
+    }
 
     /**
      * Update additional fields in a relationship
@@ -460,30 +726,24 @@ abstract class RelationshipBase extends ModelBase {
      * Check if model has active (non-soft-deleted) relationships
      */
     protected function hasActiveRelation(ModelBase $model): bool {
-        $sql = "SELECT COUNT(*) FROM {$this->getTableName()} 
-                WHERE {$this->getModelIdField($model)} = ? 
-                AND deleted_at IS NULL";
-
-        $conn = $this->getDatabaseConnector()->getConnection();
-        $stmt = $conn->prepare($sql);
-        $stmt->execute([$model->get('id')]);
-
-        return $stmt->fetchOne() > 0;
+        $modelIdFieldName = $this->getModelIdField($model);
+        
+        // Use DatabaseConnector->getCount() for efficient checking
+        $dbConnector = $this->getDatabaseConnector();
+        $count = $dbConnector->getCount($this, $modelIdFieldName, $model->get('id'), false);
+        
+        return $count > 0;
     }
 
     /**
      * Count active (non-soft-deleted) related records
      */
     protected function getActiveRelatedCount(ModelBase $model): int {
-        $sql = "SELECT COUNT(*) FROM {$this->getTableName()} 
-                WHERE {$this->getModelIdField($model)} = ? 
-                AND deleted_at IS NULL";
-
-        $conn = $this->getDatabaseConnector()->getConnection();
-        $stmt = $conn->prepare($sql);
-        $stmt->execute([$model->get('id')]);
-
-        return (int) $stmt->fetchOne();
+        $modelIdFieldName = $this->getModelIdField($model);
+        
+        // Use DatabaseConnector->getCount() for efficient counting
+        $dbConnector = $this->getDatabaseConnector();
+        return $dbConnector->getCount($this, $modelIdFieldName, $model->get('id'), false);
     }
 
     /**
@@ -491,21 +751,16 @@ abstract class RelationshipBase extends ModelBase {
      */
     protected function bulkSoftDeleteRelationships(ModelBase $model): bool {
         try {
-            $conn = $this->getDatabaseConnector()->getConnection();
             $currentUser = $this->getCurrentUserId();
-            $currentDateTime = date('Y-m-d H:i:s');
+            $fieldName = $this->getModelIdField($model);
+            $fieldValue = $model->get('id');
 
-            $sql = "UPDATE {$this->getTableName()} 
-                    SET deleted_at = ?, deleted_by = ? 
-                    WHERE {$this->getModelIdField($model)} = ? 
-                    AND deleted_at IS NULL";
-
-            $stmt = $conn->prepare($sql);
-            $result = $stmt->executeStatement([
-                $currentDateTime,
-                $currentUser,
-                $model->get('id')
-            ]);
+            $result = $this->getDatabaseConnector()->bulkSoftDeleteByFieldValue(
+                $this,
+                $fieldName,
+                $fieldValue,
+                $currentUser
+            );
 
             $this->logger->info('Bulk soft delete of relationship records completed', [
                 'relationship_table' => $this->getTableName(),
@@ -514,7 +769,7 @@ abstract class RelationshipBase extends ModelBase {
                 'records_updated' => $result
             ]);
 
-            return true;
+            return $result > 0;
 
         } catch (\Exception $e) {
             $this->logger->error('Failed to bulk soft delete relationship records', [
@@ -533,28 +788,23 @@ abstract class RelationshipBase extends ModelBase {
      */
     public function softDeleteRelationship(ModelBase $modelA, ?ModelBase $modelB = null): bool {
         try {
-            $conn = $this->getDatabaseConnector()->getConnection();
             $currentUser = $this->getCurrentUserId();
-            $currentDateTime = date('Y-m-d H:i:s');
 
             if ($modelB === null) {
                 // Soft delete all relationships for modelA (bulk operation)
                 return $this->bulkSoftDeleteRelationships($modelA);
             } else {
-                // Soft delete specific relationship
-                $sql = "UPDATE {$this->getTableName()} 
-                        SET deleted_at = ?, deleted_by = ? 
-                        WHERE {$this->getModelIdField($modelA)} = ? 
-                        AND {$this->getModelIdField($modelB)} = ? 
-                        AND deleted_at IS NULL";
+                // Soft delete specific relationship using criteria
+                $criteria = [
+                    $this->getModelIdField($modelA) => $modelA->get('id'),
+                    $this->getModelIdField($modelB) => $modelB->get('id')
+                ];
 
-                $stmt = $conn->prepare($sql);
-                $result = $stmt->executeStatement([
-                    $currentDateTime,
-                    $currentUser,
-                    $modelA->get('id'),
-                    $modelB->get('id')
-                ]);
+                $result = $this->getDatabaseConnector()->bulkSoftDeleteByCriteria(
+                    $this,
+                    $criteria,
+                    $currentUser
+                );
 
                 $this->logger->info('Relationship soft delete completed', [
                     'relationship_table' => $this->getTableName(),
@@ -588,31 +838,22 @@ abstract class RelationshipBase extends ModelBase {
      */
     public function restoreRelationship(ModelBase $modelA, ?ModelBase $modelB = null): bool {
         try {
-            $conn = $this->getDatabaseConnector()->getConnection();
-
             if ($modelB === null) {
                 // Restore all relationships for modelA (bulk operation)
-                $sql = "UPDATE {$this->getTableName()} 
-                        SET deleted_at = NULL, deleted_by = NULL 
-                        WHERE {$this->getModelIdField($modelA)} = ? 
-                        AND deleted_at IS NOT NULL";
+                $criteria = [
+                    $this->getModelIdField($modelA) => $modelA->get('id')
+                ];
 
-                $stmt = $conn->prepare($sql);
-                $result = $stmt->executeStatement([$modelA->get('id')]);
+                $result = $this->getDatabaseConnector()->bulkRestoreByCriteria($this, $criteria);
 
             } else {
                 // Restore specific relationship
-                $sql = "UPDATE {$this->getTableName()} 
-                        SET deleted_at = NULL, deleted_by = NULL 
-                        WHERE {$this->getModelIdField($modelA)} = ? 
-                        AND {$this->getModelIdField($modelB)} = ? 
-                        AND deleted_at IS NOT NULL";
+                $criteria = [
+                    $this->getModelIdField($modelA) => $modelA->get('id'),
+                    $this->getModelIdField($modelB) => $modelB->get('id')
+                ];
 
-                $stmt = $conn->prepare($sql);
-                $result = $stmt->executeStatement([
-                    $modelA->get('id'),
-                    $modelB->get('id')
-                ]);
+                $result = $this->getDatabaseConnector()->bulkRestoreByCriteria($this, $criteria);
             }
 
             $this->logger->info('Relationship restore completed', [
@@ -620,7 +861,7 @@ abstract class RelationshipBase extends ModelBase {
                 'model_a_class' => get_class($modelA),
                 'model_a_id' => $modelA->get('id'),
                 'model_b_class' => $modelB ? get_class($modelB) : null,
-                'model_b_id' => $modelB?->get('id'),
+                'model_b_id' => $modelB ? $modelB->get('id') : null,
                 'records_restored' => $result
             ]);
 
@@ -632,41 +873,98 @@ abstract class RelationshipBase extends ModelBase {
                 'model_a_class' => get_class($modelA),
                 'model_a_id' => $modelA->get('id'),
                 'model_b_class' => $modelB ? get_class($modelB) : null,
-                'model_b_id' => $modelB?->get('id'),
+                'model_b_id' => $modelB ? $modelB->get('id') : null,
                 'error' => $e->getMessage()
             ]);
-
-            throw new GCException('Relationship restore failed: ' . $e->getMessage(), [], 0, $e);
+            throw new GCException('Failed to restore relationship: ' . $e->getMessage(), [], 0, $e);
         }
     }
 
     /**
      * Get all active (non-soft-deleted) relationship records for a model
      */
-    public function getActiveRelationshipRecords(ModelBase $model): array {
-        $sql = "SELECT * FROM {$this->getTableName()} 
-                WHERE {$this->getModelIdField($model)} = ? 
-                AND deleted_at IS NULL";
+    public function getActiveRelationshipRecords(ModelBase $model, array $parameters = []): array {
+        $modelIdFieldName = $this->getModelIdField($model);
+        
+        // Build criteria for active (non-deleted) relationships
+        $criteria = [
+            $modelIdFieldName => $model->get('id'),
+            'deleted_at' => null  // Only find non-deleted relationships
+        ];
 
-        $conn = $this->getDatabaseConnector()->getConnection();
-        $stmt = $conn->prepare($sql);
-        $stmt->execute([$model->get('id')]);
-
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        // Use DatabaseConnector->find() with optional parameters
+        $dbConnector = $this->getDatabaseConnector();
+        return $dbConnector->find(static::class, $criteria, [], $parameters);
     }
 
     /**
      * Get all soft-deleted relationship records for a model
      */
-    public function getDeletedRelationshipRecords(ModelBase $model): array {
-        $sql = "SELECT * FROM {$this->getTableName()} 
-                WHERE {$this->getModelIdField($model)} = ? 
-                AND deleted_at IS NOT NULL";
+    public function getDeletedRelationshipRecords(ModelBase $model, array $parameters = []): array {
+        $modelIdFieldName = $this->getModelIdField($model);
+        
+        // Build criteria for deleted relationships using the special __NOT_NULL__ marker
+        $criteria = [
+            $modelIdFieldName => $model->get('id'),
+            'deleted_at' => '__NOT_NULL__'  // Special marker for IS NOT NULL condition
+        ];
 
-        $conn = $this->getDatabaseConnector()->getConnection();
-        $stmt = $conn->prepare($sql);
-        $stmt->execute([$model->get('id')]);
+        // Use DatabaseConnector->find() with enhanced criteria support
+        $dbConnector = $this->getDatabaseConnector();
+        return $dbConnector->find(static::class, $criteria, [], $parameters);
+    }
 
-        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+    /**
+     * Get paginated related records
+     * This method is available to all relationship types
+     */
+    public function getRelatedPaginated(ModelBase $model, int $page = 1, int $perPage = 20): array {
+        $offset = ($page - 1) * $perPage;
+        $fieldName = $this->getModelIdField($model);
+        $fieldValue = $model->get('id');
+
+        // Get total count using DatabaseConnector
+        $dbConnector = $this->getDatabaseConnector();
+        $total = $dbConnector->getCount($this, $fieldName, $fieldValue, false);
+
+        // Build criteria for paginated records
+        $criteria = [
+            $fieldName => $fieldValue,
+            'deleted_at' => null  // Only find non-deleted relationships
+        ];
+
+        // Build parameters for pagination
+        $parameters = [
+            'limit' => $perPage,
+            'offset' => $offset
+        ];
+
+        // Get paginated records using DatabaseConnector->find()
+        $records = $dbConnector->find(static::class, $criteria, [], $parameters);
+
+        $hasMore = ($offset + $perPage) < $total;
+
+        $result = [
+            'records' => $records,
+            'pagination' => [
+                'current_page' => $page,
+                'per_page' => $perPage,
+                'total' => $total,
+                'has_more' => $hasMore,
+                'total_pages' => ceil($total / $perPage)
+            ]
+        ];
+
+        $this->logger->debug('Relationship paginated records retrieved', [
+            'model_class' => get_class($model),
+            'model_id' => $model->get('id'),
+            'relationship' => $this->getName(),
+            'page' => $page,
+            'per_page' => $perPage,
+            'total' => $total,
+            'records_returned' => count($records)
+        ]);
+
+        return $result;
     }
 }
