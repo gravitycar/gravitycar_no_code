@@ -3,6 +3,7 @@ namespace Gravitycar\Relationships;
 
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Factories\ModelFactory;
 
 /**
  * Handles OneToMany relationships between models.
@@ -232,7 +233,7 @@ class OneToManyRelationship extends RelationshipBase {
      */
     protected function getManyModelFromRecord(array $record): ?ModelBase {
         try {
-            $manyModelClass = "Gravitycar\\Models\\{$this->metadata['modelMany']}";
+            $manyModelName = $this->metadata['modelMany'];
             $manyIdField = 'many_' . strtolower($this->metadata['modelMany']) . '_id';
             $manyId = $record[$manyIdField] ?? null;
 
@@ -240,8 +241,7 @@ class OneToManyRelationship extends RelationshipBase {
                 return null;
             }
 
-            $manyModel = new $manyModelClass($this->logger);
-            return $manyModel->findById($manyId);
+            return ModelFactory::retrieve($manyModelName, $manyId);
 
         } catch (\Exception $e) {
             $this->logger->error('Failed to get many model from record', [

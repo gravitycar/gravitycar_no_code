@@ -3,6 +3,7 @@ namespace Gravitycar\Models\installer;
 
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Factories\ModelFactory;
 use Monolog\Logger;
 
 /**
@@ -43,7 +44,7 @@ class Installer extends ModelBase {
             $schemaGenerator->generateSchema($metadata);
 
             // 5. Create initial admin user
-            $usersModel = \Gravitycar\Core\ServiceLocator::createModel(\Gravitycar\Models\Users\Users::class);
+            $usersModel = ModelFactory::new('Users');
             $this->createInitialAdmin($usersModel, $adminUsername);
 
             // 6. Mark installation as complete

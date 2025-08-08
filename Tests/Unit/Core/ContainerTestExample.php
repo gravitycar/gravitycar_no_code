@@ -4,6 +4,7 @@ namespace Gravitycar\Tests\Unit\Core;
 use PHPUnit\Framework\TestCase;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Core\ContainerConfig;
+use Gravitycar\Factories\ModelFactory;
 use Monolog\Logger;
 use Monolog\Handler\TestHandler;
 
@@ -70,8 +71,8 @@ class ContainerTestExample extends TestCase {
 
         // Create a model - it automatically gets the mocked logger
         $metadata = ['fields' => []];
-        $model = ServiceLocator::createModel(\Gravitycar\Models\Installer::class, $metadata);
+        $model = ModelFactory::new('Installer');
 
-        $this->assertInstanceOf(\Gravitycar\Models\Installer::class, $model);
+        $this->assertInstanceOf(\Gravitycar\Models\installer\Installer::class, $model);
     }
 }

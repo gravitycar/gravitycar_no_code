@@ -3,6 +3,7 @@ namespace Gravitycar\Relationships;
 
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Factories\ModelFactory;
 
 /**
  * Handles OneToOne relationships between models.
@@ -169,17 +170,16 @@ class OneToOneRelationship extends RelationshipBase {
 
             if ($sourceModelName === $modelA) {
                 // Source is modelA, so related is modelB
-                $relatedModelClass = "Gravitycar\\Models\\{$this->metadata['modelB']}";
+                $relatedModelName = $this->metadata['modelB'];
                 $relatedId = $relationshipRecord[$modelB . '_id'];
             } else {
                 // Source is modelB, so related is modelA
-                $relatedModelClass = "Gravitycar\\Models\\{$this->metadata['modelA']}";
+                $relatedModelName = $this->metadata['modelA'];
                 $relatedId = $relationshipRecord[$modelA . '_id'];
             }
 
-            // Create and load the related model
-            $relatedModel = new $relatedModelClass($this->logger);
-            return $relatedModel->findById($relatedId);
+            // Create and load the related model using ModelFactory
+            return ModelFactory::retrieve($relatedModelName, $relatedId);
 
         } catch (\Exception $e) {
             $this->logger->error('Failed to get related model instance', [
