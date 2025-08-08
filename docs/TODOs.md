@@ -31,7 +31,10 @@
 [] Fix ModelBase::getRelationship() to throw an exception if it can't find the named relationship, so it never returns null.
 [] Centralize retrieving the currently logged in user with the Gravitycar class.
 [X] Centralize where we create GUID's. I thought this was in ModelBase but I don't see it.
-[] Implement metadata loading logic in the MetadataEngine to allow Models and Relationships to retrieve their metadata from the MetaData engine instead of loading their own files.
-[] Switch Models and Relationships over to using the MetaDataEngine to retrieve their metadata from the MetaDataEngine's cache.
+[X] Implement metadata loading logic in the MetadataEngine to allow Models and Relationships to retrieve their metadata from the MetaData engine instead of loading their own files.
+[X] Switch Models and Relationships over to using the MetaDataEngine to retrieve their metadata from the MetaDataEngine's cache.
+   - [X] Change the lazy loading pattern - it only loads the metadata when a field is accessed, that's not reliable enough.
 [] Specify the APIBase class, a class parent class for all API controller classes to come. 
 [] Build the MovieQuotesTrivaGame and MovieQuotesTriviaGameQuestions models.
+[] Get rid of the deleted, deleted_at and deleted_by properties in ModelBase. They are cruft.
+[] Find out what is still passing metadata to RelationshipBase classes and make it stop.

@@ -85,18 +85,11 @@ class ServiceLocator {
     }
 
     /**
-     * Get the metadata engine service
+     * Get the metadata engine service (via DI container)
      */
     public static function getMetadataEngine(): MetadataEngine {
         try {
-            $engine = self::getContainer()->get('metadata_engine');
-
-            // Log warning if we got a stub
-            if (method_exists($engine, 'isStub') && $engine->isStub()) {
-                self::getLogger()->warning('MetadataEngine is using stub - metadata operations will be limited');
-            }
-
-            return $engine;
+            return self::getContainer()->get('metadata_engine');
         } catch (Exception $e) {
             $logger = self::getLogger();
             $logger->error('Failed to get MetadataEngine service: ' . $e->getMessage());

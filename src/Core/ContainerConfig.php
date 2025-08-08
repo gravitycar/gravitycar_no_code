@@ -124,13 +124,15 @@ class ContainerConfig {
             }
         }));
 
-        // MetadataEngine - singleton with error handling for missing directories
+        // MetadataEngine - singleton managed by DI container
         $di->set('metadata_engine', $di->lazy(function() use ($di) {
             try {
-                return new MetadataEngine(
+                // DI container manages singleton behavior, but we still use getInstance 
+                // to ensure consistency if MetadataEngine is accessed directly elsewhere
+                return MetadataEngine::getInstance(
                     $di->get('logger'),
-                    'src/models',
-                    'src/relationships',
+                    'src/Models',
+                    'src/Relationships',
                     'cache/'
                 );
             } catch (Exception $e) {
@@ -267,7 +269,7 @@ class ContainerConfig {
     public static function createRelationshipFactory(\Gravitycar\Models\ModelBase $model): object {
         $di = self::getContainer();
         return new \Gravitycar\Factories\RelationshipFactory(
-            $model,
+            get_class($model),
             $di->get('logger')
         );
     }

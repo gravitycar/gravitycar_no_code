@@ -25,6 +25,7 @@ You'll be given a new feature to implement in the Gravitycar Framework, which is
 ## Implementation Plan
 The implementation plan for the new feature will be developed in several stages, ensuring a comprehensive approach to design, development, and testing. 
 Each of these stages may need to be iterated over several times. 
+As you build and revise the implementation plan, document the plan. Write a .md file in the docs directory. Create a new directory in docs/ if appropriate. As the plan is revised, update the documentation.
 
 1. **Feature Overview**
    - Describe the feature and its purpose within the Gravitycar Framework.

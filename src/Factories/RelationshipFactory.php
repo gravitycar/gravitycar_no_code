@@ -4,6 +4,7 @@ namespace Gravitycar\Factories;
 use Gravitycar\Relationships\RelationshipBase;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Metadata\MetadataEngine;
 use Monolog\Logger;
 
 /**
@@ -11,43 +12,27 @@ use Monolog\Logger;
  * Handles all cross-cutting concerns that don't belong in individual relationship classes.
  */
 class RelationshipFactory {
-    protected object $model;
+    protected string $owner;
     protected Logger $logger;
+    protected MetadataEngine $metadataEngine;
     protected array $availableRelationshipTypes = [];
     protected array $relationshipRegistry = [];
     protected array $relationshipKeys = [];
 
-    public function __construct(object $model, Logger $logger) {
-        $this->model = $model;
+    public function __construct(string $owner, Logger $logger) {
+        $this->owner = $owner;
         $this->logger = $logger;
+        $this->metadataEngine = ServiceLocator::getMetadataEngine();
         $this->discoverRelationshipTypes();
     }
 
     /**
-     * Create a relationship instance from relationship name
+     * Create a relationship instance from relationship name (updated to use MetadataEngine)
      */
     public function createRelationship(string $relationshipName): RelationshipBase {
         try {
-            // Load metadata from filesystem
-            $metadataFilePath = $this->buildMetadataFilePath($relationshipName);
-
-            if (!file_exists($metadataFilePath)) {
-                throw new GCException("Relationship metadata file not found", [
-                    'relationship_name' => $relationshipName,
-                    'metadata_file_path' => $metadataFilePath,
-                    'model_class' => get_class($this->model)
-                ]);
-            }
-
-            $metadata = include $metadataFilePath;
-
-            if (!is_array($metadata)) {
-                throw new GCException("Relationship metadata file must return an array", [
-                    'relationship_name' => $relationshipName,
-                    'metadata_file_path' => $metadataFilePath,
-                    'returned_type' => gettype($metadata)
-                ]);
-            }
+            // Load metadata using MetadataEngine (cached and optimized)
+            $metadata = $this->metadataEngine->getRelationshipMetadata($relationshipName);
 
             // Validate metadata before creating instance
             $this->validateRelationshipMetadata($metadata);
@@ -58,7 +43,7 @@ class RelationshipFactory {
             // Check for circular dependencies
             $this->detectCircularDependencies($metadata);
 
-            // Create instance with metadata parameter
+            // Create instance with new constructor pattern (Logger only)
             $type = $metadata['type'];
             $className = $this->availableRelationshipTypes[$type] ?? "Gravitycar\\Relationships\\{$type}Relationship";
 
@@ -70,16 +55,16 @@ class RelationshipFactory {
                 ]);
             }
 
-            // Create relationship instance with metadata parameter
-            $relationship = new $className($metadata, $this->logger);
+            // Create relationship instance with Logger (MetadataEngine loading pattern)
+            $relationship = new $className($this->logger);
 
             // Register the relationship
             $this->registerRelationship($relationship, $metadata);
 
-            $this->logger->info('Relationship created successfully', [
+            $this->logger->info('Relationship created successfully via MetadataEngine', [
                 'relationship_name' => $metadata['name'],
                 'relationship_type' => $type,
-                'model_class' => get_class($this->model)
+                'owner' => $this->owner
             ]);
 
             return $relationship;
@@ -87,7 +72,7 @@ class RelationshipFactory {
         } catch (\Exception $e) {
             $this->logger->error('Failed to create relationship', [
                 'relationship_name' => $relationshipName,
-                'model_class' => get_class($this->model),
+                'owner' => $this->owner,
                 'error' => $e->getMessage()
             ]);
             throw $e;
@@ -97,10 +82,11 @@ class RelationshipFactory {
     /**
      * Build metadata file path for relationship
      */
+    /**
+     * Build metadata file path for relationship (updated to use MetadataEngine)
+     */
     protected function buildMetadataFilePath(string $relationshipName): string {
-        // Get project root directory (go up from src/Factories to project root)
-        $projectRoot = dirname(dirname(__DIR__));
-        return $projectRoot . "/src/Relationships/{$relationshipName}/{$relationshipName}_metadata.php";
+        return $this->metadataEngine->buildRelationshipMetadataPath($relationshipName);
     }
 
     /**
@@ -197,7 +183,7 @@ class RelationshipFactory {
         }
 
         $this->logger->debug('Cleaned up empty relationships', [
-            'model_class' => get_class($this->model)
+            'owner' => $this->owner
         ]);
     }
 

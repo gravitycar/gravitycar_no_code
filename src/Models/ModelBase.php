@@ -8,6 +8,7 @@ use Gravitycar\Relationships\RelationshipBase;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Metadata\CoreFieldsMetadata;
+use Gravitycar\Metadata\MetadataEngine;
 use Monolog\Logger;
 
 /**
@@ -29,6 +30,14 @@ abstract class ModelBase {
     protected Logger $logger;
     /** @var array */
     protected array $metadata;
+    /** @var MetadataEngine */
+    protected MetadataEngine $metadataEngine;
+    /** @var bool */
+    protected bool $metadataLoaded = false;
+    /** @var bool */
+    protected bool $fieldsInitialized = false;
+    /** @var bool */
+    protected bool $relationshipsInitialized = false;
     /** @var bool */
     protected bool $deleted = false;
     /** @var string|null */
@@ -38,71 +47,54 @@ abstract class ModelBase {
 
     public function __construct(Logger $logger) {
         $this->logger = $logger;
-        $this->metadata = []; // Initialize empty, will be populated by ingestMetadata
-        $this->initializeModel();
+        $this->metadataEngine = ServiceLocator::getMetadataEngine();
+        
+        // Load metadata immediately during construction
+        $this->loadMetadata();
+        
+        // Keep fields/relationships lazy since they depend on metadata
+        $this->metadata = $this->metadata ?? []; // Ensure array is set
     }
 
     /**
-     * Initialize all model components in the correct order
+     * Initialize all model components in the correct order (lazy loading pattern)
      */
     protected function initializeModel(): void {
-        $this->ingestMetadata();
-        $this->initializeFields();
-        $this->initializeRelationships();
+        if (!$this->metadataLoaded) {
+            $this->loadMetadata();
+        }
+        if (!$this->fieldsInitialized) {
+            $this->initializeFields();
+        }
+        if (!$this->relationshipsInitialized) {
+            $this->initializeRelationships();
+        }
         $this->initializeValidationRules();
     }
 
     /**
-     * Get metadata file paths for this model
+     * Load metadata using MetadataEngine (called during construction)
+     */
+    protected function loadMetadata(): void {
+        $modelName = $this->metadataEngine->resolveModelName(static::class);
+        $this->metadata = $this->metadataEngine->getModelMetadata($modelName);
+        $this->validateMetadata($this->metadata);
+        $this->metadataLoaded = true;
+    }
+
+    /**
+     * Get metadata file paths for this model (kept for backward compatibility)
      */
     protected function getMetaDataFilePaths(): array {
-        $modelName = static::class;
-        $modelName = basename(str_replace('\\', '/', $modelName));
-        $modelNameLc = strtolower($modelName);
-        return [
-            "src/Models/{$modelNameLc}/{$modelNameLc}_metadata.php"
-        ];
+        $modelName = $this->metadataEngine->resolveModelName(static::class);
+        return [$this->metadataEngine->buildModelMetadataPath($modelName)];
     }
 
     /**
-     * Ingest metadata from files
+     * Ingest metadata from files (updated to use MetadataEngine)
      */
     protected function ingestMetadata(): void {
-        $metadataFiles = $this->getMetaDataFilePaths();
-        $loadedMetadata = $this->loadMetadataFromFiles($metadataFiles);
-        $this->metadata = $loadedMetadata;
-
-        // Automatically include core fields metadata
-        $this->includeCoreFieldsMetadata();
-
-        $this->validateMetadata($this->metadata);
-    }
-
-    /**
-     * Load metadata from multiple files and merge them
-     */
-    protected function loadMetadataFromFiles(array $filePaths): array {
-        $mergedMetadata = [];
-
-        foreach ($filePaths as $file) {
-            if (file_exists($file)) {
-                $data = include $file;
-                if (is_array($data)) {
-                    $mergedMetadata = $this->mergeMetadataArrays($mergedMetadata, $data);
-                }
-            } else {
-                throw new GCException("Metadata file not found: $file", ['file' => $file, 'model_class' => static::class]);
-            }
-        }
-
-        return $mergedMetadata;
-    }
-
-    /**
-     * Merge two metadata arrays recursively
-     */
-    protected function mergeMetadataArrays(array $existing, array $new): array {
-        return array_merge_recursive($existing, $new);
+        $this->loadMetadata();
     }
 
     /**
@@ -121,9 +113,14 @@ abstract class ModelBase {
     }
 
     /**
-     * Initialize fields from metadata
+     * Initialize fields from metadata (lazy loading for fields only)
      */
     protected function initializeFields(): void {
+        if ($this->fieldsInitialized) {
+            return;
+        }
+
+        // Metadata is already loaded during construction
         if (!isset($this->metadata['fields'])) {
             throw new GCException('Model metadata missing fields definition',
                 ['model_class' => static::class, 'metadata' => $this->metadata]);
@@ -144,6 +141,8 @@ abstract class ModelBase {
                 $this->fields[$fieldName] = $field;
             }
         }
+
+        $this->fieldsInitialized = true;
     }
 
     /**
@@ -178,8 +177,17 @@ abstract class ModelBase {
     /**
      * Initialize relationships from metadata
      */
+    /**
+     * Initialize relationships from metadata (lazy loading for relationships only)
+     */
     protected function initializeRelationships(): void {
+        if ($this->relationshipsInitialized) {
+            return;
+        }
+
+        // Metadata is already loaded during construction
         if (!isset($this->metadata['relationships'])) {
+            $this->relationshipsInitialized = true;
             return;
         }
 
@@ -205,6 +213,8 @@ abstract class ModelBase {
                 // Continue with other relationships instead of failing completely
             }
         }
+
+        $this->relationshipsInitialized = true;
     }
 
     /**
@@ -323,17 +333,23 @@ abstract class ModelBase {
     /**
      * Get all fields
      */
+    /**
+     * Get all fields (lazy loading)
+     */
     public function getFields(): array {
-        if (!$this->fields || empty($this->fields)) {
+        if (!$this->fieldsInitialized) {
             $this->initializeFields();
         }
         return $this->fields;
     }
 
     /**
-     * Get a specific field
+     * Get a specific field (lazy loading)
      */
     public function getField(string $fieldName): ?FieldBase {
+        if (!$this->fieldsInitialized) {
+            $this->initializeFields();
+        }
         return $this->fields[$fieldName] ?? null;
     }
 
@@ -743,40 +759,23 @@ abstract class ModelBase {
     /**
      * Include core fields metadata automatically
      */
-    protected function includeCoreFieldsMetadata(): void {
-        // Get core fields metadata service from DI container
-        $coreFieldsMetadata = \Gravitycar\Core\ServiceLocator::getCoreFieldsMetadata();
-
-        // Get core fields for this specific model class
-        $coreFields = $coreFieldsMetadata->getAllCoreFieldsForModel(static::class);
-
-        // Initialize fields array if it doesn't exist
-        if (!isset($this->metadata['fields'])) {
-            $this->metadata['fields'] = [];
-        }
-
-        // Merge core fields with existing metadata
-        // Existing model metadata takes precedence over core fields (allows overrides)
-        $this->metadata['fields'] = array_merge($coreFields, $this->metadata['fields']);
-
-        $this->logger->debug('Included core fields metadata', [
-            'model_class' => static::class,
-            'core_fields_added' => array_keys($coreFields),
-            'total_fields' => count($this->metadata['fields'])
-        ]);
-    }
-
     /**
-     * Get all relationships
+     * Get all relationships (lazy loading)
      */
     public function getRelationships(): array {
+        if (!$this->relationshipsInitialized) {
+            $this->initializeRelationships();
+        }
         return $this->relationships;
     }
 
     /**
-     * Get a specific relationship
+     * Get a specific relationship (lazy loading)
      */
     public function getRelationship(string $relationshipName): ?RelationshipBase {
+        if (!$this->relationshipsInitialized) {
+            $this->initializeRelationships();
+        }
         return $this->relationships[$relationshipName] ?? null;
     }
 

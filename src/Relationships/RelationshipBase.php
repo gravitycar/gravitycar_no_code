@@ -6,6 +6,7 @@ use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Metadata\CoreFieldsMetadata;
+use Gravitycar\Metadata\MetadataEngine;
 use Monolog\Logger;
 
 /**
@@ -22,11 +23,53 @@ abstract class RelationshipBase extends ModelBase {
 
     protected ?string $tableName = null;
     protected CoreFieldsMetadata $coreFieldsMetadata;
+    protected MetadataEngine $metadataEngine;
+    protected bool $metadataFromEngine = false;
 
-    public function __construct(array $metadata, Logger $logger, ?CoreFieldsMetadata $coreFieldsMetadata = null) {
-        $this->metadata = $metadata;
-        $this->coreFieldsMetadata = $coreFieldsMetadata ?? new CoreFieldsMetadata($logger);
-        parent::__construct($logger);
+    /**
+     * Constructor supports both metadata-parameter and MetadataEngine-loading approaches
+     */
+    public function __construct($metadataOrLogger, Logger $logger = null, ?CoreFieldsMetadata $coreFieldsMetadata = null) {
+        // Handle backward compatibility - if first param is array, it's metadata
+        if (is_array($metadataOrLogger)) {
+            $this->metadata = $metadataOrLogger;
+            $this->logger = $logger ?? throw new GCException("Logger is required when metadata is provided directly");
+            $this->metadataFromEngine = false;
+        } else if ($metadataOrLogger instanceof Logger) {
+            // New pattern - use MetadataEngine
+            $this->logger = $metadataOrLogger;
+            $this->metadataFromEngine = true;
+            // Metadata will be loaded by overridden loadMetadata() method
+        } else {
+            throw new GCException("Invalid constructor parameters for RelationshipBase");
+        }
+        
+        $this->coreFieldsMetadata = $coreFieldsMetadata ?? new CoreFieldsMetadata($this->logger);
+        $this->metadataEngine = ServiceLocator::getMetadataEngine();
+        
+        parent::__construct($this->logger);
+    }
+
+    /**
+     * Override loadMetadata to load relationship metadata instead of model metadata
+     */
+    protected function loadMetadata(): void {
+        if ($this->metadataFromEngine) {
+            // Load relationship metadata using MetadataEngine
+            $relationshipName = $this->getRelationshipNameFromClass();
+            $this->metadata = $this->metadataEngine->getRelationshipMetadata($relationshipName);
+        }
+        // For backward compatibility, metadata is already set in constructor for array-based approach
+        
+        $this->validateMetadata($this->metadata);
+        $this->metadataLoaded = true;
+    }
+
+    /**
+     * Override validateMetadata to validate relationship metadata structure
+     */
+    protected function validateMetadata(array $metadata): void {
+        $this->validateRelationshipMetadata($metadata);
     }
 
     /**
@@ -34,20 +77,23 @@ abstract class RelationshipBase extends ModelBase {
      */
     protected function ingestMetadata(): void {
         try {
-            // Validate the metadata that was passed to constructor
+            // Metadata is already loaded during construction, just validate and process
             $this->validateRelationshipMetadata($this->metadata);
 
             // Generate table name based on relationship type and models
             $this->generateTableName();
 
-            // Get core fields from CoreFieldsMetadata
-            $this->ingestCoreFields();
+            // Get core fields from CoreFieldsMetadata (already included in MetadataEngine for new pattern)
+            if (!$this->metadataFromEngine) {
+                $this->ingestCoreFields();
+            }
 
             // Generate dynamic fields for the relationship
             $this->generateDynamicFields();
 
-                        $this->logger->info('Relationship metadata ingested successfully', [
+            $this->logger->info('Relationship metadata ingested successfully', [
                 'relationship_name' => $this->getName(),
+                'metadata_source' => $this->metadataFromEngine ? 'MetadataEngine' : 'Direct',
                 'metadata' => $this->metadata,
                 'table_name' => $this->tableName,
                 'total_fields' => count($this->fields)
@@ -79,10 +125,10 @@ abstract class RelationshipBase extends ModelBase {
     }
 
     /**
-     * Build metadata file path for relationship
+     * Build metadata file path for relationship (updated to use MetadataEngine)
      */
     protected function buildMetadataFilePath(string $relationshipName): string {
-        return __DIR__ . "/{$relationshipName}/{$relationshipName}_metadata.php";
+        return $this->metadataEngine->buildRelationshipMetadataPath($relationshipName);
     }
 
     /**
