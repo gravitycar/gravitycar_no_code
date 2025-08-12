@@ -961,4 +961,29 @@ abstract class ModelBase {
     public function getName():string {
         return $this->name;
     }
+
+    /**
+     * Register API routes from metadata
+     * 
+     * This method checks for 'apiRoutes' property in the model's metadata
+     * and returns them for registration with the APIRouteRegistry.
+     * Routes are validated by the APIRouteRegistry during registration.
+     * 
+     * @return array Array of route definitions from metadata
+     */
+    public function registerRoutes(): array {
+        $routes = [];
+        
+        // Get routes from metadata (loaded from metadata files into $this->metadata)
+        if (isset($this->metadata['apiRoutes']) && is_array($this->metadata['apiRoutes'])) {
+            $routes = array_merge($routes, $this->metadata['apiRoutes']);
+            
+            $this->logger->debug("Found API routes in metadata for model", [
+                'model_class' => static::class,
+                'route_count' => count($this->metadata['apiRoutes'])
+            ]);
+        }
+        
+        return $routes;
+    }
 }
