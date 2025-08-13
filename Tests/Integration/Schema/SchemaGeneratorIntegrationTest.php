@@ -39,9 +39,9 @@ class SchemaGeneratorIntegrationTest extends TestCase
         // Override database name for testing (fix: use dbname not name)
         $this->config->set('database.dbname', $this->testDatabaseName);
 
-        $this->dbConnector = new DatabaseConnector($this->logger, $this->config->get('database'));
-        $this->schemaGenerator = new SchemaGenerator($this->logger, $this->dbConnector);
-        $this->metadataEngine = new MetadataEngine($this->logger, 'src/Models');
+        $this->dbConnector = new DatabaseConnector();
+        $this->schemaGenerator = new SchemaGenerator();
+        $this->metadataEngine = MetadataEngine::getInstance();
     }
 
     protected function tearDown(): void

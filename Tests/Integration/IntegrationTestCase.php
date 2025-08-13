@@ -21,14 +21,9 @@ abstract class IntegrationTestCase extends DatabaseTestCase
     {
         parent::setUp();
 
-        // Initialize metadata engine for integration tests with correct parameters
-        // Use test-specific directories that don't need to exist for basic integration tests
-        $this->metadataEngine = new MetadataEngine(
-            $this->logger,
-            'tests/fixtures/models',     // modelsDirPath
-            'tests/fixtures/relationships', // relationshipsDirPath
-            'tests/cache'               // cacheDirPath
-        );
+        // Initialize metadata engine for integration tests using singleton pattern
+        // ServiceLocator will handle the dependency injection
+        $this->metadataEngine = MetadataEngine::getInstance();
 
         // For testing, we'll skip service locator registration since the container may be locked
         // Integration tests will work with direct object instances instead

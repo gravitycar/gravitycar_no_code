@@ -19,7 +19,7 @@ class DatabaseIntegrationTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->schemaGenerator = new SchemaGenerator($this->logger, $this->db);
+        $this->schemaGenerator = new SchemaGenerator();
     }
 
     /**

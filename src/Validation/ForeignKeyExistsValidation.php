@@ -71,17 +71,19 @@ class ForeignKeyExistsValidation extends ValidationRuleBase {
      * Get the related field for validation
      */
     private function getRelatedField(): FieldBase {
+        $field = $this->getRelatedRecordField();
+        
         // Get the related model instance
-        $relatedModelInstance = $this->field->getRelatedModelInstance();
+        $relatedModelInstance = $field->getRelatedModelInstance();
 
         // Get the specific field we need to check in the related table
-        $relatedFieldName = $this->field->getRelatedFieldName();
+        $relatedFieldName = $field->getRelatedFieldName();
         $relatedField = $relatedModelInstance->getField($relatedFieldName);
 
         if (!$relatedField) {
             throw new GCException("Related field '{$relatedFieldName}' not found in related model", [
-                'field_name' => $this->field->getName(),
-                'related_model' => $this->field->getRelatedModelName(),
+                'field_name' => $field->getName(),
+                'related_model' => $field->getRelatedModelName(),
                 'related_field_name' => $relatedFieldName
             ]);
         }
@@ -98,11 +100,12 @@ class ForeignKeyExistsValidation extends ValidationRuleBase {
         $exists = $databaseConnector->recordExists($relatedField, $value);
 
         if (!$exists) {
+            $field = $this->getRelatedRecordField();
             $this->logger->info('Foreign key validation failed - record not found', [
-                'field_name' => $this->field->getName(),
+                'field_name' => $field->getName(),
                 'foreign_key_value' => $value,
-                'related_model' => $this->field->getRelatedModelName(),
-                'related_field_name' => $this->field->getRelatedFieldName()
+                'related_model' => $field->getRelatedModelName(),
+                'related_field_name' => $field->getRelatedFieldName()
             ]);
             return false;
         }
@@ -114,10 +117,11 @@ class ForeignKeyExistsValidation extends ValidationRuleBase {
      * Log validation errors that occur during the process
      */
     private function logValidationError(\Exception $e, mixed $value): void {
+        $field = $this->field ? $this->getRelatedRecordField() : null;
         $this->logger->error('Error during foreign key validation', [
-            'field_name' => $this->field ? $this->field->getName() : 'unknown',
+            'field_name' => $field ? $field->getName() : 'unknown',
             'foreign_key_value' => $value,
-            'related_model' => $this->field instanceof RelatedRecordField ? $this->field->getRelatedModelName() : 'unknown',
+            'related_model' => $field ? $field->getRelatedModelName() : 'unknown',
             'error' => $e->getMessage()
         ]);
     }
@@ -131,9 +135,35 @@ class ForeignKeyExistsValidation extends ValidationRuleBase {
 
     /**
      * Set the field object this validation rule is associated with
+     * @param RelatedRecordField $field The RelatedRecord field instance
      */
     public function setField(FieldBase $field): void {
+        if (!($field instanceof RelatedRecordField)) {
+            throw new GCException('ForeignKeyExistsValidation can only be used with RelatedRecordField instances', [
+                'field_name' => $field->getName(),
+                'field_type' => get_class($field)
+            ]);
+        }
         $this->field = $field;
+    }
+
+    /**
+     * Get the field as a RelatedRecordField instance
+     * @return RelatedRecordField
+     * @throws GCException if field is not set or not a RelatedRecordField
+     */
+    protected function getRelatedRecordField(): RelatedRecordField {
+        if (!$this->field) {
+            throw new GCException('Field not set for ForeignKeyExistsValidation');
+        }
+        
+        if (!($this->field instanceof RelatedRecordField)) {
+            throw new GCException('Field must be a RelatedRecordField instance', [
+                'field_type' => get_class($this->field)
+            ]);
+        }
+        
+        return $this->field;
     }
 
     /**
