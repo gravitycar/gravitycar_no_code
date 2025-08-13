@@ -189,7 +189,7 @@ All model instances created by ModelFactory receive proper dependency injection:
 - Building dynamic functionality that creates models based on user input
 
 **Consider alternatives when:**
-- Using complex queries (use ModelBase::find() methods)
+- Using complex queries (use instance find() methods with ModelFactory)
 - Working with relationships (use relationship methods)
 - Bulk operations (use DatabaseConnector directly)
 
@@ -405,6 +405,9 @@ $user = Users::findById('123');
 
 **After (when you need a fresh instance):**
 ```php
+$queryInstance = ModelFactory::new('Users');
+$user = $queryInstance->findById('123');
+// OR for direct retrieval from database:
 $user = ModelFactory::retrieve('Users', '123');
 ```
 

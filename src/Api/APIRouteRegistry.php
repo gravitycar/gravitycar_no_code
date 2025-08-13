@@ -42,7 +42,7 @@ class APIRouteRegistry
         // Discover APIController routes
         $this->discoverAPIControllers();
         
-        // Discover ModelBase routes
+        // Discover individual model routes (in addition to ModelBaseAPIController generic routes)
         $this->discoverModelRoutes();
         
         // Group routes by method and path length for efficient scoring
@@ -62,6 +62,14 @@ class APIRouteRegistry
             return;
         }
 
+        // First, discover the global ModelBaseAPIController
+        $modelBaseAPIControllerClass = "Gravitycar\\Models\\Api\\Api\\ModelBaseAPIController";
+        if (class_exists($modelBaseAPIControllerClass)) {
+            $controller = new $modelBaseAPIControllerClass();
+            $this->register($controller, $modelBaseAPIControllerClass);
+        }
+
+        // Then discover model-specific API controllers
         $dirs = scandir($this->apiControllersDirPath);
         foreach ($dirs as $dir) {
             if ($dir === '.' || $dir === '..') continue;
@@ -73,7 +81,14 @@ class APIRouteRegistry
             foreach ($files as $file) {
                 if (preg_match('/^(.*)APIController\.php$/', $file, $matches)) {
                     $className = "Gravitycar\\Models\\{$dir}\\Api\\{$matches[1]}APIController";
-                    $this->registerControllerRoutes($className);
+                    if (class_exists($className)) {
+                        try {
+                            $controller = new $className();
+                            $this->register($controller, $className);
+                        } catch (\Exception $e) {
+                            $this->logger->error("Failed to instantiate API controller {$className}: " . $e->getMessage());
+                        }
+                    }
                 }
             }
         }
@@ -100,9 +115,16 @@ class APIRouteRegistry
             $files = scandir($modelDir);
             foreach ($files as $file) {
                 if (preg_match('/^(.*)\.php$/', $file, $matches) && $matches[1] !== 'api') {
-                    $className = "Gravitycar\\Models\\{$dir}\\{$matches[1]}";
+                    $modelName = $matches[1]; // This is the clean model name like "Users"
+                    $className = "Gravitycar\\Models\\{$dir}\\{$modelName}";
                     if (class_exists($className)) {
-                        $this->registerModelRoutes($className);
+                        try {
+                            // Use ModelFactory for proper model instantiation with all dependencies
+                            $model = \Gravitycar\Factories\ModelFactory::new($modelName);
+                            $this->register($model, $className);
+                        } catch (\Exception $e) {
+                            $this->logger->error("Failed to instantiate model {$modelName}: " . $e->getMessage());
+                        }
                     }
                 }
             }
@@ -110,57 +132,23 @@ class APIRouteRegistry
     }
 
     /**
-     * Register routes from an API controller
+     * Register routes from an instantiated object (API controller or ModelBase)
      */
-    protected function registerControllerRoutes(string $className): void
+    protected function register(object $instance, string $className): void
     {
         try {
-            if (!class_exists($className)) {
-                $this->logger->warning("API controller class not found: {$className}");
+            if (!method_exists($instance, 'registerRoutes')) {
                 return;
             }
 
-            $controller = new $className();
-            if (!method_exists($controller, 'registerRoutes')) {
-                return;
-            }
-
-            $routes = $controller->registerRoutes();
+            $routes = $instance->registerRoutes();
             foreach ($routes as $route) {
                 $this->registerRoute($route);
             }
 
-            $this->logger->info("Registered routes from controller: {$className}");
+            $this->logger->info("Registered routes from: {$className}");
         } catch (\Exception $e) {
-            $this->logger->error("Failed to register routes from controller {$className}: " . $e->getMessage());
-        }
-    }
-
-    /**
-     * Register routes from a ModelBase class
-     */
-    protected function registerModelRoutes(string $className): void
-    {
-        try {
-            if (!class_exists($className)) {
-                return;
-            }
-
-            $model = new $className();
-            if (!method_exists($model, 'registerRoutes')) {
-                return;
-            }
-
-            $routes = $model->registerRoutes();
-            foreach ($routes as $route) {
-                $this->registerRoute($route);
-            }
-
-            if (!empty($routes)) {
-                $this->logger->info("Registered routes from model: {$className}");
-            }
-        } catch (\Exception $e) {
-            $this->logger->error("Failed to register routes from model {$className}: " . $e->getMessage());
+            $this->logger->error("Failed to register routes from {$className}: " . $e->getMessage());
         }
     }
 

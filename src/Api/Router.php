@@ -16,7 +16,7 @@ class Router {
     protected $metadataEngine;
 
     public function __construct(\Gravitycar\Metadata\MetadataEngine $metadataEngine, Logger $logger) {
-        $this->routeRegistry = new APIRouteRegistry();
+        $this->routeRegistry = new APIRouteRegistry($logger);
         $this->logger = $logger;
         $this->metadataEngine = $metadataEngine;
     }

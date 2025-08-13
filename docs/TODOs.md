@@ -1,7 +1,7 @@
-#To-Do's:
+# To-Do's:
 
-[X] Figure out if the RelationshipBase class can just use the same metadata property that ModelBase uses, and not relationshipMetadata.
-[X] Change the relationship classes to use the DatabaseConnector to generate their queries.
+- [X] Figure out if the RelationshipBase class can just use the same metadata property that ModelBase uses, and not relationshipMetadata.
+- [X] Change the relationship classes to use the DatabaseConnector to generate their queries.
     - [X] RelationshipBase->add() refactored to use DatabaseConnector->create()
     - [X] RelationshipBase->hasActiveRelation() refactored to use DatabaseConnector->recordExists()
     - [X] RelationshipBase->getActiveRelatedCount() refactored to use DatabaseConnector->getCount()
@@ -25,16 +25,27 @@
     - [X] Eliminated createTempModelForTable() method by refactoring DatabaseConnector methods to accept ModelBase objects directly
     - [X] Removed ManyToManyRelationship->batchAdd() methods (feature not supported)
     - [X] ALL raw SQL instances eliminated from relationship classes - 100% DatabaseConnector usage achieved
-[X] Specify the ModelFactory.
-[X] Build ModelFactory.
-[X] Replace every instance in the code where we try to derive a fully qualified class name with a call to the ModelFactory.
-[] Fix ModelBase::getRelationship() to throw an exception if it can't find the named relationship, so it never returns null.
-[] Centralize retrieving the currently logged in user with the Gravitycar class.
-[X] Centralize where we create GUID's. I thought this was in ModelBase but I don't see it.
-[X] Implement metadata loading logic in the MetadataEngine to allow Models and Relationships to retrieve their metadata from the MetaData engine instead of loading their own files.
-[X] Switch Models and Relationships over to using the MetaDataEngine to retrieve their metadata from the MetaDataEngine's cache.
+- [X] Specify the ModelFactory.
+- [X] Build ModelFactory.
+- [X] Replace every instance in the code where we try to derive a fully qualified class name with a call to the ModelFactory.
+- [] Fix ModelBase::getRelationship() to throw an exception if it can't find the named relationship, so it never returns null.
+- [] Centralize retrieving the currently logged in user with the Gravitycar class.
+- [X] Centralize where we create GUID's. I thought this was in ModelBase but I don't see it.
+- [X] Implement metadata loading logic in the MetadataEngine to allow Models and Relationships to retrieve their metadata from the MetaData engine instead of loading their own files.
+- [X] Switch Models and Relationships over to using the MetaDataEngine to retrieve their metadata from the MetaDataEngine's cache.
    - [X] Change the lazy loading pattern - it only loads the metadata when a field is accessed, that's not reliable enough.
-[] Specify the APIBase class, a class parent class for all API controller classes to come. 
-[] Build the MovieQuotesTrivaGame and MovieQuotesTriviaGameQuestions models.
-[] Get rid of the deleted, deleted_at and deleted_by properties in ModelBase. They are cruft.
-[] Find out what is still passing metadata to RelationshipBase classes and make it stop.
+- [X] Specify the APIBase class, a class parent class for all API controller classes to come. 
+- [] Build the Home, MovieQuotesTrivaGame, MovieQuotesTriviaGameQuestions models.
+- [] Get rid of the deleted, deleted_at and deleted_by properties in ModelBase. They are cruft.
+- [] Find out what is still passing metadata to RelationshipBase classes and make it stop.
+- [X] Implement a route scoring system so we can have flexible route handling.
+- [X] Implement a data transfer object to move data about the request into an API controller.
+- [] Implement the ModelBaseApiController class so that it covers all the basic CRUD and Relationship operations.
+- [] Implement a filterCriteria class for processing search criteria from the request.
+- [] Implement bulk requests.
+- [] Routes seem to be duplicated when they are registered. We need a smarter way to stop that from happening.
+- [] find every instance of $logger or anything else the ServiceLocator handles and replace it with "$this->logger = ServiceLocator::getLogger();"
+- [] Create additional GCExcpetion subclasses
+    - [] Subclasses for every 400-500 HTTP error code.
+    - [] Sublcasses for database failures.
+    - [] Replace instances of GCException with more specific errors.

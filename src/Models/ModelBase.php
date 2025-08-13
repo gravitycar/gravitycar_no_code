@@ -374,6 +374,34 @@ abstract class ModelBase {
     }
 
     /**
+     * Populate model fields from API request data
+     * Only sets fields that exist on the model, ignoring unknown fields
+     * 
+     * @param array $data Associative array of field names and values from API request
+     * @return void
+     */
+    public function populateFromAPI(array $data): void {
+        foreach ($data as $field => $value) {
+            if ($this->hasField($field)) {
+                $this->set($field, $value);
+            }
+        }
+    }
+
+    /**
+     * Convert model to array representation
+     * 
+     * @return array Associative array of field names and values
+     */
+    public function toArray(): array {
+        $data = [];
+        foreach ($this->getFields() as $fieldName => $field) {
+            $data[$fieldName] = $field->getValue();
+        }
+        return $data;
+    }
+
+    /**
      * Create a new record in the database for the model
      */
     public function create(): bool {
@@ -453,48 +481,56 @@ abstract class ModelBase {
     /**
      * Find records by criteria
      */
-    public static function find(array $criteria = [], array $fields = [], array $parameters = []): array {
+    public function find(array $criteria = [], array $fields = [], array $parameters = []): array {
         $dbConnector = ServiceLocator::getDatabaseConnector();
         $rows = $dbConnector->find(static::class, $criteria, $fields, $parameters);
-        return static::fromRows($rows);
+        return $this->fromRows($rows);
     }
 
     /**
-     * Find a single record by ID
+     * Find a single record by ID and populate this instance
      */
-    public static function findById($id, array $fields = []) {
+    public function findById($id, array $fields = []) {
         $dbConnector = ServiceLocator::getDatabaseConnector();
         $rows = $dbConnector->find(static::class, ['id' => $id], $fields, ['limit' => 1]);
-        return empty($rows) ? null : static::fromRow($rows[0]);
+        if (empty($rows)) {
+            return null;
+        }
+        $this->populateFromRow($rows[0]);
+        return $this;
     }
 
     /**
-     * Find the first record matching criteria
+     * Find the first record matching criteria and populate this instance
      */
-    public static function findFirst(array $criteria = [], array $fields = [], array $orderBy = []) {
+    public function findFirst(array $criteria = [], array $fields = [], array $orderBy = []) {
         $parameters = ['limit' => 1];
         if (!empty($orderBy)) {
             $parameters['orderBy'] = $orderBy;
         }
-        $rows = static::findRaw($criteria, $fields, $parameters);
-        return empty($rows) ? null : static::fromRow($rows[0]);
+        $rows = $this->findRaw($criteria, $fields, $parameters);
+        if (empty($rows)) {
+            return null;
+        }
+        $this->populateFromRow($rows[0]);
+        return $this;
     }
 
     /**
      * Find all records
      */
-    public static function findAll(array $fields = [], array $orderBy = []): array {
+    public function findAll(array $fields = [], array $orderBy = []): array {
         $parameters = [];
         if (!empty($orderBy)) {
             $parameters['orderBy'] = $orderBy;
         }
-        return static::find([], $fields, $parameters);
+        return $this->find([], $fields, $parameters);
     }
 
     /**
      * Find records by criteria and return raw database rows
      */
-    public static function findRaw(array $criteria = [], array $fields = [], array $parameters = []): array {
+    public function findRaw(array $criteria = [], array $fields = [], array $parameters = []): array {
         $dbConnector = ServiceLocator::getDatabaseConnector();
         return $dbConnector->find(static::class, $criteria, $fields, $parameters);
     }
@@ -737,21 +773,14 @@ abstract class ModelBase {
     }
 
     /**
-     * Create a new instance from a database row
+     * Create multiple instances from database rows using ModelFactory
      */
-    public static function fromRow(array $row): static {
-        $instance = new static(ServiceLocator::getLogger());
-        $instance->populateFromRow($row);
-        return $instance;
-    }
-
-    /**
-     * Create multiple instances from database rows
-     */
-    public static function fromRows(array $rows): array {
+    public function fromRows(array $rows): array {
         $instances = [];
         foreach ($rows as $row) {
-            $instances[] = static::fromRow($row);
+            $instance = \Gravitycar\Factories\ModelFactory::new(basename(str_replace('\\', '/', static::class)));
+            $instance->populateFromRow($row);
+            $instances[] = $instance;
         }
         return $instances;
     }
@@ -807,9 +836,12 @@ abstract class ModelBase {
         // Determine the related model class from the relationship
         $relationship = $this->getRelationship($relationshipName);
         $relatedModelClass = $this->getRelatedModelClass($relationship);
+        $relatedModelName = basename(str_replace('\\', '/', $relatedModelClass));
 
         foreach ($records as $record) {
-            $models[] = $relatedModelClass::fromRow($record);
+            $instance = \Gravitycar\Factories\ModelFactory::new($relatedModelName);
+            $instance->populateFromRow($record);
+            $models[] = $instance;
         }
 
         return $models;
@@ -924,7 +956,7 @@ abstract class ModelBase {
     /**
      * Get the related model class from a relationship
      */
-    protected function getRelatedModelClass(RelationshipBase $relationship): string {
+    public function getRelatedModelClass(RelationshipBase $relationship): string {
         $metadata = $relationship->getRelationshipMetadata();
         $currentModelName = basename(str_replace('\\', '/', static::class));
 
