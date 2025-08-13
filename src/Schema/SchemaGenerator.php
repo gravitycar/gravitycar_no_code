@@ -2,6 +2,7 @@
 namespace Gravitycar\Schema;
 
 use Gravitycar\Core\Config;
+use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Relationships\RelationshipBase;
@@ -25,10 +26,10 @@ class SchemaGenerator {
     /** @var CoreFieldsMetadata */
     protected CoreFieldsMetadata $coreFieldsMetadata;
 
-    public function __construct(Logger $logger, DatabaseConnector $dbConnector, ?CoreFieldsMetadata $coreFieldsMetadata = null) {
-        $this->logger = $logger;
-        $this->dbConnector = $dbConnector;
-        $this->coreFieldsMetadata = $coreFieldsMetadata ?? new CoreFieldsMetadata($logger);
+    public function __construct() {
+        $this->logger = ServiceLocator::getLogger();
+        $this->dbConnector = ServiceLocator::getDatabaseConnector();
+        $this->coreFieldsMetadata = ServiceLocator::getCoreFieldsMetadata();
     }
 
     /**

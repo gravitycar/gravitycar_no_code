@@ -1,6 +1,7 @@
 <?php
 namespace Gravitycar\ComponentGenerator;
 
+use Gravitycar\Core\ServiceLocator;
 use Monolog\Logger;
 use Gravitycar\Exceptions\GCException;
 
@@ -16,14 +17,14 @@ abstract class ComponentGeneratorBase {
     /** @var Logger */
     protected Logger $logger;
 
-    public function __construct(array $metadata, Logger $logger) {
+    public function __construct(array $metadata) {
         if (empty($metadata['name'])) {
             throw new GCException('Component generator metadata missing name',
                 ['metadata' => $metadata]);
         }
         $this->name = $metadata['name'];
         $this->metadata = $metadata;
-        $this->logger = $logger;
+        $this->logger = ServiceLocator::getLogger();
     }
 
     public function getName(): string {

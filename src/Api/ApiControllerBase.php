@@ -2,6 +2,7 @@
 namespace Gravitycar\Api;
 
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Core\ServiceLocator;
 use Monolog\Logger;
 
 /**
@@ -14,9 +15,9 @@ abstract class ApiControllerBase {
     /** @var array */
     protected array $metadata;
 
-    public function __construct(array $metadata, Logger $logger) {
+    public function __construct(array $metadata) {
         $this->metadata = $metadata;
-        $this->logger = $logger;
+        $this->logger = ServiceLocator::getLogger();
     }
 
     /**

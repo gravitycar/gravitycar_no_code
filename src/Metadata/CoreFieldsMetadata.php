@@ -2,6 +2,7 @@
 
 namespace Gravitycar\Metadata;
 
+use Gravitycar\Core\ServiceLocator;
 use Monolog\Logger;
 
 /**
@@ -30,9 +31,9 @@ class CoreFieldsMetadata
     private Logger $logger;
     private string $templatePath;
 
-    public function __construct(Logger $logger, ?string $templatePath = null)
+    public function __construct(?string $templatePath = null)
     {
-        $this->logger = $logger;
+        $this->logger = ServiceLocator::getLogger();
         $this->templatePath = $templatePath ?? __DIR__ . '/templates/core_fields_metadata.php';
     }
 

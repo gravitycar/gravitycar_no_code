@@ -146,7 +146,7 @@ class ContainerConfig {
 
         // CoreFieldsMetadata - singleton service for managing core field definitions
         $di->set('core_fields_metadata', $di->lazy(function() use ($di) {
-            return new \Gravitycar\Metadata\CoreFieldsMetadata($di->get('logger'));
+            return new \Gravitycar\Metadata\CoreFieldsMetadata();
         }));
     }
 
@@ -194,10 +194,7 @@ class ContainerConfig {
      */
     private static function configureApplicationServices(Container $di): void {
         // SchemaGenerator - prototype (new instance each time)
-        $di->set('schema_generator', $di->lazyNew(SchemaGenerator::class, [
-            'logger' => $di->lazyGet('logger'),
-            'dbConnector' => $di->lazyGet('database_connector')
-        ]));
+        $di->set('schema_generator', $di->lazyNew(SchemaGenerator::class));
 
         // Router - prototype with ServiceLocator instance
         $di->set('router', $di->lazyNew(\Gravitycar\Api\Router::class, [
