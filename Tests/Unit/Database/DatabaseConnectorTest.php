@@ -487,6 +487,137 @@ class DatabaseConnectorTest extends UnitTestCase
 
         return $field;
     }
+
+    /**
+     * Test that non-database fields are properly filtered from SELECT clause
+     */
+    public function testBuildSelectClauseFiltersNonDBFields(): void
+    {
+        // Create a mock DB field (should be included)
+        $dbField = $this->createMock(TextField::class);
+        $dbField->method('isDBField')->willReturn(true);
+
+        // Create a mock non-DB field (should be excluded)
+        $nonDbField = $this->createMock(TextField::class);
+        $nonDbField->method('isDBField')->willReturn(false);
+
+        // Set up model fields
+        $fields = [
+            'name' => $dbField,
+            'computed_field' => $nonDbField
+        ];
+
+        $this->testModel->setFields($fields);
+
+        // Mock QueryBuilder to capture what gets selected
+        $capturedSelect = null;
+        $this->mockQueryBuilder->method('select')
+            ->willReturnCallback(function($select) use (&$capturedSelect) {
+                $capturedSelect = $select;
+                return $this->mockQueryBuilder;
+            });
+
+        // Test with empty fields array (should select all eligible fields)
+        $this->connector->testBuildSelectClause(
+            $this->mockQueryBuilder,
+            $this->testModel,
+            $fields,
+            [] // empty = select all
+        );
+
+        // Should only include the database field
+        $this->assertEquals('test_models.name', $capturedSelect);
+
+        // Reset for next test
+        $capturedSelect = null;
+
+        // Test with specific fields requested
+        $this->connector->testBuildSelectClause(
+            $this->mockQueryBuilder,
+            $this->testModel,
+            $fields,
+            ['name', 'computed_field'] // both requested
+        );
+
+        // Should still only include the database field
+        $this->assertEquals('test_models.name', $capturedSelect);
+    }
+
+    /**
+     * Test that WHERE criteria properly validates database fields
+     */
+    public function testApplyCriteriaFiltersNonDBFields(): void
+    {
+        // Create mock fields
+        $dbField = $this->createMock(TextField::class);
+        $dbField->method('isDBField')->willReturn(true);
+
+        $nonDbField = $this->createMock(TextField::class);
+        $nonDbField->method('isDBField')->willReturn(false);
+
+        $modelFields = [
+            'name' => $dbField,
+            'computed_field' => $nonDbField
+        ];
+
+        $criteria = [
+            'name' => 'test',
+            'computed_field' => 'should_be_ignored'
+        ];
+
+        // Mock query builder expectations - should only get WHERE for database field
+        $this->mockQueryBuilder->expects($this->once())
+            ->method('andWhere')
+            ->with('test_alias.name = :name');
+
+        $this->mockQueryBuilder->expects($this->once())
+            ->method('setParameter')
+            ->with('name', 'test');
+
+        $this->connector->testApplyCriteria(
+            $this->mockQueryBuilder,
+            $criteria,
+            'test_alias',
+            $modelFields
+        );
+    }
+
+    /**
+     * Test that ORDER BY properly validates database fields
+     */
+    public function testApplyQueryParametersFiltersNonDBFieldsFromOrderBy(): void
+    {
+        // Create mock fields
+        $dbField = $this->createMock(TextField::class);
+        $dbField->method('isDBField')->willReturn(true);
+
+        $nonDbField = $this->createMock(TextField::class);
+        $nonDbField->method('isDBField')->willReturn(false);
+
+        $modelFields = [
+            'name' => $dbField,
+            'computed_field' => $nonDbField
+        ];
+
+        $parameters = [
+            'orderBy' => [
+                'name' => 'ASC',
+                'computed_field' => 'DESC'  // should be ignored
+            ]
+        ];
+
+        // Mock query builder expectations - should only get ORDER BY for database field
+        $this->mockQueryBuilder->expects($this->once())
+            ->method('orderBy')
+            ->with('test_alias.name', 'ASC');
+
+        $this->connector->testApplyQueryParameters(
+            $this->mockQueryBuilder,
+            $parameters,
+            'test_alias',
+            $modelFields
+        );
+    }
 }
 
 /**
@@ -534,40 +665,18 @@ class TestableDatabaseConnector extends DatabaseConnector
 
     public function testBuildSelectClause($queryBuilder, $tempModel, $modelFields, $fields): void
     {
-        // Override the buildSelectClause to use our mock for RelatedRecordField handling
-        $mainAlias = $tempModel->getAlias();
-        $fieldsToSelect = empty($fields) ? array_keys($modelFields) : $fields;
-        $selectFields = [];
-
-        foreach ($fieldsToSelect as $fieldName) {
-            $field = $modelFields[$fieldName] ?? null;
-
-            if (!$field) {
-                continue;
-            }
-
-            if ($field instanceof \Gravitycar\Fields\RelatedRecordField) {
-                // Use our mock related record fields instead of calling the real method
-                $relatedFields = $this->mockRelatedRecordFields;
-                $selectFields = array_merge($selectFields, $relatedFields);
-            } else {
-                // Regular field - select from main table using alias
-                $selectFields[] = "{$mainAlias}.{$fieldName}";
-            }
-        }
-
-        // Apply SELECT clause
-        $queryBuilder->select(implode(', ', $selectFields));
+        // Use the actual parent implementation which includes field validation
+        $this->buildSelectClause($queryBuilder, $tempModel, $modelFields, $fields);
     }
 
-    public function testApplyCriteria($queryBuilder, array $criteria, string $mainAlias): void
+    public function testApplyCriteria($queryBuilder, array $criteria, string $mainAlias, array $modelFields = []): void
     {
-        $this->applyCriteria($queryBuilder, $criteria, $mainAlias);
+        $this->applyCriteria($queryBuilder, $criteria, $mainAlias, $modelFields);
     }
 
-    public function testApplyQueryParameters($queryBuilder, array $parameters, string $mainAlias): void
+    public function testApplyQueryParameters($queryBuilder, array $parameters, string $mainAlias, array $modelFields = []): void
     {
-        $this->applyQueryParameters($queryBuilder, $parameters, $mainAlias);
+        $this->applyQueryParameters($queryBuilder, $parameters, $mainAlias, $modelFields);
     }
 
     protected function handleRelatedRecordField($queryBuilder, $mainModel, $field): array

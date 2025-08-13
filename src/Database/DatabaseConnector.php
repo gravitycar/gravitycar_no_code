@@ -427,10 +427,10 @@ class DatabaseConnector {
             $this->buildSelectClause($queryBuilder, $tempModel, $modelFields, $fields);
 
             // Apply WHERE conditions
-            $this->applyCriteria($queryBuilder, $criteria, $mainAlias);
+            $this->applyCriteria($queryBuilder, $criteria, $mainAlias, $modelFields);
 
             // Apply query parameters (ORDER BY, LIMIT, OFFSET)
-            $this->applyQueryParameters($queryBuilder, $parameters, $mainAlias);
+            $this->applyQueryParameters($queryBuilder, $parameters, $mainAlias, $modelFields);
 
             // Execute query and return raw rows
             $result = $queryBuilder->executeQuery();
@@ -600,19 +600,56 @@ class DatabaseConnector {
             $displayColumns = $relatedModel->getDisplayColumns();
             $fieldName = $field->getName();
 
-            if (empty($displayColumns)) {
-                // Fallback to 'name' if no display columns defined
-                return "COALESCE(rel_{$this->joinCounter}.name, '')";
+            // Filter display columns to only include database fields
+            $dbDisplayColumns = [];
+            foreach ($displayColumns as $column) {
+                if ($relatedModel->hasField($column)) {
+                    $relatedField = $relatedModel->getFields()[$column];
+                    if ($relatedField->isDBField()) {
+                        $dbDisplayColumns[] = $column;
+                    } else {
+                        $this->logger->debug("Skipping non-database display column", [
+                            'column' => $column,
+                            'field_type' => get_class($relatedField),
+                            'related_model' => get_class($relatedModel),
+                            'parent_field' => $fieldName
+                        ]);
+                    }
+                } else {
+                    $this->logger->warning("Display column '$column' does not exist in related model", [
+                        'column' => $column,
+                        'related_model' => get_class($relatedModel),
+                        'parent_field' => $fieldName
+                    ]);
+                }
             }
 
-            if (count($displayColumns) === 1) {
+            if (empty($dbDisplayColumns)) {
+                // Fallback: try to find 'name' field if it's a database field
+                if ($relatedModel->hasField('name')) {
+                    $nameField = $relatedModel->getFields()['name'];
+                    if ($nameField->isDBField()) {
+                        return "COALESCE(rel_{$this->joinCounter}.name, '')";
+                    }
+                }
+                
+                // Last resort: use 'id' field which should always exist and be a database field
+                $this->logger->warning("No valid database display columns found, falling back to id field", [
+                    'related_model' => get_class($relatedModel),
+                    'parent_field' => $fieldName,
+                    'original_display_columns' => $displayColumns
+                ]);
+                return "COALESCE(rel_{$this->joinCounter}.id, '')";
+            }
+
+            if (count($dbDisplayColumns) === 1) {
                 // Single column - use COALESCE to handle NULL values
-                return "COALESCE(rel_{$this->joinCounter}.{$displayColumns[0]}, '')";
+                return "COALESCE(rel_{$this->joinCounter}.{$dbDisplayColumns[0]}, '')";
             }
 
             // Multiple columns - use CONCAT with COALESCE to handle NULL values
             $concatParts = [];
-            foreach ($displayColumns as $column) {
+            foreach ($dbDisplayColumns as $column) {
                 $concatParts[] = "COALESCE(rel_{$this->joinCounter}.{$column}, '')";
             }
 
@@ -621,8 +658,8 @@ class DatabaseConnector {
 
         } catch (\Exception $e) {
             $this->logger->warning("Failed to create CONCAT for RelatedRecord field {$field->getName()}: " . $e->getMessage());
-            // Fallback to simple name field with NULL handling
-            return "COALESCE(rel_{$this->joinCounter}.name, '')";
+            // Fallback to simple id field which should always be available and be a database field
+            return "COALESCE(rel_{$this->joinCounter}.id, '')";
         }
     }
 
@@ -712,7 +749,7 @@ class DatabaseConnector {
      */
     protected function buildSelectClause(
         \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
-        ModelBase $tempModel,
+        $tempModel,
         $modelFields,
         $fields
     ): void {
@@ -736,8 +773,16 @@ class DatabaseConnector {
                 $relatedFields = $this->handleRelatedRecordField($queryBuilder, $tempModel, $field);
                 $selectFields = array_merge($selectFields, $relatedFields);
             } else {
-                // Regular field - select from main table using alias
-                $selectFields[] = "{$mainAlias}.{$fieldName}";
+                // Only add database fields to SELECT clause
+                if ($field->isDBField()) {
+                    $selectFields[] = "{$mainAlias}.{$fieldName}";
+                } else {
+                    $this->logger->debug("Skipping non-database field from SELECT clause", [
+                        'field_name' => $fieldName,
+                        'field_type' => get_class($field),
+                        'model' => get_class($tempModel)
+                    ]);
+                }
             }
         }
 
@@ -751,10 +796,22 @@ class DatabaseConnector {
     protected function applyCriteria(
         \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
         array $criteria,
-        string $mainAlias
+        string $mainAlias,
+        array $modelFields = []
     ): void {
         // Add WHERE conditions using main table alias
         foreach ($criteria as $field => $value) {
+            // Validate that the field is a database field if modelFields are provided
+            if (!empty($modelFields) && isset($modelFields[$field])) {
+                if (!$modelFields[$field]->isDBField()) {
+                    $this->logger->warning("Skipping non-database field from WHERE criteria", [
+                        'field_name' => $field,
+                        'field_type' => get_class($modelFields[$field])
+                    ]);
+                    continue;
+                }
+            }
+
             if (is_array($value)) {
                 $queryBuilder->andWhere("{$mainAlias}.{$field} IN (:{$field})");
                 $queryBuilder->setParameter($field, $value);
@@ -776,7 +833,8 @@ class DatabaseConnector {
     protected function applyQueryParameters(
         \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
         array $parameters,
-        string $mainAlias
+        string $mainAlias,
+        array $modelFields = []
     ): void {
         $orderBy = $parameters['orderBy'] ?? [];
         $limit = $parameters['limit'] ?? null;
@@ -784,6 +842,16 @@ class DatabaseConnector {
 
         // Add ORDER BY using main table alias
         foreach ($orderBy as $field => $direction) {
+            // Validate that the field is a database field if modelFields are provided
+            if (!empty($modelFields) && isset($modelFields[$field])) {
+                if (!$modelFields[$field]->isDBField()) {
+                    $this->logger->warning("Skipping non-database field from ORDER BY", [
+                        'field_name' => $field,
+                        'field_type' => get_class($modelFields[$field])
+                    ]);
+                    continue;
+                }
+            }
             $queryBuilder->orderBy("{$mainAlias}.{$field}", $direction);
         }
 
@@ -862,6 +930,17 @@ class DatabaseConnector {
 
             // Apply criteria using existing applyCriteria method logic
             foreach ($criteria as $field => $value) {
+                // Validate that the field is a database field
+                $fieldObj = $modelFields[$field] ?? null;
+                if ($fieldObj && !$fieldObj->isDBField()) {
+                    $this->logger->warning("Skipping non-database field from WHERE criteria", [
+                        'field_name' => $field,
+                        'field_type' => get_class($fieldObj),
+                        'operation' => 'bulkUpdateByCriteriaWithFieldValues'
+                    ]);
+                    continue;
+                }
+
                 if (is_array($value)) {
                     $queryBuilder->andWhere("{$field} IN (:{$field}_criteria)");
                     $queryBuilder->setParameter("{$field}_criteria", $value);

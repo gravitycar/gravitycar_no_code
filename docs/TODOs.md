@@ -40,7 +40,8 @@
 - [] Find out what is still passing metadata to RelationshipBase classes and make it stop.
 - [X] Implement a route scoring system so we can have flexible route handling.
 - [X] Implement a data transfer object to move data about the request into an API controller.
-- [] Implement the ModelBaseApiController class so that it covers all the basic CRUD and Relationship operations.
+- [X] Implement the ModelBaseApiController class so that it covers all the basic CRUD and Relationship operations.
+- [X] Integrate the Apache Web Server with the Gravitycar Framework with an entry point for REST requests.
 - [] Implement a filterCriteria class for processing search criteria from the request.
 - [] Implement bulk requests.
 - [] Routes seem to be duplicated when they are registered. We need a smarter way to stop that from happening.

@@ -2,6 +2,7 @@
 namespace Gravitycar\Api;
 
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Core\ServiceLocator;
 use Monolog\Logger;
 
 /**
@@ -12,49 +13,60 @@ class Router {
     protected APIRouteRegistry $routeRegistry;
     /** @var Logger */
     protected Logger $logger;
+    /** @var APIPathScorer */
+    protected APIPathScorer $pathScorer;
     /** @var \Gravitycar\Metadata\MetadataEngine */
     protected $metadataEngine;
 
-    public function __construct(\Gravitycar\Metadata\MetadataEngine $metadataEngine, Logger $logger) {
-        $this->routeRegistry = new APIRouteRegistry($logger);
-        $this->logger = $logger;
-        $this->metadataEngine = $metadataEngine;
+    public function __construct($serviceLocator) {
+        if ($serviceLocator instanceof ServiceLocator) {
+            $this->logger = $serviceLocator->get('logger');
+            $this->metadataEngine = $serviceLocator->get('metadataEngine');
+        } else {
+            // Backward compatibility - assume it's MetadataEngine for old constructor
+            $this->metadataEngine = $serviceLocator;
+            $this->logger = ServiceLocator::getLogger();
+        }
+        
+        $this->routeRegistry = new APIRouteRegistry($this->logger);
+        $this->pathScorer = new APIPathScorer($this->logger);
     }
 
     /**
      * Route an API request to the correct controller and handler
      */
-    public function route(string $method, string $path, array $params = []) {
-        $routes = $this->routeRegistry->getRoutes();
-
-        // If no routes are registered, provide a helpful error message
-        if (empty($routes)) {
-            throw new GCException("No routes registered. API controllers may not be properly configured.",
-                ['method' => $method, 'path' => $path, 'routes_count' => 0]);
+    public function route(string $method, string $path, array $additionalParams = []): mixed {
+        // 1. Get routes from registry grouped by method and path length
+        $pathLength = count($this->parsePathComponents($path));
+        $candidateRoutes = $this->routeRegistry->getRoutesByMethodAndLength($method, $pathLength);
+        
+        // 2. Use APIPathScorer to find best match
+        $bestRoute = null;
+        if (!empty($candidateRoutes)) {
+            $bestRoute = $this->pathScorer->findBestMatch($method, $path, $candidateRoutes);
         }
-
-        foreach ($routes as $route => $info) {
-            if ($this->matchRoute($route, $method, $path)) {
-                $controllerClass = $info['controller'];
-                $handlerMethod = $info['handler'];
-
-                if (!class_exists($controllerClass)) {
-                    throw new GCException("API controller class not found: $controllerClass",
-                        ['controller_class' => $controllerClass, 'route' => $route]);
-                }
-
-                $controller = new $controllerClass([], $this->logger);
-                if (!method_exists($controller, $handlerMethod)) {
-                    throw new GCException("Handler method not found: $handlerMethod in $controllerClass",
-                        ['handler_method' => $handlerMethod, 'controller_class' => $controllerClass]);
-                }
-
-                return $controller->$handlerMethod($params);
-            }
+        
+        // 3. If no exact length match, try other lengths for wildcard matching
+        if (!$bestRoute) {
+            $bestRoute = $this->findMatchingRoute($method, $path);
         }
-
-        throw new GCException("No matching route found for $method $path",
-            ['method' => $method, 'path' => $path, 'available_routes' => array_keys($routes)]);
+        
+        if (!$bestRoute) {
+            $allRoutes = $this->routeRegistry->getRoutes();
+            throw new GCException("No matching route found for $method $path", [
+                'method' => $method, 
+                'path' => $path, 
+                'available_routes' => array_map(function($route) {
+                    return $route['method'] . ' ' . $route['path'];
+                }, array_slice($allRoutes, 0, 10))
+            ]);
+        }
+        
+        // 4. Create Request object for parameter extraction
+        $request = new Request($path, $bestRoute['parameterNames'], $method);
+        
+        // 5. Execute route with Request object
+        return $this->executeRoute($bestRoute, $request, $additionalParams);
     }
 
     /**
@@ -63,12 +75,15 @@ class Router {
     public function handleRequest(): void {
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
-        $params = $this->getRequestParams();
+        
+        // Get additional parameters (query params, POST data)
+        $additionalParams = $this->getRequestParams();
 
         $this->logger->info("Routing request: $method $path");
 
         try {
-            $result = $this->route($method, $path, $params);
+            // Use new route() method - Request object created internally
+            $result = $this->route($method, $path, $additionalParams);
 
             // Only output if not in CLI/test mode
             if (php_sapi_name() !== 'cli') {
@@ -88,6 +103,73 @@ class Router {
 
             // Re-throw the exception for proper error handling in tests
             throw $e;
+        }
+    }
+
+    /**
+     * Find matching route using all available path lengths
+     */
+    protected function findMatchingRoute(string $method, string $path): ?array {
+        $pathLength = count($this->parsePathComponents($path));
+        
+        // Try other path lengths for wildcard matching
+        $allMethodRoutes = $this->routeRegistry->getGroupedRoutes()[$method] ?? [];
+        foreach ($allMethodRoutes as $length => $routes) {
+            if ($length !== $pathLength) {
+                $bestRoute = $this->pathScorer->findBestMatch($method, $path, $routes);
+                if ($bestRoute) {
+                    return $bestRoute;
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Execute route with Request object
+     */
+    protected function executeRoute(array $route, Request $request, array $additionalParams = []): mixed {
+        $controllerClass = $route['apiClass'];
+        $handlerMethod = $route['apiMethod'];
+        
+        if (!class_exists($controllerClass)) {
+            throw new GCException("API controller class not found: $controllerClass", [
+                'controller_class' => $controllerClass,
+                'route' => $route['path']
+            ]);
+        }
+        
+        $controller = new $controllerClass($this->logger);
+        
+        if (!method_exists($controller, $handlerMethod)) {
+            throw new GCException("Handler method not found: $handlerMethod in $controllerClass", [
+                'handler_method' => $handlerMethod,
+                'controller_class' => $controllerClass
+            ]);
+        }
+        
+        // Validate Request parameters
+        $this->validateRequestParameters($request, $route);
+        
+        // Call controller method with Request object
+        return $controller->$handlerMethod($request, $additionalParams);
+    }
+
+    /**
+     * Validate Request object has required parameters
+     */
+    protected function validateRequestParameters(Request $request, array $route): void {
+        $expectedParams = array_filter($route['parameterNames']); // Remove empty parameter names
+        
+        foreach ($expectedParams as $paramName) {
+            if (!$request->has($paramName)) {
+                throw new GCException("Missing required route parameter: $paramName", [
+                    'route' => $route['path'],
+                    'expected_params' => $expectedParams,
+                    'available_params' => array_keys($request->all())
+                ]);
+            }
         }
     }
 
@@ -115,11 +197,15 @@ class Router {
     }
 
     /**
-     * Match a route pattern to the request method and path
+     * Parse a path string into components
      */
-    protected function matchRoute(string $route, string $method, string $path): bool {
-        // Simple match: route pattern is METHOD PATH
-        [$routeMethod, $routePath] = explode(' ', $route, 2);
-        return strtoupper($method) === strtoupper($routeMethod) && $routePath === $path;
+    protected function parsePathComponents(string $path): array {
+        if (empty($path) || $path === '/') {
+            return [];
+        }
+
+        // Remove leading and trailing slashes, then split
+        $path = trim($path, '/');
+        return explode('/', $path);
     }
 }

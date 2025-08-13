@@ -1,0 +1,26 @@
+RewriteEngine On
+
+# Enable error logging for debugging
+# RewriteLog logs/rewrite.log
+# RewriteLogLevel 3
+
+# Allow direct access to specific files
+RewriteCond %{REQUEST_URI} ^/(index\.html|index\.php|phpinfo\.php)$ [NC]
+RewriteRule ^ - [L]
+
+# REST API Routes
+# Handle requests to REST endpoints and redirect to rest_api.php
+# Patterns: /Users, /Movies, /Books, /Articles, etc.
+# Support both singular and plural model names
+# Support ID parameters: /Users/123, /Movies/abc-def
+
+# Capture the full path and set environment variables
+RewriteCond %{REQUEST_URI} ^/([A-Za-z][A-Za-z0-9_]*)(/.+)?/?$ [NC]
+RewriteRule ^([A-Za-z][A-Za-z0-9_]*)(/.+)?/?$ rest_api.php [E=ORIGINAL_PATH:%{REQUEST_URI},E=MODEL_NAME:$1,E=PATH_INFO:$2,QSA,L]
+
+# Alternative fallback for exact model name matches
+# This ensures clean URLs work for common REST patterns
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} ^/[A-Za-z][A-Za-z0-9_]*
+RewriteRule ^(.*)$ rest_api.php [E=ORIGINAL_PATH:%{REQUEST_URI},QSA,L]

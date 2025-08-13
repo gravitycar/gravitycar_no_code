@@ -201,10 +201,9 @@ class ContainerConfig {
             'dbConnector' => $di->lazyGet('database_connector')
         ]));
 
-        // Router - prototype with metadata engine and logger
+        // Router - prototype with ServiceLocator instance
         $di->set('router', $di->lazyNew(\Gravitycar\Api\Router::class, [
-            'metadataEngine' => $di->lazyGet('metadata_engine'),
-            'logger' => $di->lazyGet('logger')
+            'serviceLocator' => $di->lazyGet('metadata_engine') // Backward compatibility - pass MetadataEngine as serviceLocator
         ]));
 
         // Installer model - prototype

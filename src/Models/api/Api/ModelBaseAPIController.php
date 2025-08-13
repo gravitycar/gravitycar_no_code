@@ -1,6 +1,7 @@
 <?php
 namespace Gravitycar\Models\Api\Api;
 
+use Gravitycar\Api\Request;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Models\ModelBase;
@@ -115,8 +116,19 @@ class ModelBaseAPIController {
     }    /**
      * List all records for a model
      */
-    public function list($request, array $params = []): array {
-        $modelName = $params['modelName'] ?? null;
+    public function list(Request $request, array $additionalParams = []): array {
+        // Handle both Request object and legacy $params array for backward compatibility
+        if ($request instanceof \Gravitycar\Api\Request) {
+            $modelName = $request->get('modelName');
+        } else {
+            // Legacy support - $request is actually $params array
+            $modelName = $request['modelName'] ?? null;
+        }
+        
+        if (!$modelName) {
+            throw new GCException("Missing required parameter: modelName");
+        }
+        
         $this->validateModelName($modelName);
         
         $this->logger->info('Listing records', ['model' => $modelName]);
@@ -153,9 +165,23 @@ class ModelBaseAPIController {
     /**
      * Retrieve a specific record by ID
      */
-    public function retrieve($request, array $params = []): array {
-        $modelName = $params['modelName'] ?? null;
-        $id = $params['id'] ?? null;
+    public function retrieve(Request $request, array $additionalParams = []): array {
+        // Handle both Request object and legacy $params array for backward compatibility
+        if ($request instanceof \Gravitycar\Api\Request) {
+            $modelName = $request->get('modelName');
+            $id = $request->get('id');
+        } else {
+            // Legacy support - $request is actually $params array
+            $modelName = $request['modelName'] ?? null;
+            $id = $request['id'] ?? null;
+        }
+        
+        if (!$modelName) {
+            throw new GCException("Missing required parameter: modelName");
+        }
+        if (!$id) {
+            throw new GCException("Missing required parameter: id");
+        }
         
         $this->validateModelName($modelName);
         $this->validateId($id);
@@ -199,7 +225,7 @@ class ModelBaseAPIController {
     /**
      * List soft-deleted records for a model
      */
-    public function listDeleted($request, array $params = []): array {
+    public function listDeleted(Request $request, array $params = []): array {
         $modelName = $params['modelName'] ?? null;
         $this->validateModelName($modelName);
         
@@ -237,7 +263,7 @@ class ModelBaseAPIController {
     /**
      * Create a new record
      */
-    public function create($request, array $params = []): array {
+    public function create(Request $request, array $params = []): array {
         $modelName = $params['modelName'] ?? null;
         $this->validateModelName($modelName);
         
@@ -287,7 +313,7 @@ class ModelBaseAPIController {
     /**
      * Update an existing record
      */
-    public function update($request, array $params = []): array {
+    public function update(Request $request, array $params = []): array {
         $modelName = $params['modelName'] ?? null;
         $id = $params['id'] ?? null;
         
@@ -347,7 +373,7 @@ class ModelBaseAPIController {
     /**
      * Soft delete a record
      */
-    public function delete($request, array $params = []): array {
+    public function delete(Request $request, array $params = []): array {
         $modelName = $params['modelName'] ?? null;
         $id = $params['id'] ?? null;
         
@@ -395,7 +421,7 @@ class ModelBaseAPIController {
     /**
      * Restore a soft-deleted record
      */
-    public function restore($request, array $params = []): array {
+    public function restore(Request $request, array $params = []): array {
         $modelName = $params['modelName'] ?? null;
         $id = $params['id'] ?? null;
         
@@ -456,7 +482,7 @@ class ModelBaseAPIController {
     /**
      * List related records for a relationship
      */
-    public function listRelated($request, array $params = []): array {
+    public function listRelated(Request $request, array $params = []): array {
         $modelName = $params['modelName'] ?? null;
         $id = $params['id'] ?? null;
         $relationshipName = $params['relationshipName'] ?? null;
@@ -506,7 +532,7 @@ class ModelBaseAPIController {
     /**
      * Create a new record and link it to an existing record via relationship
      */
-    public function createAndLink($request, array $params = []): array {
+    public function createAndLink(Request $request, array $params = []): array {
         $modelName = $params['modelName'] ?? null;
         $id = $params['id'] ?? null;
         $relationshipName = $params['relationshipName'] ?? null;
@@ -593,7 +619,7 @@ class ModelBaseAPIController {
     /**
      * Link two existing records via relationship
      */
-    public function link($request, array $params = []): array {
+    public function link(Request $request, array $params = []): array {
         $modelName = $params['modelName'] ?? null;
         $id = $params['id'] ?? null;
         $relationshipName = $params['relationshipName'] ?? null;
@@ -675,7 +701,7 @@ class ModelBaseAPIController {
     /**
      * Unlink two records (soft delete relationship)
      */
-    public function unlink($request, array $params = []): array {
+    public function unlink(Request $request, array $params = []): array {
         $modelName = $params['modelName'] ?? null;
         $id = $params['id'] ?? null;
         $relationshipName = $params['relationshipName'] ?? null;
