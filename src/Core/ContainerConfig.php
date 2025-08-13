@@ -232,32 +232,21 @@ class ContainerConfig {
      * Create a new field instance with dependencies
      */
     public static function createField(string $fieldClass, array $metadata): object {
-        $di = self::getContainer();
-        return new $fieldClass(
-            $metadata,
-            $di->get('logger')
-        );
+        return new $fieldClass($metadata);
     }
 
     /**
      * Create a new validation rule instance with dependencies
      */
     public static function createValidationRule(string $ruleClass): object {
-        $di = self::getContainer();
-        return new $ruleClass(
-            $di->get('logger')
-        );
+        return new $ruleClass();
     }
 
     /**
      * Create a new FieldFactory instance with dependencies and specific model
      */
     public static function createFieldFactory(\Gravitycar\Models\ModelBase $model): object {
-        $di = self::getContainer();
-        return new \Gravitycar\Factories\FieldFactory(
-            $model,
-            $di->get('logger')
-        );
+        return new \Gravitycar\Factories\FieldFactory($model);
     }
 
     /**

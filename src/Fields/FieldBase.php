@@ -2,6 +2,7 @@
 namespace Gravitycar\Fields;
 
 use Gravitycar\Validation\ValidationRuleBase;
+use Gravitycar\Core\ServiceLocator;
 use Monolog\Logger;
 use Gravitycar\Exceptions\GCException;
 
@@ -27,12 +28,12 @@ abstract class FieldBase {
     /** @var string */
     protected string $tableName = '';
 
-    public function __construct(array $metadata, Logger $logger) {
+    public function __construct(array $metadata) {
         if (empty($metadata['name'])) {
             throw new GCException('Field metadata missing name',
                 ['metadata' => $metadata]);
         }
-        $this->logger = $logger;
+        $this->logger = ServiceLocator::getLogger();
 
         // Use ingestMetadata to automatically populate properties from metadata
         $this->ingestMetadata($metadata);

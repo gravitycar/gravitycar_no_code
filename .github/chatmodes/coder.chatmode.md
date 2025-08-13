@@ -25,4 +25,6 @@ When writing php code, there are several best practices you should follow whenev
 - **Use the 'use' keyword**: Always use the 'use' keyword to import classes and namespaces at the top of your PHP files. Avoid using fully qualified class names in method bodies.
 - **Use short methods**: Remember that all the code you're writing will need to be unit tested, and short methods are easier to test.
 - **Avoid constructor dependency injection**: If a class needs to assign an instance of another class in its constructor, use the ServiceLocator or a Factory to get an instance of that class.
+- **Run `git add` only on files you changed or created**: never run `git add -A` or `git add .` or equivalent commands that stage all changes. Only stage the changes you intend to commit to the repo.
+
 

@@ -3,6 +3,7 @@ namespace Gravitycar\Factories;
 
 use Gravitycar\Fields\FieldBase;
 use Gravitycar\Models\ModelBase;
+use Gravitycar\Core\ServiceLocator;
 use Monolog\Logger;
 use Gravitycar\Exceptions\GCException;
 
@@ -18,9 +19,9 @@ class FieldFactory {
     /** @var array */
     protected array $availableFieldTypes = [];
 
-    public function __construct(object $model, Logger $logger) {
+    public function __construct(object $model) {
         $this->model = $model;
-        $this->logger = $logger;
+        $this->logger = ServiceLocator::getLogger();
         $this->discoverFieldTypes();
     }
 
