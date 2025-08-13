@@ -3,6 +3,7 @@ namespace Gravitycar\Metadata;
 
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Metadata\CoreFieldsMetadata;
+use Gravitycar\Core\ServiceLocator;
 use Monolog\Logger;
 
 /**
@@ -211,7 +212,7 @@ class MetadataEngine {
     public function getCoreFieldsMetadata(): array {
         if (empty($this->coreFieldsCache)) {
             if ($this->coreFieldsMetadata === null) {
-                $this->coreFieldsMetadata = new CoreFieldsMetadata($this->logger);
+                $this->coreFieldsMetadata = new CoreFieldsMetadata();
             }
             $this->coreFieldsCache = $this->coreFieldsMetadata->getStandardCoreFields();
         }

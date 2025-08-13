@@ -5,6 +5,7 @@ namespace Gravitycar\Tests\Unit\Models;
 use Gravitycar\Tests\Unit\UnitTestCase;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Metadata\CoreFieldsMetadata;
+use Gravitycar\Metadata\MetadataEngine;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Exceptions\GCException;
 use Monolog\Logger;
@@ -20,6 +21,7 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
 {
     private MockObject $mockLogger;
     private MockObject $mockCoreFieldsMetadata;
+    private MockObject $mockMetadataEngine;
     private Container $testContainer;
 
     protected function setUp(): void
@@ -28,12 +30,14 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
 
         $this->mockLogger = $this->createMock(Logger::class);
         $this->mockCoreFieldsMetadata = $this->createMock(CoreFieldsMetadata::class);
+        $this->mockMetadataEngine = $this->createMock(MetadataEngine::class);
 
-        // Set up test container with mocked CoreFieldsMetadata using ContainerBuilder
+        // Set up test container with mocked services using ContainerBuilder
         $builder = new ContainerBuilder();
         $this->testContainer = $builder->newInstance();
         $this->testContainer->set('logger', $this->mockLogger);
         $this->testContainer->set('core_fields_metadata', $this->mockCoreFieldsMetadata);
+        $this->testContainer->set('metadata_engine', $this->mockMetadataEngine);
 
         // Mock field factory to avoid actual field creation
         $mockFieldFactory = $this->createMock(\Gravitycar\Factories\FieldFactory::class);
@@ -88,7 +92,7 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
                 )
             );
 
-        $model = new TestableModelForCoreFields($this->mockLogger);
+        $model = new TestableModelForCoreFields();
 
         // Verify core fields were included in metadata
         $metadata = $model->getTestMetadata();
@@ -115,7 +119,7 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
             ->method('getAllCoreFieldsForModel')
             ->willReturn($testCoreFields);
 
-        $model = new TestableModelWithMetadataOverride($this->mockLogger);
+        $model = new TestableModelWithMetadataOverride();
 
         $metadata = $model->getTestMetadata();
 
@@ -145,7 +149,7 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
             ->method('getAllCoreFieldsForModel')
             ->willReturn($testCoreFields);
 
-        $model = new TestableModelWithExistingFields($this->mockLogger);
+        $model = new TestableModelWithExistingFields();
 
         $metadata = $model->getTestMetadata();
 
@@ -169,7 +173,7 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
         $this->expectException(GCException::class);
         $this->expectExceptionMessage('CoreFieldsMetadata service unavailable');
 
-        new TestableModelForCoreFields($this->mockLogger);
+        new TestableModelForCoreFields();
     }
 
     // ====================
@@ -177,18 +181,24 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
     // ====================
 
     /**
-     * Test that ModelBase uses ServiceLocator to get CoreFieldsMetadata
+     * Test that ModelBase uses ServiceLocator to get MetadataEngine
      */
     public function testModelBaseUsesServiceLocatorForCoreFieldsMetadata(): void
     {
         $testCoreFields = ['id' => ['name' => 'id', 'type' => 'IDField']];
+        $testMetadata = ['fields' => $testCoreFields];
 
-        // Verify that the service is called through ServiceLocator
-        $this->mockCoreFieldsMetadata->expects($this->once())
-            ->method('getAllCoreFieldsForModel')
-            ->willReturn($testCoreFields);
+        // Verify that the MetadataEngine service is called through ServiceLocator
+        $this->mockMetadataEngine->expects($this->once())
+            ->method('resolveModelName')
+            ->willReturn('TestableModelForCoreFields');
+            
+        $this->mockMetadataEngine->expects($this->once())
+            ->method('getModelMetadata')
+            ->with('TestableModelForCoreFields')
+            ->willReturn($testMetadata);
 
-        new TestableModelForCoreFields($this->mockLogger);
+        new TestableModelForCoreFields();
     }
 
     /**
@@ -203,8 +213,8 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
             ->method('getAllCoreFieldsForModel')
             ->willReturn($testCoreFields);
 
-        $model1 = new TestableModelForCoreFields($this->mockLogger);
-        $model2 = new TestableModelForCoreFields($this->mockLogger);
+        $model1 = new TestableModelForCoreFields();
+        $model2 = new TestableModelForCoreFields();
 
         // Both models should have used the same service instance
         $this->assertInstanceOf(TestableModelForCoreFields::class, $model1);
@@ -234,7 +244,7 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
             ->willReturn($testCoreFields);
 
         // Should not throw exception - core fields provide required 'fields' array
-        $model = new TestableModelWithNoInitialFields($this->mockLogger);
+        $model = new TestableModelWithNoInitialFields();
 
         $this->assertInstanceOf(TestableModelWithNoInitialFields::class, $model);
     }
@@ -251,7 +261,7 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
         $this->expectException(GCException::class);
         $this->expectExceptionMessage('No metadata found for model');
 
-        new TestableModelWithNoInitialFields($this->mockLogger);
+        new TestableModelWithNoInitialFields();
     }
 
     // ====================
@@ -290,7 +300,7 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
         $this->testContainer->set('field_factory', $mockFieldFactory);
 
         // Now create the model - it will use the mock field factory during construction
-        $model = new TestableModelForCoreFields($this->mockLogger);
+        $model = new TestableModelForCoreFields();
 
         // Verify field was created and added
         $fields = $model->getFields();
@@ -304,7 +314,7 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
  */
 class TestableModelForCoreFields extends ModelBase
 {
-    public function __construct(Logger $logger)
+    public function __construct()
     {
         // Register this test model with empty additional core fields to ensure it has metadata
         if (\Gravitycar\Core\ServiceLocator::hasService('CoreFieldsMetadata')) {
@@ -312,7 +322,7 @@ class TestableModelForCoreFields extends ModelBase
             $coreFieldsMetadata->registerModelSpecificCoreFields(static::class, []);
         }
 
-        parent::__construct($logger);
+        parent::__construct();
     }
 
     protected function getMetaDataFilePaths(): array

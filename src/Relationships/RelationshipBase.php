@@ -27,27 +27,15 @@ abstract class RelationshipBase extends ModelBase {
     protected bool $metadataFromEngine = false;
 
     /**
-     * Constructor supports both metadata-parameter and MetadataEngine-loading approaches
+     * Constructor - uses ServiceLocator for dependencies
      */
-    public function __construct($metadataOrLogger, Logger $logger = null, ?CoreFieldsMetadata $coreFieldsMetadata = null) {
-        // Handle backward compatibility - if first param is array, it's metadata
-        if (is_array($metadataOrLogger)) {
-            $this->metadata = $metadataOrLogger;
-            $this->logger = $logger ?? throw new GCException("Logger is required when metadata is provided directly");
-            $this->metadataFromEngine = false;
-        } else if ($metadataOrLogger instanceof Logger) {
-            // New pattern - use MetadataEngine
-            $this->logger = $metadataOrLogger;
-            $this->metadataFromEngine = true;
-            // Metadata will be loaded by overridden loadMetadata() method
-        } else {
-            throw new GCException("Invalid constructor parameters for RelationshipBase");
-        }
-        
-        $this->coreFieldsMetadata = $coreFieldsMetadata ?? new CoreFieldsMetadata($this->logger);
+    public function __construct() {
+        $this->logger = ServiceLocator::getLogger();
+        $this->coreFieldsMetadata = ServiceLocator::getCoreFieldsMetadata();
         $this->metadataEngine = ServiceLocator::getMetadataEngine();
+        $this->metadataFromEngine = true; // Always use MetadataEngine now
         
-        parent::__construct($this->logger);
+        parent::__construct();
     }
 
     /**

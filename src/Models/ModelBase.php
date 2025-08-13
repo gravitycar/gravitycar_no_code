@@ -45,8 +45,8 @@ abstract class ModelBase {
     /** @var string|null */
     protected ?string $deletedBy = null;
 
-    public function __construct(Logger $logger) {
-        $this->logger = $logger;
+    public function __construct() {
+        $this->logger = ServiceLocator::getLogger();
         $this->metadataEngine = ServiceLocator::getMetadataEngine();
         
         // Load metadata immediately during construction
