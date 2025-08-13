@@ -22,9 +22,10 @@ class DatabaseConnector {
     /** @var int */
     protected int $joinCounter = 0;
 
-    public function __construct(Logger $logger, array $dbParams) {
-        $this->logger = $logger;
-        $this->dbParams = $dbParams;
+    public function __construct() {
+        $this->logger = ServiceLocator::getLogger();
+        $config = ServiceLocator::getConfig();
+        $this->dbParams = $config->get('database') ?? [];
     }
 
     /**

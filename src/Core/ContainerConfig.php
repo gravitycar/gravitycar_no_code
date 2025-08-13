@@ -103,18 +103,7 @@ class ContainerConfig {
         // DatabaseConnector - singleton with error handling for invalid DB credentials
         $di->set('database_connector', $di->lazy(function() use ($di) {
             try {
-                $config = $di->get('config');
-                $dbParams = $config->getDatabaseParams();
-
-                if (empty($dbParams)) {
-                    $logger = $di->get('logger');
-                    throw new \Gravitycar\Exceptions\GCException(
-                        'Database parameters not configured',
-                        ['config_check' => 'dbParams empty or null'] // Context array
-                    );
-                }
-
-                return new DatabaseConnector($di->get('logger'), $dbParams);
+                return new DatabaseConnector();
             } catch (Exception $e) {
                 $logger = $di->get('logger');
                 $logger->error('Database connector failed: ' . $e->getMessage());
