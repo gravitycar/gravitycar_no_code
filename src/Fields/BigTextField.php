@@ -14,8 +14,8 @@ class BigTextField extends FieldBase {
     protected bool $required = false;
     protected int $maxLength = 16000;
 
-    public function __construct(array $metadata, Logger $logger) {
-        parent::__construct($metadata, $logger);
+    public function __construct(array $metadata) {
+        parent::__construct($metadata);
         // ingestMetadata() in parent constructor now handles all property assignments
     }
 }

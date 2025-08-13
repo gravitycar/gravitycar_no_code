@@ -17,8 +17,8 @@ class EnumField extends FieldBase {
     protected string $methodName = '';
     protected array $options = [];
 
-    public function __construct(array $metadata, Logger $logger) {
-        parent::__construct($metadata, $logger);
+    public function __construct(array $metadata) {
+        parent::__construct($metadata);
         // ingestMetadata() in parent constructor now handles all property assignments
 
         // Special handling for options loading after properties are set

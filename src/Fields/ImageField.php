@@ -20,8 +20,8 @@ class ImageField extends FieldBase {
     protected bool $allowRemote = true;
     protected string $placeholder = 'Enter image path or URL';
 
-    public function __construct(array $metadata, Logger $logger) {
-        parent::__construct($metadata, $logger);
+    public function __construct(array $metadata) {
+        parent::__construct($metadata);
         // ingestMetadata() in parent constructor now handles all property assignments
     }
 }

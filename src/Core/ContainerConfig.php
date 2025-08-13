@@ -118,12 +118,7 @@ class ContainerConfig {
             try {
                 // DI container manages singleton behavior, but we still use getInstance 
                 // to ensure consistency if MetadataEngine is accessed directly elsewhere
-                return MetadataEngine::getInstance(
-                    $di->get('logger'),
-                    'src/Models',
-                    'src/Relationships',
-                    'cache/'
-                );
+                return MetadataEngine::getInstance();
             } catch (Exception $e) {
                 $logger = $di->get('logger');
                 $logger->error('MetadataEngine initialization failed: ' . $e->getMessage());

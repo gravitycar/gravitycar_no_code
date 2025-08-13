@@ -38,23 +38,21 @@ class MetadataEngine {
     /**
      * Private constructor for singleton pattern
      */
-    private function __construct(Logger $logger, string $modelsDirPath = 'src/Models', string $relationshipsDirPath = 'src/Relationships', string $cacheDirPath = 'cache/') {
-        $this->logger = $logger;
-        $this->modelsDirPath = $modelsDirPath;
-        $this->relationshipsDirPath = $relationshipsDirPath;
-        $this->cacheDirPath = $cacheDirPath;
-        $this->coreFieldsMetadata = new CoreFieldsMetadata($logger);
+    private function __construct() {
+        $this->logger = ServiceLocator::getLogger();
+        $config = ServiceLocator::getConfig();
+        $this->modelsDirPath = $config->get('metadata.models_dir_path', 'src/Models');
+        $this->relationshipsDirPath = $config->get('metadata.relationships_dir_path', 'src/Relationships');
+        $this->cacheDirPath = $config->get('metadata.cache_dir_path', 'cache/');
+        $this->coreFieldsMetadata = new CoreFieldsMetadata();
     }
 
     /**
      * Get singleton instance
      */
-    public static function getInstance(Logger $logger = null, string $modelsDirPath = 'src/Models', string $relationshipsDirPath = 'src/Relationships', string $cacheDirPath = 'cache/'): MetadataEngine {
+    public static function getInstance(): MetadataEngine {
         if (self::$instance === null) {
-            if ($logger === null) {
-                throw new GCException("Logger is required for first initialization of MetadataEngine");
-            }
-            self::$instance = new self($logger, $modelsDirPath, $relationshipsDirPath, $cacheDirPath);
+            self::$instance = new self();
         }
         return self::$instance;
     }

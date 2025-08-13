@@ -20,8 +20,8 @@ class IntegerField extends FieldBase {
     protected string $placeholder = 'Enter a number';
     protected bool $showSpinners = true;
 
-    public function __construct(array $metadata, Logger $logger) {
-        parent::__construct($metadata, $logger);
+    public function __construct(array $metadata) {
+        parent::__construct($metadata);
         // ingestMetadata() in parent constructor now handles all property assignments
     }
 }

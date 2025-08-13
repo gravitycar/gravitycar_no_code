@@ -27,8 +27,8 @@ class RelatedRecordField extends FieldBase {
     /** @var string */
     protected string $displayFieldName;
 
-    public function __construct(array $metadata, Logger $logger) {
-        parent::__construct($metadata, $logger);
+    public function __construct(array $metadata) {
+        parent::__construct($metadata);
         $this->validateRelatedRecordMetadata();
     }
 
