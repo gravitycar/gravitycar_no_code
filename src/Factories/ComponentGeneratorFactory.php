@@ -2,6 +2,7 @@
 namespace Gravitycar\Factories;
 
 use Gravitycar\ComponentGenerator\ComponentGeneratorBase;
+use Gravitycar\Core\ServiceLocator;
 use Monolog\Logger;
 use Gravitycar\Exceptions\GCException;
 
@@ -15,8 +16,8 @@ class ComponentGeneratorFactory {
     /** @var array */
     protected array $availableComponentGenerators = [];
 
-    public function __construct(Logger $logger) {
-        $this->logger = $logger;
+    public function __construct() {
+        $this->logger = ServiceLocator::getLogger();
         $this->discoverComponentGenerators();
     }
 

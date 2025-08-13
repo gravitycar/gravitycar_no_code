@@ -83,10 +83,10 @@ class ContainerConfig {
             }
         }));
 
-        // Config - singleton with error handling for missing/invalid config files
+        // Config - singleton with error handling for missing/invalid config files  
         $di->set('config', $di->lazy(function() use ($di) {
             try {
-                return new Config($di->get('logger'));
+                return new Config();
             } catch (\Gravitycar\Exceptions\GCException $e) {
                 $logger = $di->get('logger');
                 $logger->error('Config loading failed: ' . $e->getMessage());
@@ -186,9 +186,7 @@ class ContainerConfig {
      */
     private static function configureFactories(Container $di): void {
         // ValidationRuleFactory - singleton
-        $di->set('validation_rule_factory', $di->lazyNew(ValidationRuleFactory::class, [
-            'logger' => $di->lazyGet('logger')
-        ]));
+        $di->set('validation_rule_factory', $di->lazyNew(ValidationRuleFactory::class));
     }
 
     /**

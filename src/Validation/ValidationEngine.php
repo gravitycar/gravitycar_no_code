@@ -2,6 +2,7 @@
 
 namespace Gravitycar\Validation;
 
+use Gravitycar\Core\ServiceLocator;
 use Monolog\Logger;
 
 /**
@@ -13,9 +14,9 @@ class ValidationEngine
     private Logger $logger;
     private array $rules = [];
 
-    public function __construct(Logger $logger)
+    public function __construct()
     {
-        $this->logger = $logger;
+        $this->logger = ServiceLocator::getLogger();
     }
 
     /**

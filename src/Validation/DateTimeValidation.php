@@ -1,14 +1,12 @@
 <?php
 namespace Gravitycar\Validation;
 
-use Monolog\Logger;
-
 /**
  * DateTimeValidation: Ensures a value is a valid date-time string.
  */
 class DateTimeValidation extends ValidationRuleBase {
-    public function __construct(Logger $logger) {
-        parent::__construct($logger, 'DateTime', 'Invalid date-time format.');
+    public function __construct() {
+        parent::__construct('DateTime', 'Invalid date-time format.');
     }
 
     /**

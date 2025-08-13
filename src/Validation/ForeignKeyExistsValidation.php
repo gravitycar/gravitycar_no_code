@@ -5,7 +5,6 @@ use Gravitycar\Fields\RelatedRecordField;
 use Gravitycar\Fields\FieldBase;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Exceptions\GCException;
-use Monolog\Logger;
 
 /**
  * Validation rule to ensure foreign key values exist in the related table.
@@ -13,11 +12,11 @@ use Monolog\Logger;
  */
 class ForeignKeyExistsValidation extends ValidationRuleBase {
 
-    public function __construct(Logger $logger, string $name = '', string $errorMessage = '') {
+    public function __construct(string $name = '', string $errorMessage = '') {
         $name = $name ?: 'ForeignKeyExists';
         $errorMessage = $errorMessage ?: 'The selected {fieldName} does not exist.';
 
-        parent::__construct($logger, $name, $errorMessage);
+        parent::__construct($name, $errorMessage);
 
         // Set properties specific to this validation rule
         $this->contextSensitive = true;

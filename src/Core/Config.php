@@ -1,7 +1,6 @@
 <?php
 namespace Gravitycar\Core;
 
-use Monolog\Logger;
 use Gravitycar\Exceptions\GCException;
 
 /**
@@ -13,11 +12,8 @@ class Config {
     protected array $config = [];
     /** @var string */
     protected string $configFilePath = 'config.php';
-    /** @var Logger */
-    protected Logger $logger;
 
-    public function __construct(Logger $logger) {
-        $this->logger = $logger;
+    public function __construct() {
         $this->loadConfig();
     }
 

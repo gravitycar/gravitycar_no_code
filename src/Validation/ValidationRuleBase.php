@@ -1,6 +1,7 @@
 <?php
 namespace Gravitycar\Validation;
 
+use Gravitycar\Core\ServiceLocator;
 use Monolog\Logger;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Fields\FieldBase;
@@ -36,8 +37,8 @@ abstract class ValidationRuleBase {
     /** @var Logger */
     protected Logger $logger;
 
-    public function __construct(Logger $logger, string $name = '', string $errorMessage = '') {
-        $this->logger = $logger;
+    public function __construct(string $name = '', string $errorMessage = '') {
+        $this->logger = ServiceLocator::getLogger();
         $this->name = $name ?: static::class;
         $this->errorMessage = $errorMessage;
     }

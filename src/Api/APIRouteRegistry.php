@@ -3,6 +3,7 @@
 namespace Gravitycar\Api;
 
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Core\ServiceLocator;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -20,9 +21,9 @@ class APIRouteRegistry
     protected array $routes = [];
     protected array $groupedRoutes = [];
 
-    public function __construct(LoggerInterface $logger)
+    public function __construct()
     {
-        $this->logger = $logger;
+        $this->logger = ServiceLocator::getLogger();
         $this->apiControllersDirPath = 'src/models';
         $this->modelsDirPath = 'src/models';
         $this->cacheFilePath = 'cache/api_routes.php';
