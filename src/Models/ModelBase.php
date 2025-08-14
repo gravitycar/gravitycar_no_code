@@ -538,7 +538,7 @@ abstract class ModelBase {
     /**
      * Get validation errors from all fields
      */
-    protected function getValidationErrors(): array {
+    public function getValidationErrors(): array {
         $errors = [];
         foreach ($this->fields as $fieldName => $field) {
             if (method_exists($field, 'getValidationErrors')) {

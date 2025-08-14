@@ -6,6 +6,7 @@ use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Api\Router;
 use Gravitycar\Api\Request;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Exceptions\APIException;
 use Monolog\Logger;
 use Exception;
 use Throwable;
@@ -57,6 +58,8 @@ class RestApiHandler {
             // 4. Send JSON response
             $this->sendJsonResponse($result);
 
+        } catch (APIException $e) {
+            $this->handleError($e, 'API Error');
         } catch (GCException $e) {
             $this->handleError($e, 'Gravitycar Exception');
         } catch (Exception $e) {
@@ -262,11 +265,15 @@ class RestApiHandler {
      * @param string $errorType Human-readable error type description
      */
     private function handleError(Throwable $e, string $errorType): void {
-        // Determine HTTP status code
-        $httpStatus = 500;
-        if ($e instanceof GCException) {
-            // Could map specific GC exceptions to HTTP codes
-            $httpStatus = 400; // Bad request for now
+        // Determine HTTP status code based on exception type
+        $httpStatus = 500; // Default to internal server error
+        
+        if ($e instanceof APIException) {
+            // Use the HTTP status code from the API exception
+            $httpStatus = $e->getHttpStatusCode();
+        } elseif ($e instanceof GCException) {
+            // For backward compatibility, map GCException to appropriate status codes
+            $httpStatus = 400; // Bad request for framework exceptions
         }
 
         // Log the error
@@ -275,7 +282,8 @@ class RestApiHandler {
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'http_status' => $httpStatus
             ]);
         } else {
             error_log("REST API Error ($errorType): " . $e->getMessage());
@@ -292,17 +300,32 @@ class RestApiHandler {
             'status' => $httpStatus,
             'error' => [
                 'message' => $e->getMessage(),
-                'type' => $errorType,
-                'code' => $e->getCode()
+                'type' => $this->getErrorTypeName($e),
+                'code' => $httpStatus
             ],
             'timestamp' => date('c')
         ];
 
-        // Add context if it's a GCException
+        // Add context if it's a GCException or APIException
         if ($e instanceof GCException && $e->getContext()) {
             $errorResponse['error']['context'] = $e->getContext();
         }
 
         echo json_encode($errorResponse, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    }
+
+    /**
+     * Get a human-readable error type name for the response
+     */
+    private function getErrorTypeName(Throwable $e): string {
+        if ($e instanceof APIException) {
+            return $e->getErrorType();
+        }
+        
+        if ($e instanceof GCException) {
+            return 'Framework Error';
+        }
+        
+        return 'Internal Error';
     }
 }

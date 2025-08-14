@@ -4,6 +4,11 @@ namespace Gravitycar\Models\Api\Api;
 use Gravitycar\Api\Request;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Exceptions\NotFoundException;
+use Gravitycar\Exceptions\BadRequestException;
+use Gravitycar\Exceptions\UnprocessableEntityException;
+use Gravitycar\Exceptions\InternalServerErrorException;
+use Gravitycar\Exceptions\ConflictException;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Relationships\RelationshipBase;
@@ -177,10 +182,10 @@ class ModelBaseAPIController {
         }
         
         if (!$modelName) {
-            throw new GCException("Missing required parameter: modelName");
+            throw new BadRequestException("Missing required parameter: modelName");
         }
         if (!$id) {
-            throw new GCException("Missing required parameter: id");
+            throw new BadRequestException("Missing required parameter: id");
         }
         
         $this->validateModelName($modelName);
@@ -193,10 +198,10 @@ class ModelBaseAPIController {
             $model = ModelFactory::retrieve($modelName, $id);
             
             if (!$model) {
-                throw new GCException('Record not found', [
+                throw new NotFoundException('Record not found', [
                     'model' => $modelName,
                     'id' => $id
-                ], 404);
+                ]);
             }
             
             $this->logger->info('Record retrieved successfully', [
@@ -206,8 +211,8 @@ class ModelBaseAPIController {
             
             return ['data' => $model->toArray()];
             
-        } catch (GCException $e) {
-            throw $e; // Re-throw GCExceptions as-is
+        } catch (NotFoundException $e) {
+            throw $e; // Re-throw NotFoundException as-is
         } catch (\Exception $e) {
             $this->logger->error('Failed to retrieve record', [
                 'model' => $modelName,
@@ -278,14 +283,20 @@ class ModelBaseAPIController {
             // Use ModelBase populateFromAPI method
             $model->populateFromAPI($data);
             
+            // Check for validation errors before attempting to create
+            $validationErrors = $model->getValidationErrors();
+            if (!empty($validationErrors)) {
+                throw UnprocessableEntityException::withValidationErrors($validationErrors);
+            }
+            
             // Use ModelBase create method
             $success = $model->create();
             
             if (!$success) {
-                throw new GCException('Failed to create record', [
+                throw new InternalServerErrorException('Failed to create record', [
                     'model' => $modelName,
                     'data' => $data
-                ], 500);
+                ]);
             }
             
             $this->logger->info('Record created successfully', [
@@ -295,18 +306,20 @@ class ModelBaseAPIController {
             
             return ['data' => $model->toArray(), 'message' => 'Record created successfully'];
             
-        } catch (GCException $e) {
-            throw $e; // Re-throw GCExceptions as-is
+        } catch (UnprocessableEntityException $e) {
+            throw $e; // Re-throw validation exceptions as-is
+        } catch (InternalServerErrorException $e) {
+            throw $e; // Re-throw server error exceptions as-is
         } catch (\Exception $e) {
             $this->logger->error('Failed to create record', [
                 'model' => $modelName,
                 'data' => $data,
                 'error' => $e->getMessage()
             ]);
-            throw new GCException('Failed to create record', [
+            throw new InternalServerErrorException('Failed to create record', [
                 'model' => $modelName,
                 'original_error' => $e->getMessage()
-            ], 500, $e);
+            ], $e);
         }
     }
 
@@ -787,35 +800,35 @@ class ModelBaseAPIController {
      */
     protected function validateModelName(?string $modelName): void {
         if (empty($modelName)) {
-            throw new GCException('Model name is required', [], 400);
+            throw new BadRequestException('Model name is required');
         }
         
         // Validate model name format
         if (!preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $modelName)) {
-            throw new GCException('Invalid model name format', [
+            throw new BadRequestException('Invalid model name format', [
                 'model_name' => $modelName,
                 'allowed_pattern' => '^[A-Za-z][A-Za-z0-9_]*$'
-            ], 400);
+            ]);
         }
         
         // Check if model exists using ModelFactory
         try {
             $availableModels = ModelFactory::getAvailableModels();
             if (!in_array($modelName, $availableModels)) {
-                throw new GCException('Model not found', [
+                throw new NotFoundException('Model not found', [
                     'model_name' => $modelName,
                     'available_models' => $availableModels
-                ], 404);
+                ]);
             }
         } catch (\Exception $e) {
             // If we can't get available models, try to create an instance
             try {
                 ModelFactory::new($modelName);
             } catch (\Exception $createException) {
-                throw new GCException('Model not found or cannot be instantiated', [
+                throw new NotFoundException('Model not found or cannot be instantiated', [
                     'model_name' => $modelName,
                     'original_error' => $createException->getMessage()
-                ], 404, $createException);
+                ], $createException);
             }
         }
         
@@ -827,7 +840,7 @@ class ModelBaseAPIController {
      */
     protected function validateId($id): void {
         if (empty($id)) {
-            throw new GCException('ID is required', [], 400);
+            throw new BadRequestException('ID is required');
         }
         
         // For now, just check it's not empty - specific validation can be added later
@@ -839,15 +852,15 @@ class ModelBaseAPIController {
      */
     protected function validateRelationshipName(?string $relationshipName): void {
         if (empty($relationshipName)) {
-            throw new GCException('Relationship name is required', [], 400);
+            throw new BadRequestException('Relationship name is required');
         }
         
         // Validate relationship name format
         if (!preg_match('/^[A-Za-z][A-Za-z0-9_]*$/', $relationshipName)) {
-            throw new GCException('Invalid relationship name format', [
+            throw new BadRequestException('Invalid relationship name format', [
                 'relationship_name' => $relationshipName,
                 'allowed_pattern' => '^[A-Za-z][A-Za-z0-9_]*$'
-            ], 400);
+            ]);
         }
         
         $this->logger->debug('Relationship name validated', ['relationship_name' => $relationshipName]);

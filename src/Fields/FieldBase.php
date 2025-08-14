@@ -62,9 +62,28 @@ abstract class FieldBase {
     }
 
     public function setValue($value): void {
-        $this->originalValue = $this->value;
+        // Store the original value before attempting to set new value
+        $originalValue = $this->value;
+        
+        // Temporarily set the new value for validation
         $this->value = $value;
-        $this->validate();
+        
+        // Validate the new value
+        if ($this->validate()) {
+            // If validation passes, keep the new value and update originalValue
+            $this->originalValue = $originalValue;
+        } else {
+            // If validation fails, revert to the original value
+            $this->value = $originalValue;
+            
+            // Log the validation failure for debugging
+            $this->logger->warning("setValue failed validation for field '{$this->name}'", [
+                'field_name' => $this->name,
+                'attempted_value' => $value,
+                'validation_errors' => $this->validationErrors,
+                'current_value' => $this->value
+            ]);
+        }
     }
 
     /**

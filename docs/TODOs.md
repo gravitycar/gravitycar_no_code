@@ -37,7 +37,7 @@
 - [X] Specify the APIBase class, a class parent class for all API controller classes to come. 
 - [] Build the Home, MovieQuotesTrivaGame, MovieQuotesTriviaGameQuestions models.
 - [] Get rid of the deleted, deleted_at and deleted_by properties in ModelBase. They are cruft.
-- [] Find out what is still passing metadata to RelationshipBase classes and make it stop.
+- [X] Find out what is still passing metadata to RelationshipBase classes and make it stop.
 - [X] Implement a route scoring system so we can have flexible route handling.
 - [X] Implement a data transfer object to move data about the request into an API controller.
 - [X] Implement the ModelBaseApiController class so that it covers all the basic CRUD and Relationship operations.
@@ -45,8 +45,11 @@
 - [] Implement a filterCriteria class for processing search criteria from the request.
 - [] Implement bulk requests.
 - [] Routes seem to be duplicated when they are registered. We need a smarter way to stop that from happening.
-- [] find every instance of $logger or anything else the ServiceLocator handles and replace it with "$this->logger = ServiceLocator::getLogger();"
+- [X] find every instance of $logger or anything else the ServiceLocator handles and replace it with "$this->logger = ServiceLocator::getLogger();"
+- [] HelpAPIController - a class that returns a description of all of the supported end points, with the parameter names. 
+- [] MetadataAPIController - a class that returns all or some of our metadata for models and relationships.
 - [] Create additional GCExcpetion subclasses
-    - [] Subclasses for every 400-500 HTTP error code.
+    - [X] Subclasses for every 400-500 HTTP error code.
     - [] Sublcasses for database failures.
     - [] Replace instances of GCException with more specific errors.
+    - [] Domain-specific exception classes (e.g., InsufficientInventoryException, AccountSuspendedException) for business logic errors.
