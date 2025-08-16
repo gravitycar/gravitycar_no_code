@@ -105,8 +105,11 @@ class ModelFactory {
             // Get DatabaseConnector through ServiceLocator
             $dbConnector = ServiceLocator::getDatabaseConnector();
             
-            // Find record by ID using DatabaseConnector
-            $row = $dbConnector->findById($modelClass, $id);
+            // Create a temporary model instance for the query (performance optimized)
+            $tempModel = new $modelClass();
+            
+            // Find record by ID using DatabaseConnector with model instance
+            $row = $dbConnector->findById($tempModel, $id);
             
             if ($row === null) {
                 $logger->info('Model record not found', [

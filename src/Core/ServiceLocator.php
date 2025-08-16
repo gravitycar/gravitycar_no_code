@@ -10,6 +10,9 @@ use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Metadata\MetadataEngine;
 use Gravitycar\Schema\SchemaGenerator;
 use Gravitycar\Factories\ValidationRuleFactory;
+use Gravitycar\Services\AuthenticationService;
+use Gravitycar\Services\AuthorizationService;
+use Gravitycar\Models\Users;
 
 /**
  * Service Locator for easy access to framework services.
@@ -207,15 +210,20 @@ class ServiceLocator {
     }
 
     /**
-     * Get the current user (for relationship soft deletes)
+     * Get the current user - enhanced for authentication system
      */
     public static function getCurrentUser(): ?\Gravitycar\Models\ModelBase {
         try {
-            // This would integrate with your authentication system
-            // For now, return null - each relationship can handle this gracefully
-            return null;
+            $token = self::getAuthTokenFromRequest();
+            
+            if (!$token) {
+                return null;
+            }
+            
+            $authService = self::getAuthenticationService();
+            return $authService->validateJwtToken($token);
         } catch (Exception $e) {
-            self::getLogger()->warning('Failed to get current user: ' . $e->getMessage());
+            self::getLogger()->debug('Unable to get current user: ' . $e->getMessage());
             return null;
         }
     }
@@ -366,5 +374,59 @@ class ServiceLocator {
                 $e
             );
         }
+    }
+
+    /**
+     * Get the authentication service
+     */
+    public static function getAuthenticationService(): AuthenticationService {
+        try {
+            return self::getContainer()->get('authentication_service');
+        } catch (Exception $e) {
+            $logger = self::getLogger();
+            $logger->error('Failed to get AuthenticationService: ' . $e->getMessage());
+            throw new \Gravitycar\Exceptions\GCException(
+                'AuthenticationService unavailable: ' . $e->getMessage(),
+                ['service_error' => $e->getMessage()],
+                0,
+                $e
+            );
+        }
+    }
+
+    /**
+     * Get the authorization service
+     */
+    public static function getAuthorizationService(): AuthorizationService {
+        try {
+            return self::getContainer()->get('authorization_service');
+        } catch (Exception $e) {
+            $logger = self::getLogger();
+            $logger->error('Failed to get AuthorizationService: ' . $e->getMessage());
+            throw new \Gravitycar\Exceptions\GCException(
+                'AuthorizationService unavailable: ' . $e->getMessage(),
+                ['service_error' => $e->getMessage()],
+                0,
+                $e
+            );
+        }
+    }
+
+    /**
+     * Extract JWT token from request headers
+     */
+    public static function getAuthTokenFromRequest(): ?string {
+        // Check Authorization header
+        $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+        if (preg_match('/Bearer\s+(.*)$/i', $authHeader, $matches)) {
+            return $matches[1];
+        }
+
+        // Check for token in cookies
+        if (isset($_COOKIE['jwt_token'])) {
+            return $_COOKIE['jwt_token'];
+        }
+
+        return null;
     }
 }

@@ -5,11 +5,16 @@ use Aura\Di\Container;
 use Aura\Di\ContainerBuilder;
 use Monolog\Logger;
 use Monolog\Handler\StreamHandler;
+use Monolog\Handler\RotatingFileHandler;
 use Gravitycar\Core\Config;
 use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Metadata\MetadataEngine;
 use Gravitycar\Schema\SchemaGenerator;
 use Gravitycar\Factories\ValidationRuleFactory;
+use Gravitycar\Services\AuthenticationService;
+use Gravitycar\Services\AuthorizationService;
+use Gravitycar\Services\GoogleOAuthService;
+use Gravitycar\Services\UserService;
 use Exception;
 
 /**
@@ -58,22 +63,60 @@ class ContainerConfig {
      * Configure core framework services as singletons
      */
     private static function configureCoreServices(Container $di): void {
-        // Logger - singleton with error handling and fallback
-        $di->set('logger', $di->lazy(function() {
+        // Logger - singleton with daily rotation and configurable settings
+        $di->set('logger', $di->lazy(function() use ($di) {
             try {
+                // Create logger instance
                 $logger = new Logger('gravitycar');
 
-                // Try to create log directory
-                $logDir = dirname('logs/gravitycar.log');
+                // Try to get config for logger settings, with fallback defaults
+                $logFile = 'logs/gravitycar.log';
+                $logLevel = Logger::INFO;
+                $dailyRotation = true;
+                $maxFiles = 30;
+                
+                try {
+                    $config = new Config(); // Create config directly to avoid circular dependency
+                    $logFile = $config->get('logging.file', 'logs/gravitycar.log');
+                    $logLevelName = $config->get('logging.level', 'info');
+                    $dailyRotation = $config->get('logging.daily_rotation', true);
+                    $maxFiles = $config->get('logging.max_files', 30);
+                    
+                    // Convert log level name to Monolog constant
+                    $logLevel = match(strtolower($logLevelName)) {
+                        'debug' => Logger::DEBUG,
+                        'info' => Logger::INFO,
+                        'notice' => Logger::NOTICE,
+                        'warning' => Logger::WARNING,
+                        'error' => Logger::ERROR,
+                        'critical' => Logger::CRITICAL,
+                        'alert' => Logger::ALERT,
+                        'emergency' => Logger::EMERGENCY,
+                        default => Logger::INFO
+                    };
+                } catch (\Exception $configError) {
+                    // If config fails, use defaults and continue
+                    // Don't try to log this error as it would create circular dependency
+                }
+
+                // Create log directory if needed
+                $logDir = dirname($logFile);
                 if (!is_dir($logDir)) {
                     if (!mkdir($logDir, 0755, true) && !is_dir($logDir)) {
                         throw new \Exception("Failed to create log directory: $logDir");
                     }
                 }
 
-                $handler = new StreamHandler('logs/gravitycar.log', Logger::INFO);
+                // Use Monolog's built-in rotation if enabled, otherwise simple StreamHandler
+                if ($dailyRotation) {
+                    $handler = new RotatingFileHandler($logFile, $maxFiles, $logLevel);
+                } else {
+                    $handler = new StreamHandler($logFile, $logLevel);
+                }
+                
                 $logger->pushHandler($handler);
                 return $logger;
+                
             } catch (Exception $e) {
                 // Fallback to stderr handler if file logging fails
                 $logger = new Logger('gravitycar');
@@ -112,6 +155,9 @@ class ContainerConfig {
                 return new \Gravitycar\Database\DatabaseConnectorStub($logger, $e);
             }
         }));
+
+        // Database alias for database_connector (for consistency with existing services)
+        $di->set('database', $di->lazyGet('database_connector'));
 
         // MetadataEngine - singleton managed by DI container
         $di->set('metadata_engine', $di->lazy(function() use ($di) {
@@ -187,6 +233,26 @@ class ContainerConfig {
 
         // Installer model - prototype
         $di->set('installer', $di->lazyNew(\Gravitycar\Models\installer\Installer::class, [
+            'logger' => $di->lazyGet('logger')
+        ]));
+
+        // Authentication services
+        $di->set('authentication_service', $di->lazyNew(\Gravitycar\Services\AuthenticationService::class, [
+            'database' => $di->lazyGet('database'),
+            'logger' => $di->lazyGet('logger')
+        ]));
+
+        $di->set('authorization_service', $di->lazyNew(\Gravitycar\Services\AuthorizationService::class, [
+            'database' => $di->lazyGet('database'),
+            'logger' => $di->lazyGet('logger')
+        ]));
+
+        $di->set('google_oauth_service', $di->lazyNew(\Gravitycar\Services\GoogleOAuthService::class, [
+            'logger' => $di->lazyGet('logger')
+        ]));
+
+        $di->set('user_service', $di->lazyNew(\Gravitycar\Services\UserService::class, [
+            'database' => $di->lazyGet('database'),
             'logger' => $di->lazyGet('logger')
         ]));
     }

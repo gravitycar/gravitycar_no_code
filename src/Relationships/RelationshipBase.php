@@ -506,9 +506,9 @@ abstract class RelationshipBase extends ModelBase {
             $parameters['limit'] = 1; // OneToOne should return at most one record
         }
 
-        // Use DatabaseConnector->find() for consistent data access
+        // Use DatabaseConnector->find() for consistent data access (performance optimized)
         $dbConnector = $this->getDatabaseConnector();
-        $records = $dbConnector->find(static::class, $criteria, [], $parameters);
+        $records = $dbConnector->find($this, $criteria, [], $parameters);
 
         $this->logger->debug('{type} getRelatedRecords completed', [
             'relationship_type' => $this->getType(),
@@ -653,7 +653,7 @@ abstract class RelationshipBase extends ModelBase {
             ];
 
             $dbConnector = $this->getDatabaseConnector();
-            $results = $dbConnector->find(static::class, $criteria, [], ['limit' => 1]);
+            $results = $dbConnector->find($this, $criteria, [], ['limit' => 1]);
 
             if (empty($results)) {
                 $this->logger->warning('Relationship not found for removal', [
@@ -724,9 +724,9 @@ abstract class RelationshipBase extends ModelBase {
                 'deleted_at' => null  // Only find non-deleted relationships
             ];
 
-            // Use DatabaseConnector to find matching records
+            // Use DatabaseConnector to find matching records (performance optimized)
             $dbConnector = $this->getDatabaseConnector();
-            $results = $dbConnector->find(static::class, $criteria, [], ['limit' => 1]);
+            $results = $dbConnector->find($this, $criteria, [], ['limit' => 1]);
 
             // Return true if any record is found
             return !empty($results);
@@ -926,9 +926,9 @@ abstract class RelationshipBase extends ModelBase {
             'deleted_at' => null  // Only find non-deleted relationships
         ];
 
-        // Use DatabaseConnector->find() with optional parameters
+        // Use DatabaseConnector->find() with optional parameters (performance optimized)
         $dbConnector = $this->getDatabaseConnector();
-        return $dbConnector->find(static::class, $criteria, [], $parameters);
+        return $dbConnector->find($this, $criteria, [], $parameters);
     }
 
     /**
@@ -943,9 +943,9 @@ abstract class RelationshipBase extends ModelBase {
             'deleted_at' => '__NOT_NULL__'  // Special marker for IS NOT NULL condition
         ];
 
-        // Use DatabaseConnector->find() with enhanced criteria support
+        // Use DatabaseConnector->find() with enhanced criteria support (performance optimized)
         $dbConnector = $this->getDatabaseConnector();
-        return $dbConnector->find(static::class, $criteria, [], $parameters);
+        return $dbConnector->find($this, $criteria, [], $parameters);
     }
 
     /**
@@ -973,8 +973,8 @@ abstract class RelationshipBase extends ModelBase {
             'offset' => $offset
         ];
 
-        // Get paginated records using DatabaseConnector->find()
-        $records = $dbConnector->find(static::class, $criteria, [], $parameters);
+        // Get paginated records using DatabaseConnector->find() (performance optimized)
+        $records = $dbConnector->find($this, $criteria, [], $parameters);
 
         $hasMore = ($offset + $perPage) < $total;
 

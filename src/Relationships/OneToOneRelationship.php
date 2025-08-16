@@ -59,7 +59,7 @@ class OneToOneRelationship extends RelationshipBase {
             ];
 
             $dbConnector = $this->getDatabaseConnector();
-            $results = $dbConnector->find(static::class, $criteria, [], ['limit' => 1]);
+            $results = $dbConnector->find($this, $criteria, [], ['limit' => 1]);
 
             if (empty($results)) {
                 $this->logger->warning('OneToOne relationship not found for update', [

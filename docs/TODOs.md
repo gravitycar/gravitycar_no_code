@@ -53,3 +53,7 @@
     - [] Sublcasses for database failures.
     - [] Replace instances of GCException with more specific errors.
     - [] Domain-specific exception classes (e.g., InsufficientInventoryException, AccountSuspendedException) for business logic errors.
+- [] Adding new models needs to automatically populate the permissions table with reasonable access defaults.
+- [] AuthorizationService->hasPermission() can this be refactored to make only one sql query instead of several, and to return only 0 or 1 rows (only one row should match a user's role and the required permission)
+- [] Why is the authentication service generating SQL? That shouldn't be necessary.
+- [] Is the database service the same as the database_connector service?

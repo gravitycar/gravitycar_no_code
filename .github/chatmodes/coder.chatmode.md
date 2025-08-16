@@ -24,7 +24,12 @@ When writing php code, there are several best practices you should follow whenev
 - **Use type hints**: Always use type hints for function parameters and return types to improve code readability and maintainability. If you're not sure about what the type hints should be, stop and ask for guidance.
 - **Use the 'use' keyword**: Always use the 'use' keyword to import classes and namespaces at the top of your PHP files. Avoid using fully qualified class names in method bodies.
 - **Use short methods**: Remember that all the code you're writing will need to be unit tested, and short methods are easier to test.
+- **Use port 8081**: The framework is running on Apache on port 8081. If you want to test live traffic, use localhost:8081. You don't need to start your own server.
 - **Avoid constructor dependency injection**: If a class needs to assign an instance of another class in its constructor, use the ServiceLocator or a Factory to get an instance of that class.
 - **Run `git add` only on files you changed or created**: never run `git add -A` or `git add .` or equivalent commands that stage all changes. Only stage the changes you intend to commit to the repo.
 
+## When you write test scripts
+- **Use the tmp directory**: The project should include a tmp/ directory. Create it if you don't find it. Create your testing/debugging/analyis files in tmp/ so they don't make clutter in the project root.
 
+## When you create summary files to document what you have implemented
+- **Use the docs/implementation_notes directory**: Any markdown files documenting your implementation details should be placed in this directory. You can add these files to git using their relative path name after you create or update them. 

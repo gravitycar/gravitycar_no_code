@@ -27,7 +27,7 @@ class ManyToManyRelationship extends RelationshipBase {
 
         // Use DatabaseConnector->find() for consistent data access
         $dbConnector = $this->getDatabaseConnector();
-        $records = $dbConnector->find(static::class, $criteria);
+        $records = $dbConnector->find($this, $criteria);
 
         $this->logger->debug('ManyToMany getRelatedWithData completed', [
             'model_class' => get_class($model),
@@ -100,7 +100,7 @@ class ManyToManyRelationship extends RelationshipBase {
             ];
 
             $dbConnector = $this->getDatabaseConnector();
-            $results = $dbConnector->find(static::class, $criteria, [], ['limit' => 1]);
+            $results = $dbConnector->find($this, $criteria, [], ['limit' => 1]);
 
             if (empty($results)) {
                 $this->logger->warning('ManyToMany relationship not found for update', [

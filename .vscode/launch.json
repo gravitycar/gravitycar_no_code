@@ -48,6 +48,35 @@
                 "uriFormat": "http://localhost:%s",
                 "action": "openExternally"
             }
+        },
+        {
+            "name": "Debug with Profiling",
+            "type": "php",
+            "request": "launch",
+            "program": "${file}",
+            "cwd": "${workspaceFolder}",
+            "port": 9003,
+            "runtimeArgs": [
+                "-dxdebug.mode=debug,profile",
+                "-dxdebug.start_with_request=yes"
+            ],
+            "env": {
+                "XDEBUG_CONFIG": "profiler_enable=1"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Profile Performance Diagnostic",
+            "type": "php",
+            "request": "launch",
+            "program": "${workspaceFolder}/performance_diagnostic.php",
+            "cwd": "${workspaceFolder}",
+            "port": 9003,
+            "runtimeArgs": [
+                "-dxdebug.mode=profile",
+                "-dxdebug.start_with_request=yes"
+            ],
+            "console": "integratedTerminal"
         }
     ]
 }

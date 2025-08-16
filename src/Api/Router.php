@@ -2,7 +2,11 @@
 namespace Gravitycar\Api;
 
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Exceptions\UnauthorizedException;
+use Gravitycar\Exceptions\ForbiddenException;
 use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Services\AuthenticationService;
+use Gravitycar\Services\AuthorizationService;
 use Monolog\Logger;
 
 /**
@@ -149,11 +153,147 @@ class Router {
             ]);
         }
         
+        // Authentication and authorization middleware
+        $this->handleAuthentication($route, $request);
+        
         // Validate Request parameters
         $this->validateRequestParameters($request, $route);
         
         // Call controller method with Request object
         return $controller->$handlerMethod($request, $additionalParams);
+    }
+
+    /**
+     * Handle authentication and authorization for the route
+     */
+    protected function handleAuthentication(array $route, Request $request): void {
+        // Check if route requires authentication
+        $allowedRoles = $route['allowedRoles'] ?? null;
+        
+        // Public routes (no authentication required)
+        if ($allowedRoles === null || in_array('*', $allowedRoles) || in_array('all', $allowedRoles)) {
+            return;
+        }
+        
+        try {
+            // Get current user from JWT token
+            $currentUser = ServiceLocator::getCurrentUser();
+            
+            if (!$currentUser) {
+                throw new UnauthorizedException('Authentication required', [
+                    'route' => $route['path'],
+                    'method' => $request->getMethod()
+                ]);
+            }
+            
+            // Check if user has required role
+            $authorizationService = ServiceLocator::getAuthorizationService();
+            $hasRequiredRole = false;
+            
+            foreach ($allowedRoles as $role) {
+                if ($authorizationService->hasRole($currentUser, $role)) {
+                    $hasRequiredRole = true;
+                    break;
+                }
+            }
+            
+            if (!$hasRequiredRole) {
+                throw new ForbiddenException('Insufficient permissions', [
+                    'route' => $route['path'],
+                    'required_roles' => $allowedRoles,
+                    'user_id' => $currentUser->get('id')
+                ]);
+            }
+            
+            // Additional permission checking for model-based routes
+            $this->checkModelPermissions($route, $request, $currentUser);
+            
+        } catch (UnauthorizedException | ForbiddenException $e) {
+            // Re-throw authentication/authorization exceptions
+            throw $e;
+        } catch (\Exception $e) {
+            $this->logger->error('Authentication error: ' . $e->getMessage());
+            throw new UnauthorizedException('Authentication failed', [
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Check model-specific permissions for CRUD operations
+     */
+    protected function checkModelPermissions(array $route, Request $request, $user): void {
+        // Extract model name from route path or controller class
+        $modelName = $this->extractModelName($route);
+        
+        if (!$modelName) {
+            return; // No model-specific permissions needed
+        }
+        
+        // Map HTTP methods to actions
+        $method = $request->getMethod();
+        $action = $this->mapMethodToAction($method, $route['path']);
+        
+        if ($action) {
+            $authorizationService = ServiceLocator::getAuthorizationService();
+            
+            if (!$authorizationService->hasPermission($action, $modelName)) {
+                throw new ForbiddenException("Insufficient permissions for $action on $modelName", [
+                    'action' => $action,
+                    'model' => $modelName,
+                    'user_id' => $user->get('id')
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Extract model name from route information
+     */
+    protected function extractModelName(array $route): ?string {
+        // Check if controller is ModelBaseAPIController
+        $controllerClass = $route['apiClass'];
+        
+        if (strpos($controllerClass, 'ModelBaseAPIController') !== false) {
+            // Extract model name from path (e.g., /api/users -> Users)
+            $pathComponents = $this->parsePathComponents($route['path']);
+            if (count($pathComponents) >= 2 && $pathComponents[0] === 'api') {
+                return ucfirst($pathComponents[1]); // users -> Users
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Map HTTP method to permission action
+     */
+    protected function mapMethodToAction(string $method, string $path): ?string {
+        switch (strtoupper($method)) {
+            case 'GET':
+                // Check if it's a list or read operation
+                return $this->isListOperation($path) ? 'list' : 'read';
+            case 'POST':
+                return 'create';
+            case 'PUT':
+            case 'PATCH':
+                return 'update';
+            case 'DELETE':
+                return 'delete';
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * Determine if GET operation is a list or single record read
+     */
+    protected function isListOperation(string $path): bool {
+        $pathComponents = $this->parsePathComponents($path);
+        
+        // If path ends with model name (no ID), it's a list operation
+        // e.g., /api/users (list) vs /api/users/123 (read)
+        return count($pathComponents) === 2 && $pathComponents[0] === 'api';
     }
 
     /**

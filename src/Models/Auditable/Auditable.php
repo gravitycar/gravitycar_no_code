@@ -57,14 +57,14 @@ class Auditable extends ModelBase
     /**
      * Override to automatically register core fields when model is instantiated
      */
-    public function __construct(Logger $logger)
+    public function __construct()
     {
         // Register additional core fields for this model class
         if (\Gravitycar\Core\ServiceLocator::hasService('core_fields_metadata')) {
             static::registerAdditionalCoreFields();
         }
 
-        parent::__construct($logger);
+        parent::__construct();
     }
 
     /**

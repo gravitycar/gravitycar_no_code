@@ -48,6 +48,99 @@ function printWarning($text) {
     echo Colors::YELLOW . "⚠ $text" . Colors::RESET . "\n";
 }
 
+/**
+ * Seed authentication roles and permissions
+ */
+function seedAuthenticationData() {
+    printInfo("Creating default roles...");
+    
+    // Create default roles
+    $roles = [
+        ['name' => 'admin', 'description' => 'System administrator', 'is_oauth_default' => false],
+        ['name' => 'manager', 'description' => 'Manager with elevated permissions', 'is_oauth_default' => false],
+        ['name' => 'user', 'description' => 'Standard user', 'is_oauth_default' => true],
+        ['name' => 'guest', 'description' => 'Guest user with limited access', 'is_oauth_default' => false]
+    ];
+    
+    foreach ($roles as $roleData) {
+        try {
+            $role = ModelFactory::new('Roles');
+            $role->set('name', $roleData['name']);
+            $role->set('description', $roleData['description']);
+            $role->set('is_oauth_default', $roleData['is_oauth_default']);
+            $role->create();
+            printSuccess("Created role: " . $roleData['name']);
+        } catch (Exception $e) {
+            printWarning("Role '" . $roleData['name'] . "' might already exist: " . $e->getMessage());
+        }
+    }
+    
+    printInfo("Creating default permissions...");
+    
+    // Create default permissions
+    $permissions = [
+        // User management permissions
+        ['action' => 'create', 'model' => 'Users', 'description' => 'Create new users'],
+        ['action' => 'read', 'model' => 'Users', 'description' => 'View user profiles'],
+        ['action' => 'update', 'model' => 'Users', 'description' => 'Update user profiles'],
+        ['action' => 'delete', 'model' => 'Users', 'description' => 'Delete users'],
+        ['action' => 'list', 'model' => 'Users', 'description' => 'List all users'],
+        
+        // Role management permissions
+        ['action' => 'create', 'model' => 'Roles', 'description' => 'Create new roles'],
+        ['action' => 'read', 'model' => 'Roles', 'description' => 'View roles'],
+        ['action' => 'update', 'model' => 'Roles', 'description' => 'Update roles'],
+        ['action' => 'delete', 'model' => 'Roles', 'description' => 'Delete roles'],
+        ['action' => 'list', 'model' => 'Roles', 'description' => 'List all roles'],
+        
+        // Permission management permissions
+        ['action' => 'create', 'model' => 'Permissions', 'description' => 'Create new permissions'],
+        ['action' => 'read', 'model' => 'Permissions', 'description' => 'View permissions'],
+        ['action' => 'update', 'model' => 'Permissions', 'description' => 'Update permissions'],
+        ['action' => 'delete', 'model' => 'Permissions', 'description' => 'Delete permissions'],
+        ['action' => 'list', 'model' => 'Permissions', 'description' => 'List all permissions'],
+        
+        // Global permissions (model = '')
+        ['action' => 'system.admin', 'model' => '', 'description' => 'Full system administration'],
+        ['action' => 'api.access', 'model' => '', 'description' => 'Basic API access'],
+        ['action' => 'auth.manage', 'model' => '', 'description' => 'Manage authentication settings']
+    ];
+    
+    foreach ($permissions as $permData) {
+        try {
+            $permission = ModelFactory::new('Permissions');
+            $permission->set('action', $permData['action']);
+            $permission->set('model', $permData['model']);
+            $permission->set('description', $permData['description']);
+            $permission->create();
+            printSuccess("Created permission: " . $permData['action'] . " (" . ($permData['model'] ?: 'global') . ")");
+        } catch (Exception $e) {
+            printWarning("Permission '" . $permData['action'] . "' might already exist: " . $e->getMessage());
+        }
+    }
+    
+    printInfo("Assigning permissions to roles...");
+    
+    try {
+        // Find admin role
+        $adminRole = ModelFactory::new('Roles');
+        $adminRoles = $adminRole->find(['name' => 'admin']);
+        if (!empty($adminRoles)) {
+            printSuccess("Admin role will have full permissions (implement role-permission assignments)");
+        }
+        
+        // Find user role  
+        $userRole = ModelFactory::new('Roles');
+        $userRoles = $userRole->find(['name' => 'user']);
+        if (!empty($userRoles)) {
+            printSuccess("User role created (implement specific permission assignments)");
+        }
+        
+    } catch (Exception $e) {
+        printWarning("Role-permission assignment setup needed: " . $e->getMessage());
+    }
+}
+
 try {
     printHeader("Gravitycar Framework Setup");
     
@@ -209,6 +302,15 @@ try {
     printInfo("Generating database schema from cached metadata...");
     $schemaGenerator->generateSchema($allMetadata);
     printSuccess("Database schema generated successfully");
+    
+    // Step 5.5: Seed authentication roles and permissions
+    printHeader("Step 5.5: Seeding Authentication System");
+    try {
+        seedAuthenticationData();
+        printSuccess("Authentication roles and permissions seeded successfully");
+    } catch (Exception $e) {
+        printWarning("Authentication seeding failed: " . $e->getMessage());
+    }
     
     // Step 6: Create sample user records
     printHeader("Step 6: Creating Sample Users");

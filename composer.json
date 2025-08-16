@@ -9,6 +9,9 @@
         "ext-pdo": "*",
         "aura/di": "^5.0",
         "doctrine/dbal": "^3.6",
+        "firebase/php-jwt": "^6.11",
+        "google/auth": "^1.47",
+        "league/oauth2-google": "^4.0",
         "monolog/monolog": "^3.0"
     },
     "require-dev": {

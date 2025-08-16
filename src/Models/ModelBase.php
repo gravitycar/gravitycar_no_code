@@ -7,6 +7,7 @@ use Gravitycar\Validation\ValidationRuleBase;
 use Gravitycar\Relationships\RelationshipBase;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Fields\PasswordField;
 use Gravitycar\Metadata\CoreFieldsMetadata;
 use Gravitycar\Metadata\MetadataEngine;
 use Monolog\Logger;
@@ -194,7 +195,7 @@ abstract class ModelBase {
         // Create RelationshipFactory instance using DI system
         $relationshipFactory = ServiceLocator::createRelationshipFactory($this);
 
-        foreach ($this->metadata['relationships'] as $relName) {
+        foreach ($this->metadata['relationships'] as $relName => $relConfig) {
             try {
                 // Use RelationshipFactory to create relationship with validation
                 $relationship = $relationshipFactory->createRelationship($relName);
@@ -396,6 +397,9 @@ abstract class ModelBase {
     public function toArray(): array {
         $data = [];
         foreach ($this->getFields() as $fieldName => $field) {
+            if (is_a($field, PasswordField::class)) {
+                continue;
+            }
             $data[$fieldName] = $field->getValue();
         }
         return $data;
@@ -479,20 +483,20 @@ abstract class ModelBase {
     }
 
     /**
-     * Find records by criteria
+     * Find records by criteria using this model instance (performance optimized)
      */
     public function find(array $criteria = [], array $fields = [], array $parameters = []): array {
         $dbConnector = ServiceLocator::getDatabaseConnector();
-        $rows = $dbConnector->find(static::class, $criteria, $fields, $parameters);
+        $rows = $dbConnector->find($this, $criteria, $fields, $parameters);
         return $this->fromRows($rows);
     }
 
     /**
-     * Find a single record by ID and populate this instance
+     * Find a single record by ID and populate this instance (performance optimized)
      */
     public function findById($id, array $fields = []) {
         $dbConnector = ServiceLocator::getDatabaseConnector();
-        $rows = $dbConnector->find(static::class, ['id' => $id], $fields, ['limit' => 1]);
+        $rows = $dbConnector->find($this, ['id' => $id], $fields, ['limit' => 1]);
         if (empty($rows)) {
             return null;
         }
@@ -528,11 +532,11 @@ abstract class ModelBase {
     }
 
     /**
-     * Find records by criteria and return raw database rows
+     * Find records by criteria and return raw database rows (performance optimized)
      */
     public function findRaw(array $criteria = [], array $fields = [], array $parameters = []): array {
         $dbConnector = ServiceLocator::getDatabaseConnector();
-        return $dbConnector->find(static::class, $criteria, $fields, $parameters);
+        return $dbConnector->find($this, $criteria, $fields, $parameters);
     }
 
     /**

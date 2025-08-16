@@ -4,15 +4,14 @@ namespace Gravitycar\Models\installer;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Factories\ModelFactory;
-use Monolog\Logger;
 
 /**
  * Installer model class for Gravitycar framework.
  * Handles the installation workflow and setup process.
  */
 class Installer extends ModelBase {
-    public function __construct(Logger $logger) {
-        parent::__construct($logger);
+    public function __construct() {
+        parent::__construct();
     }
 
     /**
@@ -29,7 +28,8 @@ class Installer extends ModelBase {
             // 1. Check if config file exists and is writable
             if (!$config->configFileExists()) {
                 throw new GCException('Config file does not exist or is not writable for installation',
-                    ['config_file_path' => $config->getConfigFilePath()]);
+                    []
+                );
             }
 
             // 2. Validate DB credentials and write config

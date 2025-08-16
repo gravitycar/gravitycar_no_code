@@ -27,6 +27,21 @@ class APIRouteRegistry
         $this->apiControllersDirPath = 'src/models';
         $this->modelsDirPath = 'src/models';
         $this->cacheFilePath = 'cache/api_routes.php';
+        
+        // Try to load from cache first, only discover routes if cache doesn't exist
+        if (!$this->loadFromCache()) {
+            $this->discoverAndRegisterRoutes();
+        }
+    }
+
+    /**
+     * Force rebuild of routes cache (useful for development or when models change)
+     */
+    public function rebuildCache(): void
+    {
+        $this->logger->info("Forcing cache rebuild for API routes");
+        $this->routes = [];
+        $this->groupedRoutes = [];
         $this->discoverAndRegisterRoutes();
     }
 
@@ -35,18 +50,16 @@ class APIRouteRegistry
      */
     protected function discoverAndRegisterRoutes(): void
     {
-        // Load from cache if available
-        if ($this->loadFromCache()) {
-            return;
-        }
-
-        // Discover APIController routes
+        // Register core authentication controller
+        $this->registerCoreControllers();
+        
+        // Traditional API controller discovery
         $this->discoverAPIControllers();
         
-        // Discover individual model routes (in addition to ModelBaseAPIController generic routes)
+        // Auto-discover ModelBase routes from metadata
         $this->discoverModelRoutes();
         
-        // Group routes by method and path length for efficient scoring
+        // Group routes for efficient lookup
         $this->groupRoutesByMethodAndLength();
         
         // Cache the results
@@ -54,6 +67,18 @@ class APIRouteRegistry
     }
 
     /**
+     * Register core framework controllers
+     */
+    protected function registerCoreControllers(): void
+    {
+        // Register AuthController
+        try {
+            $authController = new \Gravitycar\Api\AuthController();
+            $this->register($authController, \Gravitycar\Api\AuthController::class);
+        } catch (\Exception $e) {
+            $this->logger->error("Failed to register AuthController: " . $e->getMessage());
+        }
+    }    /**
      * Discover traditional API controllers
      */
     protected function discoverAPIControllers(): void

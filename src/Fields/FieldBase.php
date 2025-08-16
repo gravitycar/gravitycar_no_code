@@ -119,7 +119,7 @@ abstract class FieldBase {
             return;
         }
 
-        $validationRuleFactory = \Gravitycar\Core\ServiceLocator::get('Gravitycar\Factories\ValidationRuleFactory');
+        $validationRuleFactory = \Gravitycar\Core\ServiceLocator::getValidationRuleFactory();
         $instantiatedRules = [];
 
         foreach ($this->validationRules as $index => $rule) {

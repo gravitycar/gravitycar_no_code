@@ -22,10 +22,10 @@ class ValidationRuleFactory {
     }
 
     /**
-     * Scan src/validation directory for available validation rule types
+     * Scan src/Validation directory for available validation rule types
      */
     protected function discoverValidationRules(): void {
-        $validationDir = __DIR__ . '/../validation';
+        $validationDir = __DIR__ . '/../Validation';
         if (!is_dir($validationDir)) {
             $this->logger->warning("Validation directory not found: $validationDir");
             return;

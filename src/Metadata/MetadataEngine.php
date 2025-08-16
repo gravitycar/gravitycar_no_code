@@ -20,18 +20,12 @@ class MetadataEngine {
     protected string $relationshipsDirPath = 'src/Relationships';
     /** @var string */
     protected string $cacheDirPath = 'cache/';
-    /** @var Logger */
-    protected Logger $logger;
+    /** @var Logger|null */
+    protected ?Logger $logger = null;
     /** @var array */
     protected array $metadataCache = [];
     /** @var array */
-    protected array $modelMetadataCache = [];
-    /** @var array */
-    protected array $relationshipMetadataCache = [];
-    /** @var array */
     protected array $coreFieldsCache = [];
-    /** @var array */
-    protected array $currentlyBuilding = [];
     /** @var CoreFieldsMetadata|null */
     protected ?CoreFieldsMetadata $coreFieldsMetadata = null;
 
@@ -39,12 +33,26 @@ class MetadataEngine {
      * Private constructor for singleton pattern
      */
     private function __construct() {
-        $this->logger = ServiceLocator::getLogger();
-        $config = ServiceLocator::getConfig();
-        $this->modelsDirPath = $config->get('metadata.models_dir_path', 'src/Models');
-        $this->relationshipsDirPath = $config->get('metadata.relationships_dir_path', 'src/Relationships');
-        $this->cacheDirPath = $config->get('metadata.cache_dir_path', 'cache/');
+        // Initialize with default values to avoid circular dependency
+        // Services will be injected later when needed
+        $this->modelsDirPath = 'src/Models';
+        $this->relationshipsDirPath = 'src/Relationships';
+        $this->cacheDirPath = 'cache/';
         $this->coreFieldsMetadata = new CoreFieldsMetadata();
+        $this->metadataCache = $this->getCachedMetadata();
+    }
+
+    /**
+     * Initialize services (called lazily to avoid circular dependency)
+     */
+    private function initializeServices(): void {
+        if ($this->logger === null) {
+            $this->logger = ServiceLocator::getLogger();
+            $config = ServiceLocator::getConfig();
+            $this->modelsDirPath = $config->get('metadata.models_dir_path', 'src/Models');
+            $this->relationshipsDirPath = $config->get('metadata.relationships_dir_path', 'src/Relationships');
+            $this->cacheDirPath = $config->get('metadata.cache_dir_path', 'cache/');
+        }
     }
 
     /**
@@ -92,116 +100,52 @@ class MetadataEngine {
     }
 
     /**
-     * Lazy load model metadata for a specific model
+     * Get model metadata for a specific model (case-sensitive)
+     * Throws exception if exact model name is not found in cache
      */
     public function getModelMetadata(string $modelName): array {
+        $this->initializeServices(); // Ensure services are initialized
         $resolvedName = $this->resolveModelName($modelName);
         
-        // Check if already cached
-        if (isset($this->modelMetadataCache[$resolvedName])) {
-            return $this->modelMetadataCache[$resolvedName];
+        // Check if already cached - must be exact match (case-sensitive)
+        if (isset($this->metadataCache['models'][$resolvedName])) {
+            return $this->metadataCache['models'][$resolvedName];
         }
 
-        // Prevent circular dependencies
-        if (isset($this->currentlyBuilding[$resolvedName])) {
-            throw new GCException("Circular dependency detected while loading metadata for model: {$resolvedName}");
-        }
-
-        $this->currentlyBuilding[$resolvedName] = true;
-
-        try {
-            $metadataPath = $this->buildModelMetadataPath($resolvedName);
-            
-            if (!file_exists($metadataPath)) {
-                $this->logger->warning("Model metadata file not found: {$metadataPath}");
-                $metadata = [];
-            } else {
-                $metadata = include $metadataPath;
-                if (!is_array($metadata)) {
-                    throw new GCException("Invalid metadata format in file: {$metadataPath}");
-                }
-            }
-
-            // Include core fields metadata
-            $coreFields = $this->getCoreFieldsMetadata();
-            if (!empty($coreFields)) {
-                $metadata = array_merge($coreFields, $metadata);
-            }
-
-            $this->modelMetadataCache[$resolvedName] = $metadata;
-            unset($this->currentlyBuilding[$resolvedName]);
-
-            $this->logger->info("Model metadata loaded and cached", [
-                'model' => $resolvedName,
-                'fields_count' => count($metadata['fields'] ?? []),
-                'relationships_count' => count($metadata['relationships'] ?? [])
-            ]);
-
-            return $metadata;
-
-        } catch (\Exception $e) {
-            unset($this->currentlyBuilding[$resolvedName]);
-            $this->logger->error("Failed to load model metadata", [
-                'model' => $resolvedName,
-                'error' => $e->getMessage()
-            ]);
-            throw new GCException("Failed to load metadata for model {$resolvedName}: " . $e->getMessage(), [
-                'model' => $resolvedName,
-                'error' => $e->getMessage()
-            ], 0, $e);
-        }
+        // If not found in cache, throw exception - no fallback to file system
+        $this->logger->warning("Model metadata not found in cache", [
+            'requested' => $resolvedName,
+            'available_models' => array_keys($this->metadataCache['models'] ?? [])
+        ]);
+        
+        throw new GCException("Model metadata not found for '{$resolvedName}'", [
+            'model' => $resolvedName,
+            'available_models' => array_keys($this->metadataCache['models'] ?? [])
+        ]);
     }
 
     /**
-     * Lazy load relationship metadata for a specific relationship
+     * Get relationship metadata for a specific relationship (case-sensitive)
+     * Throws exception if exact relationship name is not found in cache
      */
     public function getRelationshipMetadata(string $relationshipName): array {
-        // Check if already cached
-        if (isset($this->relationshipMetadataCache[$relationshipName])) {
-            return $this->relationshipMetadataCache[$relationshipName];
+        $this->initializeServices(); // Ensure services are initialized
+        
+        // Check if already cached - must be exact match (case-sensitive)
+        if (isset($this->metadataCache['relationships'][$relationshipName])) {
+            return $this->metadataCache['relationships'][$relationshipName];
         }
 
-        // Prevent circular dependencies
-        if (isset($this->currentlyBuilding["rel_{$relationshipName}"])) {
-            throw new GCException("Circular dependency detected while loading metadata for relationship: {$relationshipName}");
-        }
-
-        $this->currentlyBuilding["rel_{$relationshipName}"] = true;
-
-        try {
-            $metadataPath = $this->buildRelationshipMetadataPath($relationshipName);
-            
-            if (!file_exists($metadataPath)) {
-                $this->logger->warning("Relationship metadata file not found: {$metadataPath}");
-                $metadata = [];
-            } else {
-                $metadata = include $metadataPath;
-                if (!is_array($metadata)) {
-                    throw new GCException("Invalid metadata format in file: {$metadataPath}");
-                }
-            }
-
-            $this->relationshipMetadataCache[$relationshipName] = $metadata;
-            unset($this->currentlyBuilding["rel_{$relationshipName}"]);
-
-            $this->logger->info("Relationship metadata loaded and cached", [
-                'relationship' => $relationshipName,
-                'fields_count' => count($metadata['fields'] ?? [])
-            ]);
-
-            return $metadata;
-
-        } catch (\Exception $e) {
-            unset($this->currentlyBuilding["rel_{$relationshipName}"]);
-            $this->logger->error("Failed to load relationship metadata", [
-                'relationship' => $relationshipName,
-                'error' => $e->getMessage()
-            ]);
-            throw new GCException("Failed to load metadata for relationship {$relationshipName}: " . $e->getMessage(), [
-                'relationship' => $relationshipName,
-                'error' => $e->getMessage()
-            ], 0, $e);
-        }
+        // If not found in cache, throw exception - no fallback to file system
+        $this->logger->warning("Relationship metadata not found in cache", [
+            'requested' => $relationshipName,
+            'available_relationships' => array_keys($this->metadataCache['relationships'] ?? [])
+        ]);
+        
+        throw new GCException("Relationship metadata not found for '{$relationshipName}'", [
+            'relationship' => $relationshipName,
+            'available_relationships' => array_keys($this->metadataCache['relationships'] ?? [])
+        ]);
     }
 
     /**
@@ -224,10 +168,10 @@ class MetadataEngine {
         $resolvedName = $this->resolveModelName($entityName);
         
         // Clear from model cache
-        unset($this->modelMetadataCache[$resolvedName]);
+        unset($this->metadataCache['models'][$resolvedName]);
         
         // Clear from relationship cache  
-        unset($this->relationshipMetadataCache[$entityName]);
+        unset($this->metadataCache['relationships'][$entityName]);
         
         $this->logger->info("Cache cleared for entity: {$entityName}");
     }
@@ -237,18 +181,29 @@ class MetadataEngine {
      */
     public function clearAllCaches(): void {
         $this->metadataCache = [];
-        $this->modelMetadataCache = [];
-        $this->relationshipMetadataCache = [];
         $this->coreFieldsCache = [];
-        $this->currentlyBuilding = [];
         
         $this->logger->info("All metadata caches cleared");
     }
 
     /**
      * Scan, load, and validate all metadata files
+     * Uses cached metadata if available to improve performance
      */
     public function loadAllMetadata(): array {
+        $this->initializeServices(); // Ensure services are initialized
+        // Check for existing cache first to avoid unnecessary file I/O
+        $cachedMetadata = $this->getCachedMetadata();
+        if (!empty($cachedMetadata)) {
+            $this->logger->debug("Using cached metadata", [
+                'models_count' => count($cachedMetadata['models'] ?? []),
+                'relationships_count' => count($cachedMetadata['relationships'] ?? [])
+            ]);
+            return $cachedMetadata;
+        }
+
+        // Cache not available or empty, rebuild from files
+        $this->logger->info("Rebuilding metadata cache from files");
         $models = $this->scanAndLoadMetadata($this->modelsDirPath);
         $relationships = $this->scanAndLoadMetadata($this->relationshipsDirPath);
         $metadata = [
@@ -280,11 +235,12 @@ class MetadataEngine {
             $files = scandir($subDir);
             foreach ($files as $file) {
                 if (preg_match('/^(.*)_metadata\.php$/', $file, $matches)) {
-                    $name = $matches[1];
                     $filePath = $subDir . DIRECTORY_SEPARATOR . $file;
                     $data = include $filePath;
                     if (is_array($data)) {
-                        $metadata[$name] = $data;
+                        // Use the actual class name from metadata instead of filename
+                        $className = $data['name'] ?? $matches[1];
+                        $metadata[$className] = $data;
                     } else {
                         $this->logger->warning("Invalid metadata format in file: $filePath");
                     }

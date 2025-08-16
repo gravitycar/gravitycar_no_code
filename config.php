@@ -18,6 +18,9 @@ return [
     'logging' => [
         'level' => 'info',
         'file' => 'logs/gravitycar.log',
+        'daily_rotation' => true,
+        'max_files' => 30, // Keep 30 days of logs
+        'date_format' => 'Y-m-d', // Daily rotation format
     ],
     'site_name' => 'GravitycarAI',
     'open_imdb_api_key' => '19a9f496',

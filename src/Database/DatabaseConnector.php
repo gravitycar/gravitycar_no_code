@@ -407,25 +407,23 @@ class DatabaseConnector {
     }
 
     /**
-     * Find records by criteria
+     * Find records by criteria using an existing model instance
      */
-    public function find(string $modelClass, array $criteria = [], array $fields = [], array $parameters = []): array {
+    public function find(ModelBase $model, array $criteria = [], array $fields = [], array $parameters = []): array {
         try {
             $conn = $this->getConnection();
             $queryBuilder = $conn->createQueryBuilder();
 
-            // Setup query builder with model info
-            $querySetup = $this->setupQueryBuilder($modelClass);
-            $tempModel = $querySetup['model'];
-            $tableName = $querySetup['tableName'];
-            $mainAlias = $querySetup['mainAlias'];
-            $modelFields = $querySetup['modelFields'];
+            // Use the existing model instance directly - NO expensive ServiceLocator::get() call
+            $tableName = $model->getTableName();
+            $mainAlias = $model->getAlias();
+            $modelFields = $model->getFields();
 
             // Start with main table using model's alias
             $queryBuilder->from($tableName, $mainAlias);
 
             // Build SELECT clause and handle field selection
-            $this->buildSelectClause($queryBuilder, $tempModel, $modelFields, $fields);
+            $this->buildSelectClause($queryBuilder, $model, $modelFields, $fields);
 
             // Apply WHERE conditions
             $this->applyCriteria($queryBuilder, $criteria, $mainAlias, $modelFields);
@@ -438,7 +436,7 @@ class DatabaseConnector {
             $rows = $result->fetchAllAssociative();
 
             $this->logger->debug('Database find operation completed', [
-                'model_class' => $modelClass,
+                'model_class' => get_class($model),
                 'criteria' => $criteria,
                 'selected_fields' => $fields,
                 'main_alias' => $mainAlias,
@@ -450,7 +448,7 @@ class DatabaseConnector {
 
         } catch (\Exception $e) {
             $this->logger->error('Failed to find models', [
-                'model_class' => $modelClass,
+                'model_class' => get_class($model),
                 'criteria' => $criteria,
                 'error' => $e->getMessage()
             ]);
@@ -459,10 +457,10 @@ class DatabaseConnector {
     }
 
     /**
-     * Find a single record by ID
+     * Find a single record by ID using an existing model instance
      */
-    public function findById(string $modelClass, $id): ?array {
-        $results = $this->find($modelClass, ['id' => $id], [], ['limit' => 1]);
+    public function findById(ModelBase $model, $id): ?array {
+        $results = $this->find($model, ['id' => $id], [], ['limit' => 1]);
         return empty($results) ? null : $results[0];
     }
 
@@ -725,24 +723,6 @@ class DatabaseConnector {
                 'value' => $value
             ], 0, $e);
         }
-    }
-
-    /**
-     * Setup query builder with model information
-     */
-    protected function setupQueryBuilder(string $modelClass): array {
-        // Create a temporary model instance to get table name and fields
-        $tempModel = ServiceLocator::get($modelClass);
-        $tableName = $tempModel->getTableName();
-        $mainAlias = $tempModel->getAlias();
-        $modelFields = $tempModel->getFields();
-
-        return [
-            'model' => $tempModel,
-            'tableName' => $tableName,
-            'mainAlias' => $mainAlias,
-            'modelFields' => $modelFields
-        ];
     }
 
     /**
