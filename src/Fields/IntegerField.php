@@ -19,6 +19,13 @@ class IntegerField extends FieldBase {
     protected int $step = 1;
     protected string $placeholder = 'Enter a number';
     protected bool $showSpinners = true;
+    
+    /** @var array Numeric operators for integer fields */
+    protected array $operators = [
+        'equals', 'notEquals', 'greaterThan', 'greaterThanOrEqual', 
+        'lessThan', 'lessThanOrEqual', 'between', 'in', 'notIn', 
+        'isNull', 'isNotNull'
+    ];
 
     public function __construct(array $metadata) {
         parent::__construct($metadata);

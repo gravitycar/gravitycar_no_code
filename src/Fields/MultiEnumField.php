@@ -18,6 +18,12 @@ class MultiEnumField extends FieldBase {
     protected int $maxSelections = 0;
     protected int $minSelections = 0;
     protected array $options = [];
+    
+    /** @var array Array-specific operators for multi-value fields */
+    protected array $operators = [
+        'equals', 'notEquals', 'overlap', 'containsAll', 'containsNone', 
+        'in', 'notIn', 'isNull', 'isNotNull'
+    ];
 
     public function __construct(array $metadata) {
         parent::__construct($metadata);

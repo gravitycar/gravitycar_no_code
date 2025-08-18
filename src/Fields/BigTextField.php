@@ -13,6 +13,9 @@ class BigTextField extends FieldBase {
     protected string $label = '';
     protected bool $required = false;
     protected int $maxLength = 16000;
+    
+    /** @var array Limited operators for performance on large text fields */
+    protected array $operators = ['equals', 'notEquals', 'isNull', 'isNotNull'];
 
     public function __construct(array $metadata) {
         parent::__construct($metadata);

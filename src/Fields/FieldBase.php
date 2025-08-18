@@ -27,6 +27,9 @@ abstract class FieldBase {
     protected Logger $logger;
     /** @var string */
     protected string $tableName = '';
+    
+    /** @var array Supported filter operators for this field type */
+    protected array $operators = ['equals', 'notEquals', 'isNull', 'isNotNull'];
 
     public function __construct(array $metadata) {
         if (empty($metadata['name'])) {
@@ -437,5 +440,53 @@ abstract class FieldBase {
      */
     public function isUnique(): bool {
         return $this->metadataIsTrue('unique');
+    }
+
+    /**
+     * Get supported filter operators for this field
+     * Operators can be overridden in metadata via 'operators' key
+     */
+    public function getSupportedOperators(): array {
+        // Allow metadata to override default operators
+        return $this->getMetadataValue('operators', $this->operators);
+    }
+
+    /**
+     * Check if a specific operator is supported by this field
+     */
+    public function supportsOperator(string $operator): bool {
+        return in_array($operator, $this->getSupportedOperators(), true);
+    }
+
+    /**
+     * Get human-readable description of supported operators
+     */
+    public function getOperatorDescriptions(): array {
+        $descriptions = [
+            'equals' => 'Exact match',
+            'notEquals' => 'Not equal to',
+            'contains' => 'Text contains value',
+            'startsWith' => 'Text starts with value',
+            'endsWith' => 'Text ends with value',
+            'in' => 'Value is in list',
+            'notIn' => 'Value is not in list',
+            'greaterThan' => 'Greater than',
+            'greaterThanOrEqual' => 'Greater than or equal to',
+            'lessThan' => 'Less than',
+            'lessThanOrEqual' => 'Less than or equal to',
+            'between' => 'Between two values',
+            'isNull' => 'Field is empty/null',
+            'isNotNull' => 'Field is not empty/null',
+            'overlap' => 'Array values overlap',
+            'containsAll' => 'Array contains all values',
+            'containsNone' => 'Array contains none of the values'
+        ];
+
+        $supportedOperators = $this->getSupportedOperators();
+        $result = [];
+        foreach ($supportedOperators as $operator) {
+            $result[$operator] = $descriptions[$operator] ?? 'Custom operator';
+        }
+        return $result;
     }
 }

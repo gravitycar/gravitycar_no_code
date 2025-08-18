@@ -164,7 +164,8 @@ class RequestParameterParser
         $this->parsers = [
             new AgGridRequestParser(),
             new MuiDataGridRequestParser(),
-            // TODO: Add StructuredRequestParser and AdvancedRequestParser when implemented
+            new AdvancedRequestParser(),
+            new StructuredRequestParser(),
             new SimpleRequestParser() // Always last (fallback)
         ];
         

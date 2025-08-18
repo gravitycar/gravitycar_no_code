@@ -16,6 +16,9 @@ class EnumField extends FieldBase {
     protected string $className = '';
     protected string $methodName = '';
     protected array $options = [];
+    
+    /** @var array Enum-specific operators for single value selection */
+    protected array $operators = ['equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull'];
 
     public function __construct(array $metadata) {
         parent::__construct($metadata);

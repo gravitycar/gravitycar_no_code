@@ -15,6 +15,12 @@ class EmailField extends FieldBase {
     protected int $maxLength = 254;
     protected string $placeholder = 'Enter email address';
     protected bool $normalize = true;
+    
+    /** @var array Email-specific operators (text-like but more restricted) */
+    protected array $operators = [
+        'equals', 'notEquals', 'contains', 'startsWith', 'endsWith', 
+        'in', 'notIn', 'isNull', 'isNotNull'
+    ];
 
     public function __construct(array $metadata) {
         parent::__construct($metadata);

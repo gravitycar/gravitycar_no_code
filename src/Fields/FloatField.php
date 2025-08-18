@@ -21,6 +21,13 @@ class FloatField extends FieldBase {
     protected string $placeholder = 'Enter a decimal number';
     protected bool $showSpinners = true;
     protected bool $formatDisplay = false;
+    
+    /** @var array Numeric operators for float fields */
+    protected array $operators = [
+        'equals', 'notEquals', 'greaterThan', 'greaterThanOrEqual', 
+        'lessThan', 'lessThanOrEqual', 'between', 'in', 'notIn', 
+        'isNull', 'isNotNull'
+    ];
 
     public function __construct(array $metadata) {
         parent::__construct($metadata);

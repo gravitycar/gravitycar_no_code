@@ -16,6 +16,9 @@ class BooleanField extends FieldBase {
     protected string $trueLabel = 'Yes';
     protected string $falseLabel = 'No';
     protected string $displayAs = 'checkbox';
+    
+    /** @var array Simple operators for boolean fields */
+    protected array $operators = ['equals', 'notEquals', 'isNull', 'isNotNull'];
 
     public function __construct(array $metadata) {
         parent::__construct($metadata);

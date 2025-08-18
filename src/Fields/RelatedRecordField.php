@@ -26,6 +26,11 @@ class RelatedRecordField extends FieldBase {
 
     /** @var string */
     protected string $displayFieldName;
+    
+    /** @var array Related record operators for foreign key filtering */
+    protected array $operators = [
+        'equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull'
+    ];
 
     public function __construct(array $metadata) {
         parent::__construct($metadata);

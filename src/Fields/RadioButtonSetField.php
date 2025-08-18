@@ -19,6 +19,9 @@ class RadioButtonSetField extends FieldBase {
     protected bool $allowClear = false;
     protected string $clearLabel = 'None';
     protected array $options = [];
+    
+    /** @var array Same as EnumField since radio buttons represent single selection */
+    protected array $operators = ['equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull'];
 
     public function __construct(array $metadata) {
         parent::__construct($metadata);

@@ -465,53 +465,6 @@ class DatabaseConnector {
     }
 
     /**
-     * Get count of records matching criteria
-     */
-    public function getCount(ModelBase $model, string $fieldName, $value, bool $includeDeleted = false): int {
-        try {
-            $conn = $this->getConnection();
-            $queryBuilder = $conn->createQueryBuilder();
-
-            $tableName = $model->getTableName();
-
-            $queryBuilder
-                ->select('COUNT(*) as count')
-                ->from($tableName)
-                ->where($fieldName . ' = :value')
-                ->setParameter('value', $value);
-
-            // Add soft delete filter unless including deleted records
-            if (!$includeDeleted && $model->hasField('deleted_at')) {
-                $queryBuilder->andWhere('deleted_at IS NULL');
-            }
-
-            $result = $queryBuilder->executeQuery();
-            $count = $result->fetchOne();
-
-            $this->logger->debug('Database count operation completed', [
-                'model_class' => get_class($model),
-                'table_name' => $tableName,
-                'field_name' => $fieldName,
-                'field_value' => $value,
-                'include_deleted' => $includeDeleted,
-                'count' => $count
-            ]);
-
-            return (int) $count;
-
-        } catch (\Exception $e) {
-            $this->logger->error('Failed to get count from database', [
-                'model_class' => get_class($model),
-                'field_name' => $fieldName,
-                'field_value' => $value,
-                'include_deleted' => $includeDeleted,
-                'error' => $e->getMessage()
-            ]);
-            throw new GCException('Database count operation failed: ' . $e->getMessage(), [], 0, $e);
-        }
-    }
-
-    /**
      * Extract database field data from a model
      */
     protected function extractDBFieldData($model, bool $includeNulls = false): array {
@@ -809,39 +762,136 @@ class DatabaseConnector {
     }
 
     /**
-     * Apply query parameters like ORDER BY, LIMIT, OFFSET
+     * Enhanced find method with React-compatible parameters
+     * Accepts pre-validated parameters from Router/Request system
      */
-    protected function applyQueryParameters(
-        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
-        array $parameters,
-        string $mainAlias,
-        array $modelFields = []
-    ): void {
-        $orderBy = $parameters['orderBy'] ?? [];
-        $limit = $parameters['limit'] ?? null;
-        $offset = $parameters['offset'] ?? null;
+    public function findWithReactParams(
+        ModelBase $model,
+        array $validatedParams = [],
+        bool $includeDeleted = false
+    ): array {
+        try {
+            $this->logger->debug('Starting React-compatible find operation', [
+                'model_class' => get_class($model),
+                'validated_params' => $validatedParams,
+                'include_deleted' => $includeDeleted
+            ]);
 
-        // Add ORDER BY using main table alias
-        foreach ($orderBy as $field => $direction) {
-            // Validate that the field is a database field if modelFields are provided
-            if (!empty($modelFields) && isset($modelFields[$field])) {
-                if (!$modelFields[$field]->isDBField()) {
-                    $this->logger->warning("Skipping non-database field from ORDER BY", [
-                        'field_name' => $field,
-                        'field_type' => get_class($modelFields[$field])
-                    ]);
-                    continue;
-                }
+            $conn = $this->getConnection();
+            $queryBuilder = $conn->createQueryBuilder();
+            $tableName = $model->getTableName();
+            $mainAlias = 't';
+
+            // Base query
+            $queryBuilder
+                ->select("{$mainAlias}.*")
+                ->from($tableName, $mainAlias);
+
+            // Apply soft delete filter unless including deleted records
+            if (!$includeDeleted && $model->hasField('deleted_at')) {
+                $queryBuilder->where("{$mainAlias}.deleted_at IS NULL");
             }
-            $queryBuilder->orderBy("{$mainAlias}.{$field}", $direction);
-        }
 
-        // Add LIMIT and OFFSET
-        if ($limit !== null) {
-            $queryBuilder->setMaxResults($limit);
+            // Apply validated filters
+            if (!empty($validatedParams['filters'])) {
+                $this->applyValidatedFilters($queryBuilder, $validatedParams['filters'], $mainAlias, $model);
+            }
+
+            // Apply validated search
+            if (!empty($validatedParams['search'])) {
+                $this->applyValidatedSearch($queryBuilder, $validatedParams['search'], $mainAlias, $model);
+            }
+
+            // Apply validated sorting
+            if (!empty($validatedParams['sorting'])) {
+                $this->applyValidatedSorting($queryBuilder, $validatedParams['sorting'], $mainAlias, $model);
+            }
+
+            // Apply validated pagination
+            if (!empty($validatedParams['pagination'])) {
+                $this->applyValidatedPagination($queryBuilder, $validatedParams['pagination']);
+            }
+
+            $result = $queryBuilder->executeQuery();
+            $records = $result->fetchAllAssociative();
+
+            $this->logger->info('React-compatible find operation completed', [
+                'model_class' => get_class($model),
+                'record_count' => count($records),
+                'has_filters' => !empty($validatedParams['filters']),
+                'has_search' => !empty($validatedParams['search']['term']),
+                'has_sorting' => !empty($validatedParams['sorting']),
+                'page' => $validatedParams['pagination']['page'] ?? null
+            ]);
+
+            return $records;
+
+        } catch (\Exception $e) {
+            $this->logger->error('React-compatible find operation failed', [
+                'model_class' => get_class($model),
+                'validated_params' => $validatedParams,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw new GCException('Database find operation failed: ' . $e->getMessage(), [], 0, $e);
         }
-        if ($offset !== null) {
-            $queryBuilder->setFirstResult($offset);
+    }
+
+    /**
+     * Get count with React-compatible validated criteria
+     */
+    public function getCountWithValidatedCriteria(
+        ModelBase $model,
+        array $validatedParams = [],
+        bool $includeDeleted = false
+    ): int {
+        try {
+            $conn = $this->getConnection();
+            $queryBuilder = $conn->createQueryBuilder();
+            $tableName = $model->getTableName();
+            $mainAlias = 't';
+
+            // Base count query
+            $queryBuilder
+                ->select("COUNT(*) as record_count")
+                ->from($tableName, $mainAlias);
+
+            // Apply soft delete filter unless including deleted records
+            if (!$includeDeleted && $model->hasField('deleted_at')) {
+                $queryBuilder->where("{$mainAlias}.deleted_at IS NULL");
+            }
+
+            // Apply validated filters (same as find method)
+            if (!empty($validatedParams['filters'])) {
+                $this->applyValidatedFilters($queryBuilder, $validatedParams['filters'], $mainAlias, $model);
+            }
+
+            // Apply validated search (same as find method)
+            if (!empty($validatedParams['search'])) {
+                $this->applyValidatedSearch($queryBuilder, $validatedParams['search'], $mainAlias, $model);
+            }
+
+            // Note: No pagination or sorting needed for count queries
+
+            $result = $queryBuilder->executeQuery();
+            $count = (int) $result->fetchOne();
+
+            $this->logger->debug('Count operation with validated criteria completed', [
+                'model_class' => get_class($model),
+                'count' => $count,
+                'has_filters' => !empty($validatedParams['filters']),
+                'has_search' => !empty($validatedParams['search']['term'])
+            ]);
+
+            return $count;
+
+        } catch (\Exception $e) {
+            $this->logger->error('Count operation with validated criteria failed', [
+                'model_class' => get_class($model),
+                'validated_params' => $validatedParams,
+                'error' => $e->getMessage()
+            ]);
+            throw new GCException('Database count operation failed: ' . $e->getMessage(), [], 0, $e);
         }
     }
 
@@ -1017,6 +1067,262 @@ class DatabaseConnector {
                 'error' => $e->getMessage()
             ]);
             throw new GCException('Bulk restore by criteria failed: ' . $e->getMessage(), [], 0, $e);
+        }
+    }
+
+    /**
+     * Apply validated filters to QueryBuilder
+     * Expects filters that have already been validated against model fields
+     */
+    protected function applyValidatedFilters(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        array $validatedFilters,
+        string $mainAlias,
+        ModelBase $model
+    ): void {
+        $parameterIndex = 0;
+        
+        foreach ($validatedFilters as $filter) {
+            $fieldName = $filter['field'];
+            $operator = $filter['operator'];
+            $value = $filter['value'];
+            $paramName = "filter_param_{$parameterIndex}";
+            
+            $this->logger->debug('Applying validated filter', [
+                'field' => $fieldName,
+                'operator' => $operator,
+                'value' => $value,
+                'param_name' => $paramName
+            ]);
+            
+            switch ($operator) {
+                case 'equals':
+                    $queryBuilder->andWhere("{$mainAlias}.{$fieldName} = :{$paramName}");
+                    $queryBuilder->setParameter($paramName, $value);
+                    break;
+                    
+                case 'notEquals':
+                    $queryBuilder->andWhere("{$mainAlias}.{$fieldName} != :{$paramName}");
+                    $queryBuilder->setParameter($paramName, $value);
+                    break;
+                    
+                case 'contains':
+                    $queryBuilder->andWhere("{$mainAlias}.{$fieldName} LIKE :{$paramName}");
+                    $queryBuilder->setParameter($paramName, '%' . $value . '%');
+                    break;
+                    
+                case 'startsWith':
+                    $queryBuilder->andWhere("{$mainAlias}.{$fieldName} LIKE :{$paramName}");
+                    $queryBuilder->setParameter($paramName, $value . '%');
+                    break;
+                    
+                case 'endsWith':
+                    $queryBuilder->andWhere("{$mainAlias}.{$fieldName} LIKE :{$paramName}");
+                    $queryBuilder->setParameter($paramName, '%' . $value);
+                    break;
+                    
+                case 'greaterThan':
+                    $queryBuilder->andWhere("{$mainAlias}.{$fieldName} > :{$paramName}");
+                    $queryBuilder->setParameter($paramName, $value);
+                    break;
+                    
+                case 'greaterThanOrEqual':
+                    $queryBuilder->andWhere("{$mainAlias}.{$fieldName} >= :{$paramName}");
+                    $queryBuilder->setParameter($paramName, $value);
+                    break;
+                    
+                case 'lessThan':
+                    $queryBuilder->andWhere("{$mainAlias}.{$fieldName} < :{$paramName}");
+                    $queryBuilder->setParameter($paramName, $value);
+                    break;
+                    
+                case 'lessThanOrEqual':
+                    $queryBuilder->andWhere("{$mainAlias}.{$fieldName} <= :{$paramName}");
+                    $queryBuilder->setParameter($paramName, $value);
+                    break;
+                    
+                case 'between':
+                    if (is_array($value) && count($value) === 2) {
+                        $queryBuilder->andWhere("{$mainAlias}.{$fieldName} BETWEEN :{$paramName}_start AND :{$paramName}_end");
+                        $queryBuilder->setParameter("{$paramName}_start", $value[0]);
+                        $queryBuilder->setParameter("{$paramName}_end", $value[1]);
+                    }
+                    break;
+                    
+                case 'in':
+                    if (is_array($value) && !empty($value)) {
+                        $queryBuilder->andWhere("{$mainAlias}.{$fieldName} IN (:{$paramName})");
+                        $queryBuilder->setParameter($paramName, $value, \Doctrine\DBAL\Connection::PARAM_STR_ARRAY);
+                    }
+                    break;
+                    
+                case 'notIn':
+                    if (is_array($value) && !empty($value)) {
+                        $queryBuilder->andWhere("{$mainAlias}.{$fieldName} NOT IN (:{$paramName})");
+                        $queryBuilder->setParameter($paramName, $value, \Doctrine\DBAL\Connection::PARAM_STR_ARRAY);
+                    }
+                    break;
+                    
+                case 'isNull':
+                    $queryBuilder->andWhere("{$mainAlias}.{$fieldName} IS NULL");
+                    break;
+                    
+                case 'isNotNull':
+                    $queryBuilder->andWhere("{$mainAlias}.{$fieldName} IS NOT NULL");
+                    break;
+                    
+                case 'overlap':
+                    // For JSON arrays - MySQL specific
+                    $queryBuilder->andWhere("JSON_OVERLAPS({$mainAlias}.{$fieldName}, :{$paramName})");
+                    $queryBuilder->setParameter($paramName, json_encode($value));
+                    break;
+                    
+                case 'containsAll':
+                    // For JSON arrays - MySQL specific
+                    $queryBuilder->andWhere("JSON_CONTAINS({$mainAlias}.{$fieldName}, :{$paramName})");
+                    $queryBuilder->setParameter($paramName, json_encode($value));
+                    break;
+                    
+                case 'containsNone':
+                    // For JSON arrays - MySQL specific
+                    $queryBuilder->andWhere("NOT JSON_OVERLAPS({$mainAlias}.{$fieldName}, :{$paramName})");
+                    $queryBuilder->setParameter($paramName, json_encode($value));
+                    break;
+                    
+                default:
+                    $this->logger->warning('Unknown filter operator, skipping', [
+                        'operator' => $operator,
+                        'field' => $fieldName
+                    ]);
+            }
+            
+            $parameterIndex++;
+        }
+    }
+
+    /**
+     * Apply validated search to QueryBuilder
+     * Expects search parameters that have already been validated
+     */
+    protected function applyValidatedSearch(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        array $validatedSearch,
+        string $mainAlias,
+        ModelBase $model
+    ): void {
+        if (empty($validatedSearch['term'])) {
+            return;
+        }
+        
+        $searchTerm = $validatedSearch['term'];
+        $searchFields = $validatedSearch['fields'] ?? [];
+        
+        if (empty($searchFields)) {
+            $this->logger->debug('No search fields specified, skipping search');
+            return;
+        }
+        
+        // Build search conditions for multiple fields
+        $searchConditions = [];
+        $searchParamIndex = 0;
+        
+        foreach ($searchFields as $fieldName) {
+            $paramName = "search_param_{$searchParamIndex}";
+            $searchConditions[] = "{$mainAlias}.{$fieldName} LIKE :{$paramName}";
+            $queryBuilder->setParameter($paramName, '%' . $searchTerm . '%');
+            $searchParamIndex++;
+        }
+        
+        if (!empty($searchConditions)) {
+            $queryBuilder->andWhere('(' . implode(' OR ', $searchConditions) . ')');
+            
+            $this->logger->debug('Applied multi-field search', [
+                'search_term' => $searchTerm,
+                'search_fields' => $searchFields,
+                'conditions_count' => count($searchConditions)
+            ]);
+        }
+    }
+
+    /**
+     * Apply validated sorting to QueryBuilder
+     * Expects sorting parameters that have already been validated
+     */
+    protected function applyValidatedSorting(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        array $validatedSorting,
+        string $mainAlias,
+        ModelBase $model
+    ): void {
+        foreach ($validatedSorting as $sort) {
+            $fieldName = $sort['field'];
+            $direction = strtoupper($sort['direction'] ?? 'ASC');
+            
+            $queryBuilder->addOrderBy("{$mainAlias}.{$fieldName}", $direction);
+            
+            $this->logger->debug('Applied validated sort', [
+                'field' => $fieldName,
+                'direction' => $direction
+            ]);
+        }
+    }
+
+    /**
+     * Apply validated pagination to QueryBuilder
+     * Expects pagination parameters that have already been validated
+     */
+    protected function applyValidatedPagination(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        array $validatedPagination
+    ): void {
+        $pageSize = $validatedPagination['pageSize'] ?? 20;
+        $offset = $validatedPagination['offset'] ?? 0;
+        
+        $queryBuilder->setMaxResults($pageSize);
+        $queryBuilder->setFirstResult($offset);
+        
+        $this->logger->debug('Applied validated pagination', [
+            'page_size' => $pageSize,
+            'offset' => $offset,
+            'page' => $validatedPagination['page'] ?? 1
+        ]);
+    }
+
+    /**
+     * LEGACY METHOD: Apply query parameters like ORDER BY, LIMIT, OFFSET
+     * Kept for backward compatibility with existing find() method
+     */
+    protected function applyQueryParameters(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        array $parameters,
+        string $mainAlias,
+        array $modelFields = []
+    ): void {
+        $orderBy = $parameters['orderBy'] ?? [];
+        $limit = $parameters['limit'] ?? null;
+        $offset = $parameters['offset'] ?? null;
+
+        // Add ORDER BY using main table alias
+        foreach ($orderBy as $field => $direction) {
+            // Validate that the field is a database field if modelFields are provided
+            if (!empty($modelFields) && isset($modelFields[$field])) {
+                if (!$modelFields[$field]->isDBField()) {
+                    $this->logger->warning("Skipping non-database field from ORDER BY", [
+                        'field_name' => $field,
+                        'field_type' => get_class($modelFields[$field])
+                    ]);
+                    continue;
+                }
+            }
+            $queryBuilder->orderBy("{$mainAlias}.{$field}", $direction);
+        }
+
+        // Add LIMIT and OFFSET
+        if ($limit !== null) {
+            $queryBuilder->setMaxResults($limit);
+        }
+        if ($offset !== null) {
+            $queryBuilder->setFirstResult($offset);
         }
     }
 

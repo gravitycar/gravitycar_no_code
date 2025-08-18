@@ -14,6 +14,9 @@ class IDField extends FieldBase {
     protected bool $required = true;
     protected bool $unique = true;
     protected bool $readOnly = true;
+    
+    /** @var array ID fields have limited operators for security and performance */
+    protected array $operators = ['equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull'];
 
     public function __construct(array $metadata) {
         parent::__construct($metadata);

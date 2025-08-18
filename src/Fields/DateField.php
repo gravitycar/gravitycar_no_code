@@ -13,6 +13,13 @@ class DateField extends FieldBase {
     protected string $label = '';
     protected bool $required = false;
     protected int $maxLength = 10;
+    
+    /** @var array Date comparison operators */
+    protected array $operators = [
+        'equals', 'notEquals', 'greaterThan', 'greaterThanOrEqual', 
+        'lessThan', 'lessThanOrEqual', 'between', 'in', 'notIn', 
+        'isNull', 'isNotNull'
+    ];
 
     public function __construct(array $metadata) {
         parent::__construct($metadata);

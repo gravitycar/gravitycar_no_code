@@ -147,42 +147,74 @@ class ModelBaseAPIController {
             // Create model instance
             $model = ModelFactory::new($modelName);
             
-            // Use enhanced DatabaseConnector method (to be implemented)
-            // For now, use basic find method
-            $records = $model->find([]);
+            // Get database connector
+            $databaseConnector = ServiceLocator::getDatabaseConnector();
             
-            // Convert to array for JSON response
-            $data = array_map(fn($model) => $model->toArray(), $records);
+            // Use enhanced DatabaseConnector method with validated parameters
+            $records = $databaseConnector->findWithReactParams($model, $validatedParams, false);
+            
+            // Get total count for pagination metadata (if requested)
+            $totalCount = null;
+            $responseFormat = $request->getResponseFormat();
+            if (in_array($responseFormat, ['ag-grid', 'mui', 'advanced']) || !empty($validatedParams['options']['includeTotal'])) {
+                $totalCount = $databaseConnector->getCountWithValidatedCriteria($model, $validatedParams, false);
+            }
             
             // Create React-compatible response structure
             $response = [
                 'success' => true,
-                'data' => $data,
+                'data' => $records,
                 'meta' => [
                     'pagination' => [
                         'page' => $pagination['page'] ?? 1,
                         'pageSize' => $pagination['pageSize'] ?? 20,
-                        'total' => count($data), // TODO: Implement proper total count
-                        'hasNextPage' => false, // TODO: Implement proper pagination
-                        'hasPreviousPage' => ($pagination['page'] ?? 1) > 1,
-                        'startRow' => $pagination['startRow'] ?? null,
-                        'endRow' => $pagination['endRow'] ?? null
+                        'offset' => $pagination['offset'] ?? 0,
+                        'total' => $totalCount,
+                        'hasNextPage' => $totalCount !== null ? (($pagination['offset'] ?? 0) + ($pagination['pageSize'] ?? 20)) < $totalCount : null,
+                        'hasPreviousPage' => ($pagination['page'] ?? 1) > 1
                     ],
                     'filters' => $filters,
                     'sorting' => $sorting,
                     'search' => $search,
-                    'responseFormat' => $request->getResponseFormat(),
+                    'responseFormat' => $responseFormat,
                     'detectedFormat' => $parsedParams['meta']['detectedFormat'] ?? 'unknown'
                 ],
                 'timestamp' => date('c')
             ];
             
+            // Add AG-Grid specific properties
+            if ($responseFormat === 'ag-grid') {
+                $response['lastRow'] = $totalCount; // AG-Grid expects lastRow for infinite scroll
+                $response['secondaryColumns'] = null; // AG-Grid dynamic columns (not used)
+            }
+            
+            // Add MUI DataGrid specific properties
+            if ($responseFormat === 'mui') {
+                $response['rowCount'] = $totalCount;
+            }
+            
+            // Add enhanced metadata for advanced requests
+            if ($responseFormat === 'advanced' || !empty($validatedParams['options']['includeAvailableFilters'])) {
+                $filterCriteria = $request->getFilterCriteria();
+                $searchEngine = $request->getSearchEngine();
+                
+                if ($filterCriteria) {
+                    $response['meta']['availableFilters'] = $filterCriteria->getSupportedFilters($model);
+                }
+                
+                if ($searchEngine) {
+                    $response['meta']['availableSearchFields'] = $searchEngine->getSearchableFields($model);
+                }
+            }
+            
             $this->logger->info('Records listed successfully with enhanced features', [
                 'model' => $modelName,
-                'count' => count($data),
+                'count' => count($records),
+                'total_count' => $totalCount,
                 'filters_count' => count($filters),
                 'sorts_count' => count($sorting),
-                'has_search' => !empty($search['term'] ?? '')
+                'has_search' => !empty($search['term'] ?? ''),
+                'response_format' => $responseFormat
             ]);
             
             return $response;

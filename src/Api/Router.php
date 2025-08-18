@@ -175,11 +175,17 @@ class Router {
             $parameterParser = new RequestParameterParser();
             $request->setParameterParser($parameterParser);
             
-            // 2. Parse request parameters using format detection
+            // 2. Initialize filter criteria and search engine helpers
+            $filterCriteria = new FilterCriteria();
+            $searchEngine = new SearchEngine();
+            $request->setFilterCriteria($filterCriteria);
+            $request->setSearchEngine($searchEngine);
+            
+            // 3. Parse request parameters using format detection
             $parsedParams = $parameterParser->parseUnified($request->getRequestData());
             $request->setParsedParams($parsedParams);
             
-            // 3. Attempt model-aware validation if model can be determined
+            // 4. Attempt model-aware validation if model can be determined
             $model = $this->getModel($request);
             if ($model) {
                 $validatedParams = $this->performValidationWithModel($request, $model, $parsedParams);
@@ -250,19 +256,90 @@ class Router {
         $validationException = new ParameterValidationException();
         $validatedParams = [];
         
-        // TODO: Implement actual validation logic here
-        // For now, return the parsed params as-is
-        $validatedParams = [
-            'filters' => $parsedParams['filters'] ?? [],
-            'search' => $parsedParams['search'] ?? [],
-            'sorting' => $parsedParams['sorting'] ?? [],
-            'pagination' => $parsedParams['pagination'] ?? []
-        ];
+        // Get helper instances from request
+        $filterCriteria = $request->getFilterCriteria();
+        $searchEngine = $request->getSearchEngine();
+        
+        // Validate filters against model
+        try {
+            $validatedFilters = [];
+            if (!empty($parsedParams['filters']) && $filterCriteria) {
+                $validatedFilters = $filterCriteria->validateAndFilterForModel($parsedParams['filters'], $model);
+            }
+            $validatedParams['filters'] = $validatedFilters;
+        } catch (\Exception $e) {
+            $validationException->addError('filters', 'Filter validation failed: ' . $e->getMessage());
+            $validatedParams['filters'] = [];
+        }
+        
+        // Validate search against model
+        try {
+            $validatedSearch = [];
+            if (!empty($parsedParams['search']) && $searchEngine) {
+                $validatedSearch = $searchEngine->validateSearchForModel($parsedParams['search'], $model);
+            }
+            $validatedParams['search'] = $validatedSearch;
+        } catch (\Exception $e) {
+            $validationException->addError('search', 'Search validation failed: ' . $e->getMessage());
+            $validatedParams['search'] = [];
+        }
+        
+        // Validate sorting against model (simple validation - check fields exist and are DB fields)
+        try {
+            $validatedSorting = [];
+            if (!empty($parsedParams['sorting'])) {
+                $modelFields = $model->getFields();
+                foreach ($parsedParams['sorting'] as $sort) {
+                    $fieldName = $sort['field'] ?? '';
+                    
+                    if (isset($modelFields[$fieldName]) && $modelFields[$fieldName]->isDBField()) {
+                        $validatedSorting[] = [
+                            'field' => $fieldName,
+                            'direction' => in_array(strtolower($sort['direction'] ?? 'asc'), ['asc', 'desc']) 
+                                ? strtolower($sort['direction']) 
+                                : 'asc',
+                            'priority' => $sort['priority'] ?? 0
+                        ];
+                    } else {
+                        $this->logger->warning('Sort field validation failed', [
+                            'field' => $fieldName,
+                            'exists' => isset($modelFields[$fieldName]),
+                            'is_db_field' => isset($modelFields[$fieldName]) ? $modelFields[$fieldName]->isDBField() : false
+                        ]);
+                    }
+                }
+            }
+            $validatedParams['sorting'] = $validatedSorting;
+        } catch (\Exception $e) {
+            $validationException->addError('sorting', 'Sorting validation failed: ' . $e->getMessage());
+            $validatedParams['sorting'] = [];
+        }
+        
+        // Pagination validation (basic - just ensure reasonable values)
+        try {
+            $pagination = $parsedParams['pagination'] ?? [];
+            $validatedParams['pagination'] = [
+                'page' => max(1, (int) ($pagination['page'] ?? 1)),
+                'pageSize' => min(1000, max(1, (int) ($pagination['pageSize'] ?? 20))),
+                'offset' => max(0, (int) ($pagination['offset'] ?? 0))
+            ];
+        } catch (\Exception $e) {
+            $validationException->addError('pagination', 'Pagination validation failed: ' . $e->getMessage());
+            $validatedParams['pagination'] = ['page' => 1, 'pageSize' => 20, 'offset' => 0];
+        }
         
         // If we collected any validation errors, throw them
         if ($validationException->hasErrors()) {
             throw $validationException;
         }
+        
+        $this->logger->info('Model validation completed successfully', [
+            'model' => get_class($model),
+            'validated_filters' => count($validatedParams['filters']),
+            'validated_search_fields' => count($validatedParams['search']['fields'] ?? []),
+            'validated_sorts' => count($validatedParams['sorting']),
+            'pagination' => $validatedParams['pagination']
+        ]);
         
         return $validatedParams;
     }

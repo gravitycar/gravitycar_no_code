@@ -17,6 +17,9 @@ class PasswordField extends FieldBase {
     protected bool $showButton = true;
     protected string $placeholder = 'Enter password';
     protected bool $hashOnSave = true;
+    
+    /** @var array Very limited operators for security - no search/contains operations */
+    protected array $operators = ['isNull', 'isNotNull'];
 
     public function __construct(array $metadata) {
         parent::__construct($metadata);
