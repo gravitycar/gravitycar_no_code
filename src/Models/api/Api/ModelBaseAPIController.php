@@ -286,24 +286,76 @@ class ModelBaseAPIController {
         $modelName = $request->get('modelName');
         $this->validateModelName($modelName);
         
-        $this->logger->info('Listing deleted records', ['model' => $modelName]);
+        $this->logger->info('Listing deleted records with enhanced filtering', [
+            'model' => $modelName,
+            'response_format' => $request->getResponseFormat()
+        ]);
         
         try {
-            // Create query instance using ModelFactory
-            $queryInstance = ModelFactory::new($modelName);
+            // Get validated parameters from Router (pre-validated)
+            $validatedParams = $request->getValidatedParams();
+            $parsedParams = $request->getParsedParams();
+            $filters = $validatedParams['filters'] ?? [];
+            $sorting = $validatedParams['sorting'] ?? [];
+            $pagination = $validatedParams['pagination'] ?? [];
+            $search = $validatedParams['search'] ?? [];
             
-            // Find soft-deleted records using criteria
-            $models = $queryInstance->find(['deleted_at !=' => null]);
+            // Create model instance
+            $model = ModelFactory::new($modelName);
             
-            // Convert to array for JSON response
-            $records = array_map(fn($model) => $model->toArray(), $models);
+            // Get database connector
+            $databaseConnector = ServiceLocator::getDatabaseConnector();
             
-            $this->logger->info('Deleted records listed successfully', [
+            // Use enhanced DatabaseConnector method with validated parameters for soft-deleted records
+            $records = $databaseConnector->findWithReactParams($model, $validatedParams, true); // includeDeleted = true
+            
+            // Get total count for pagination metadata (if requested)
+            $totalCount = null;
+            $responseFormat = $request->getResponseFormat();
+            if (in_array($responseFormat, ['ag-grid', 'mui', 'advanced']) || !empty($validatedParams['options']['includeTotal'])) {
+                $totalCount = $databaseConnector->getCountWithValidatedCriteria($model, $validatedParams, true); // includeDeleted = true
+            }
+            
+            // Build comprehensive metadata for ResponseFormatter
+            $meta = [
+                'pagination' => [
+                    'page' => $pagination['page'] ?? 1,
+                    'pageSize' => $pagination['pageSize'] ?? 20,
+                    'offset' => $pagination['offset'] ?? 0,
+                    'limit' => $pagination['pageSize'] ?? 20,
+                    'total' => $totalCount,
+                    'pageCount' => $totalCount ? ceil($totalCount / ($pagination['pageSize'] ?? 20)) : 0,
+                    'hasNextPage' => $totalCount !== null ? (($pagination['offset'] ?? 0) + ($pagination['pageSize'] ?? 20)) < $totalCount : null,
+                    'hasPreviousPage' => ($pagination['page'] ?? 1) > 1
+                ],
+                'filters' => [
+                    'applied' => $filters
+                ],
+                'sorting' => [
+                    'applied' => $sorting
+                ],
+                'search' => [
+                    'applied' => $search
+                ],
+                'responseFormat' => $responseFormat,
+                'detectedFormat' => $parsedParams['meta']['detectedFormat'] ?? 'unknown',
+                'includeDeleted' => true // Indicate this is a soft-deleted records query
+            ];
+            
+            // Use ResponseFormatter for consistent response formatting
+            $response = $request->formatResponse($records, $meta, $responseFormat);
+            
+            $this->logger->info('Deleted records listed successfully with enhanced features', [
                 'model' => $modelName,
-                'count' => count($records)
+                'count' => count($records),
+                'total_count' => $totalCount,
+                'filters_count' => count($filters),
+                'sorts_count' => count($sorting),
+                'has_search' => !empty($search['term'] ?? ''),
+                'response_format' => $responseFormat
             ]);
             
-            return ['data' => $records, 'count' => count($records)];
+            return $response;
             
         } catch (\Exception $e) {
             $this->logger->error('Failed to list deleted records', [
@@ -559,24 +611,104 @@ class ModelBaseAPIController {
         $model = $this->getValidModel($modelName, $id);
         $relationship = $this->validateRelationshipExists($model, $relationshipName);
         
-        $this->logger->info('Listing related records', [
+        $this->logger->info('Listing related records with enhanced filtering', [
             'model' => $modelName,
             'id' => $id,
-            'relationship' => $relationshipName
+            'relationship' => $relationshipName,
+            'response_format' => $request->getResponseFormat()
         ]);
         
         try {
-            // Use ModelBase getRelated method
-            $relatedRecords = $model->getRelated($relationshipName);
+            // Get validated parameters from Router (pre-validated)
+            $validatedParams = $request->getValidatedParams();
+            $parsedParams = $request->getParsedParams();
+            $filters = $validatedParams['filters'] ?? [];
+            $sorting = $validatedParams['sorting'] ?? [];
+            $pagination = $validatedParams['pagination'] ?? [];
+            $search = $validatedParams['search'] ?? [];
             
-            $this->logger->info('Related records listed successfully', [
+            // For now, use basic relationship functionality until enhanced methods are implemented
+            // Get all related records using existing relationship system
+            $relatedRecords = $relationship->getRelatedRecords($model);
+            
+            // Apply basic filtering on the results (simplified approach)
+            if (!empty($search)) {
+                // Basic search implementation - this can be enhanced later
+                $searchTerm = $search['term'] ?? '';
+                if ($searchTerm) {
+                    $relatedRecords = array_filter($relatedRecords, function($record) use ($searchTerm) {
+                        $searchableContent = strtolower(json_encode($record));
+                        return strpos($searchableContent, strtolower($searchTerm)) !== false;
+                    });
+                }
+            }
+            
+            // Basic pagination (simplified approach)
+            $totalCount = count($relatedRecords);
+            $page = $pagination['page'] ?? 1;
+            $limit = $pagination['limit'] ?? 25;
+            $offset = ($page - 1) * $limit;
+            
+            if ($limit > 0) {
+                $records = array_slice($relatedRecords, $offset, $limit);
+            } else {
+                $records = $relatedRecords;
+            }
+            
+            // Get response format for consistent formatting
+            $responseFormat = $request->getResponseFormat();
+            
+            // Determine related model name from relationship metadata or context
+            $relatedModelName = 'Related' . $modelName; // Simplified - can be enhanced later
+            
+            // Build comprehensive metadata for ResponseFormatter
+            $meta = [
+                'pagination' => [
+                    'page' => $pagination['page'] ?? 1,
+                    'pageSize' => $pagination['pageSize'] ?? 20,
+                    'offset' => $pagination['offset'] ?? 0,
+                    'limit' => $pagination['pageSize'] ?? 20,
+                    'total' => $totalCount,
+                    'pageCount' => $totalCount ? ceil($totalCount / ($pagination['pageSize'] ?? 20)) : 0,
+                    'hasNextPage' => $totalCount !== null ? (($pagination['offset'] ?? 0) + ($pagination['pageSize'] ?? 20)) < $totalCount : null,
+                    'hasPreviousPage' => ($pagination['page'] ?? 1) > 1
+                ],
+                'filters' => [
+                    'applied' => $filters
+                ],
+                'sorting' => [
+                    'applied' => $sorting
+                ],
+                'search' => [
+                    'applied' => $search
+                ],
+                'relationship' => [
+                    'parentModel' => $modelName,
+                    'parentId' => $id,
+                    'relationshipName' => $relationshipName,
+                    'relatedModel' => $relatedModelName
+                ],
+                'responseFormat' => $responseFormat,
+                'detectedFormat' => $parsedParams['meta']['detectedFormat'] ?? 'unknown'
+            ];
+            
+            // Use ResponseFormatter for consistent response formatting
+            $response = $request->formatResponse($records, $meta, $responseFormat);
+            
+            $this->logger->info('Related records listed successfully with enhanced features', [
                 'model' => $modelName,
                 'id' => $id,
                 'relationship' => $relationshipName,
-                'count' => count($relatedRecords)
+                'related_model' => $relatedModelName,
+                'count' => count($records),
+                'total_count' => $totalCount,
+                'filters_count' => count($filters),
+                'sorts_count' => count($sorting),
+                'has_search' => !empty($search['term'] ?? ''),
+                'response_format' => $responseFormat
             ]);
             
-            return ['data' => $relatedRecords, 'count' => count($relatedRecords)];
+            return $response;
             
         } catch (\Exception $e) {
             $this->logger->error('Failed to list related records', [
