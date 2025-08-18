@@ -282,8 +282,8 @@ class ModelBaseAPIController {
     /**
      * List soft-deleted records for a model
      */
-    public function listDeleted(Request $request, array $params = []): array {
-        $modelName = $params['modelName'] ?? null;
+    public function listDeleted(Request $request): array {
+        $modelName = $request->get('modelName');
         $this->validateModelName($modelName);
         
         $this->logger->info('Listing deleted records', ['model' => $modelName]);
@@ -320,8 +320,8 @@ class ModelBaseAPIController {
     /**
      * Create a new record
      */
-    public function create(Request $request, array $params = []): array {
-        $modelName = $params['modelName'] ?? null;
+    public function create(Request $request): array {
+        $modelName = $request->get('modelName');
         $this->validateModelName($modelName);
         
         // Get request body data
@@ -378,9 +378,9 @@ class ModelBaseAPIController {
     /**
      * Update an existing record
      */
-    public function update(Request $request, array $params = []): array {
-        $modelName = $params['modelName'] ?? null;
-        $id = $params['id'] ?? null;
+    public function update(Request $request): array {
+        $modelName = $request->get('modelName');
+        $id = $request->get('id');
         
         $this->validateModelName($modelName);
         $this->validateId($id);
@@ -438,9 +438,9 @@ class ModelBaseAPIController {
     /**
      * Soft delete a record
      */
-    public function delete(Request $request, array $params = []): array {
-        $modelName = $params['modelName'] ?? null;
-        $id = $params['id'] ?? null;
+    public function delete(Request $request): array {
+        $modelName = $request->get('modelName');
+        $id = $request->get('id');
         
         $this->validateModelName($modelName);
         $this->validateId($id);
@@ -486,9 +486,9 @@ class ModelBaseAPIController {
     /**
      * Restore a soft-deleted record
      */
-    public function restore(Request $request, array $params = []): array {
-        $modelName = $params['modelName'] ?? null;
-        $id = $params['id'] ?? null;
+    public function restore(Request $request): array {
+        $modelName = $request->get('modelName');
+        $id = $request->get('id');
         
         $this->validateModelName($modelName);
         $this->validateId($id);
@@ -547,10 +547,10 @@ class ModelBaseAPIController {
     /**
      * List related records for a relationship
      */
-    public function listRelated(Request $request, array $params = []): array {
-        $modelName = $params['modelName'] ?? null;
-        $id = $params['id'] ?? null;
-        $relationshipName = $params['relationshipName'] ?? null;
+    public function listRelated(Request $request): array {
+        $modelName = $request->get('modelName');
+        $id = $request->get('id');
+        $relationshipName = $request->get('relationshipName');
         
         $this->validateModelName($modelName);
         $this->validateId($id);
@@ -597,10 +597,10 @@ class ModelBaseAPIController {
     /**
      * Create a new record and link it to an existing record via relationship
      */
-    public function createAndLink(Request $request, array $params = []): array {
-        $modelName = $params['modelName'] ?? null;
-        $id = $params['id'] ?? null;
-        $relationshipName = $params['relationshipName'] ?? null;
+    public function createAndLink(Request $request): array {
+        $modelName = $request->get('modelName');
+        $id = $request->get('id');
+        $relationshipName = $request->get('relationshipName');
         
         $this->validateModelName($modelName);
         $this->validateId($id);
@@ -684,11 +684,11 @@ class ModelBaseAPIController {
     /**
      * Link two existing records via relationship
      */
-    public function link(Request $request, array $params = []): array {
-        $modelName = $params['modelName'] ?? null;
-        $id = $params['id'] ?? null;
-        $relationshipName = $params['relationshipName'] ?? null;
-        $idToLink = $params['idToLink'] ?? null;
+    public function link(Request $request): array {
+        $modelName = $request->get('modelName');
+        $id = $request->get('id');
+        $relationshipName = $request->get('relationshipName');
+        $idToLink = $request->get('idToLink');
         
         $this->validateModelName($modelName);
         $this->validateId($id);
@@ -766,11 +766,11 @@ class ModelBaseAPIController {
     /**
      * Unlink two records (soft delete relationship)
      */
-    public function unlink(Request $request, array $params = []): array {
-        $modelName = $params['modelName'] ?? null;
-        $id = $params['id'] ?? null;
-        $relationshipName = $params['relationshipName'] ?? null;
-        $idToUnlink = $params['idToLink'] ?? null; // Note: same parameter name as link
+    public function unlink(Request $request): array {
+        $modelName = $request->get('modelName');
+        $id = $request->get('id');
+        $relationshipName = $request->get('relationshipName');
+        $idToUnlink = $request->get('idToLink'); // Note: same parameter name as link
         
         $this->validateModelName($modelName);
         $this->validateId($id);
