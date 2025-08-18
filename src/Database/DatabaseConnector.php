@@ -428,8 +428,8 @@ class DatabaseConnector {
             // Apply WHERE conditions
             $this->applyCriteria($queryBuilder, $criteria, $mainAlias, $modelFields);
 
-            // Apply query parameters (ORDER BY, LIMIT, OFFSET)
-            $this->applyQueryParameters($queryBuilder, $parameters, $mainAlias, $modelFields);
+            // Apply query parameters (ORDER BY, LIMIT, OFFSET) using validated parameter approach
+            $this->applyValidatedParameters($queryBuilder, $parameters, $mainAlias, $modelFields);
 
             // Execute query and return raw rows
             $result = $queryBuilder->executeQuery();
@@ -1289,10 +1289,10 @@ class DatabaseConnector {
     }
 
     /**
-     * LEGACY METHOD: Apply query parameters like ORDER BY, LIMIT, OFFSET
-     * Kept for backward compatibility with existing find() method
+     * Apply validated parameters to query builder (Phase 4 Enhanced DatabaseConnector)
+     * Handles ORDER BY, LIMIT, OFFSET with proper validation and main table aliasing
      */
-    protected function applyQueryParameters(
+    protected function applyValidatedParameters(
         \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
         array $parameters,
         string $mainAlias,
