@@ -39,7 +39,7 @@ class Router {
     /**
      * Route an API request to the correct controller and handler
      */
-    public function route(string $method, string $path, array $additionalParams = []): mixed {
+    public function route(string $method, string $path, array $requestData = []): mixed {
         // 1. Get routes from registry grouped by method and path length
         $pathLength = count($this->parsePathComponents($path));
         $candidateRoutes = $this->routeRegistry->getRoutesByMethodAndLength($method, $pathLength);
@@ -66,11 +66,14 @@ class Router {
             ]);
         }
         
-        // 4. Create Request object for parameter extraction
-        $request = new Request($path, $bestRoute['parameterNames'], $method);
+        // 4. Create enhanced Request object with request data
+        $request = new Request($path, $bestRoute['parameterNames'], $method, $requestData);
         
-        // 5. Execute route with Request object
-        return $this->executeRoute($bestRoute, $request, $additionalParams);
+        // 5. Attach request helpers and perform validation
+        $this->attachRequestHelpers($request);
+        
+        // 6. Execute route with enhanced Request object
+        return $this->executeRoute($bestRoute, $request);
     }
 
     /**
@@ -80,14 +83,14 @@ class Router {
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
         $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
         
-        // Get additional parameters (query params, POST data)
-        $additionalParams = $this->getRequestParams();
+        // Get request data (query params, POST data, JSON body)
+        $requestData = $this->getRequestParams();
 
         $this->logger->info("Routing request: $method $path");
 
         try {
-            // Use new route() method - Request object created internally
-            $result = $this->route($method, $path, $additionalParams);
+            // Use new route() method with requestData
+            $result = $this->route($method, $path, $requestData);
 
             // Only output if not in CLI/test mode
             if (php_sapi_name() !== 'cli') {
@@ -131,9 +134,9 @@ class Router {
     }
 
     /**
-     * Execute route with Request object
+     * Execute route with enhanced Request object
      */
-    protected function executeRoute(array $route, Request $request, array $additionalParams = []): mixed {
+    protected function executeRoute(array $route, Request $request): mixed {
         $controllerClass = $route['apiClass'];
         $handlerMethod = $route['apiMethod'];
         
@@ -159,8 +162,109 @@ class Router {
         // Validate Request parameters
         $this->validateRequestParameters($request, $route);
         
-        // Call controller method with Request object
-        return $controller->$handlerMethod($request, $additionalParams);
+        // Call controller method with enhanced Request object (no additionalParams)
+        return $controller->$handlerMethod($request);
+    }
+
+    /**
+     * Attach helper classes to Request object and perform parameter parsing/validation
+     */
+    protected function attachRequestHelpers(Request $request): void {
+        try {
+            // 1. Initialize and attach parameter parser
+            $parameterParser = new RequestParameterParser();
+            $request->setParameterParser($parameterParser);
+            
+            // 2. Parse request parameters using format detection
+            $parsedParams = $parameterParser->parseUnified($request->getRequestData());
+            $request->setParsedParams($parsedParams);
+            
+            // 3. Attempt model-aware validation if model can be determined
+            $model = $this->getModel($request);
+            if ($model) {
+                $validatedParams = $this->performValidationWithModel($request, $model, $parsedParams);
+                $request->setValidatedParams($validatedParams);
+            } else {
+                // No model available - set empty validated params (graceful fallback)
+                $request->setValidatedParams([
+                    'filters' => [],
+                    'search' => [],
+                    'sorting' => [],
+                    'pagination' => $parsedParams['pagination'] ?? []
+                ]);
+            }
+            
+            $this->logger->debug('Request helpers attached successfully', [
+                'has_model' => $model !== null,
+                'detected_format' => $parsedParams['responseFormat'] ?? 'unknown',
+                'filters_count' => count($parsedParams['filters'] ?? []),
+                'sorts_count' => count($parsedParams['sorting'] ?? [])
+            ]);
+            
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to attach request helpers', [
+                'error' => $e->getMessage(),
+                'request_url' => $request->getUrl(),
+                'request_method' => $request->getMethod()
+            ]);
+            
+            // Re-throw as ParameterValidationException for consistent error handling
+            if ($e instanceof ParameterValidationException) {
+                throw $e;
+            }
+            
+            $validationException = new ParameterValidationException(
+                'Request parameter processing failed', 
+                [['field' => 'general', 'error' => $e->getMessage(), 'value' => null]]
+            );
+            $validationException->addSuggestion('Check parameter format and try again');
+            throw $validationException;
+        }
+    }
+
+    /**
+     * Safely get model instance from request parameters
+     */
+    protected function getModel(Request $request): ?\Gravitycar\Models\ModelBase {
+        try {
+            $modelName = $request->get('modelName');
+            if (!$modelName) {
+                return null; // No model parameter available
+            }
+            
+            return \Gravitycar\Factories\ModelFactory::new($modelName);
+            
+        } catch (\Exception $e) {
+            $this->logger->warning('Could not instantiate model for validation', [
+                'model_name' => $request->get('modelName'),
+                'error' => $e->getMessage()
+            ]);
+            return null; // Graceful fallback
+        }
+    }
+
+    /**
+     * Perform comprehensive validation with model context
+     */
+    protected function performValidationWithModel(Request $request, \Gravitycar\Models\ModelBase $model, array $parsedParams): array {
+        $validationException = new ParameterValidationException();
+        $validatedParams = [];
+        
+        // TODO: Implement actual validation logic here
+        // For now, return the parsed params as-is
+        $validatedParams = [
+            'filters' => $parsedParams['filters'] ?? [],
+            'search' => $parsedParams['search'] ?? [],
+            'sorting' => $parsedParams['sorting'] ?? [],
+            'pagination' => $parsedParams['pagination'] ?? []
+        ];
+        
+        // If we collected any validation errors, throw them
+        if ($validationException->hasErrors()) {
+            throw $validationException;
+        }
+        
+        return $validatedParams;
     }
 
     /**

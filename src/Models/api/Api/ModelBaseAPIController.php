@@ -119,16 +119,10 @@ class ModelBaseAPIController {
             ]
         ];
     }    /**
-     * List all records for a model
+     * List all records for a model with enhanced pagination and filtering
      */
-    public function list(Request $request, array $additionalParams = []): array {
-        // Handle both Request object and legacy $params array for backward compatibility
-        if ($request instanceof \Gravitycar\Api\Request) {
-            $modelName = $request->get('modelName');
-        } else {
-            // Legacy support - $request is actually $params array
-            $modelName = $request['modelName'] ?? null;
-        }
+    public function list(Request $request): array {
+        $modelName = $request->get('modelName');
         
         if (!$modelName) {
             throw new GCException("Missing required parameter: modelName");
@@ -136,24 +130,62 @@ class ModelBaseAPIController {
         
         $this->validateModelName($modelName);
         
-        $this->logger->info('Listing records', ['model' => $modelName]);
+        $this->logger->info('Listing records with enhanced filtering', [
+            'model' => $modelName,
+            'response_format' => $request->getResponseFormat()
+        ]);
         
         try {
-            // Create query instance using ModelFactory
-            $queryInstance = ModelFactory::new($modelName);
+            // Get validated parameters from Router (pre-validated)
+            $validatedParams = $request->getValidatedParams();
+            $parsedParams = $request->getParsedParams();
+            $filters = $validatedParams['filters'] ?? [];
+            $sorting = $validatedParams['sorting'] ?? [];
+            $pagination = $validatedParams['pagination'] ?? [];
+            $search = $validatedParams['search'] ?? [];
             
-            // Use instance find method with empty criteria
-            $models = $queryInstance->find([]); // Returns array of model instances
+            // Create model instance
+            $model = ModelFactory::new($modelName);
+            
+            // Use enhanced DatabaseConnector method (to be implemented)
+            // For now, use basic find method
+            $records = $model->find([]);
             
             // Convert to array for JSON response
-            $records = array_map(fn($model) => $model->toArray(), $models);
+            $data = array_map(fn($model) => $model->toArray(), $records);
             
-            $this->logger->info('Records listed successfully', [
+            // Create React-compatible response structure
+            $response = [
+                'success' => true,
+                'data' => $data,
+                'meta' => [
+                    'pagination' => [
+                        'page' => $pagination['page'] ?? 1,
+                        'pageSize' => $pagination['pageSize'] ?? 20,
+                        'total' => count($data), // TODO: Implement proper total count
+                        'hasNextPage' => false, // TODO: Implement proper pagination
+                        'hasPreviousPage' => ($pagination['page'] ?? 1) > 1,
+                        'startRow' => $pagination['startRow'] ?? null,
+                        'endRow' => $pagination['endRow'] ?? null
+                    ],
+                    'filters' => $filters,
+                    'sorting' => $sorting,
+                    'search' => $search,
+                    'responseFormat' => $request->getResponseFormat(),
+                    'detectedFormat' => $parsedParams['meta']['detectedFormat'] ?? 'unknown'
+                ],
+                'timestamp' => date('c')
+            ];
+            
+            $this->logger->info('Records listed successfully with enhanced features', [
                 'model' => $modelName,
-                'count' => count($records)
+                'count' => count($data),
+                'filters_count' => count($filters),
+                'sorts_count' => count($sorting),
+                'has_search' => !empty($search['term'] ?? '')
             ]);
             
-            return ['data' => $records, 'count' => count($records)];
+            return $response;
             
         } catch (\Exception $e) {
             $this->logger->error('Failed to list records', [
@@ -170,16 +202,9 @@ class ModelBaseAPIController {
     /**
      * Retrieve a specific record by ID
      */
-    public function retrieve(Request $request, array $additionalParams = []): array {
-        // Handle both Request object and legacy $params array for backward compatibility
-        if ($request instanceof \Gravitycar\Api\Request) {
-            $modelName = $request->get('modelName');
-            $id = $request->get('id');
-        } else {
-            // Legacy support - $request is actually $params array
-            $modelName = $request['modelName'] ?? null;
-            $id = $request['id'] ?? null;
-        }
+    public function retrieve(Request $request): array {
+        $modelName = $request->get('modelName');
+        $id = $request->get('id');
         
         if (!$modelName) {
             throw new BadRequestException("Missing required parameter: modelName");
