@@ -181,11 +181,15 @@ class Router {
             $request->setFilterCriteria($filterCriteria);
             $request->setSearchEngine($searchEngine);
             
-            // 3. Parse request parameters using format detection
+            // 3. Initialize and attach response formatter
+            $responseFormatter = new ResponseFormatter();
+            $request->setResponseFormatter($responseFormatter);
+            
+            // 4. Parse request parameters using format detection
             $parsedParams = $parameterParser->parseUnified($request->getRequestData());
             $request->setParsedParams($parsedParams);
             
-            // 4. Attempt model-aware validation if model can be determined
+            // 5. Attempt model-aware validation if model can be determined
             $model = $this->getModel($request);
             if ($model) {
                 $validatedParams = $this->performValidationWithModel($request, $model, $parsedParams);

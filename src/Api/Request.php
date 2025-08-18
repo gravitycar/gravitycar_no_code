@@ -364,7 +364,30 @@ class Request
      */
     public function getResponseFormat(): string
     {
-        return $this->parsedParams['responseFormat'] ?? 'simple';
+        return $this->parsedParams['responseFormat'] ?? 'standard';
+    }
+    
+    /**
+     * Format response data using the attached ResponseFormatter
+     * 
+     * @param array $data The data to format
+     * @param array $meta The metadata to include
+     * @param string|null $format Override format (optional)
+     * @return array Formatted response
+     */
+    public function formatResponse(array $data, array $meta, ?string $format = null): array
+    {
+        if (!$this->responseFormatter) {
+            // Fallback to standard format if no formatter is available
+            return [
+                'success' => true,
+                'data' => $data,
+                'meta' => $meta
+            ];
+        }
+        
+        $responseFormat = $format ?? $this->getResponseFormat();
+        return $this->responseFormatter->format($data, $meta, $responseFormat);
     }
 
     /**

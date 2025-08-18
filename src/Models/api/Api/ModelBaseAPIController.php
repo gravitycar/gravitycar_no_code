@@ -160,38 +160,30 @@ class ModelBaseAPIController {
                 $totalCount = $databaseConnector->getCountWithValidatedCriteria($model, $validatedParams, false);
             }
             
-            // Create React-compatible response structure
-            $response = [
-                'success' => true,
-                'data' => $records,
-                'meta' => [
-                    'pagination' => [
-                        'page' => $pagination['page'] ?? 1,
-                        'pageSize' => $pagination['pageSize'] ?? 20,
-                        'offset' => $pagination['offset'] ?? 0,
-                        'total' => $totalCount,
-                        'hasNextPage' => $totalCount !== null ? (($pagination['offset'] ?? 0) + ($pagination['pageSize'] ?? 20)) < $totalCount : null,
-                        'hasPreviousPage' => ($pagination['page'] ?? 1) > 1
-                    ],
-                    'filters' => $filters,
-                    'sorting' => $sorting,
-                    'search' => $search,
-                    'responseFormat' => $responseFormat,
-                    'detectedFormat' => $parsedParams['meta']['detectedFormat'] ?? 'unknown'
+            // Build comprehensive metadata for ResponseFormatter
+            $meta = [
+                'pagination' => [
+                    'page' => $pagination['page'] ?? 1,
+                    'pageSize' => $pagination['pageSize'] ?? 20,
+                    'offset' => $pagination['offset'] ?? 0,
+                    'limit' => $pagination['pageSize'] ?? 20,
+                    'total' => $totalCount,
+                    'pageCount' => $totalCount ? ceil($totalCount / ($pagination['pageSize'] ?? 20)) : 0,
+                    'hasNextPage' => $totalCount !== null ? (($pagination['offset'] ?? 0) + ($pagination['pageSize'] ?? 20)) < $totalCount : null,
+                    'hasPreviousPage' => ($pagination['page'] ?? 1) > 1
                 ],
-                'timestamp' => date('c')
+                'filters' => [
+                    'applied' => $filters
+                ],
+                'sorting' => [
+                    'applied' => $sorting
+                ],
+                'search' => [
+                    'applied' => $search
+                ],
+                'responseFormat' => $responseFormat,
+                'detectedFormat' => $parsedParams['meta']['detectedFormat'] ?? 'unknown'
             ];
-            
-            // Add AG-Grid specific properties
-            if ($responseFormat === 'ag-grid') {
-                $response['lastRow'] = $totalCount; // AG-Grid expects lastRow for infinite scroll
-                $response['secondaryColumns'] = null; // AG-Grid dynamic columns (not used)
-            }
-            
-            // Add MUI DataGrid specific properties
-            if ($responseFormat === 'mui') {
-                $response['rowCount'] = $totalCount;
-            }
             
             // Add enhanced metadata for advanced requests
             if ($responseFormat === 'advanced' || !empty($validatedParams['options']['includeAvailableFilters'])) {
@@ -199,13 +191,16 @@ class ModelBaseAPIController {
                 $searchEngine = $request->getSearchEngine();
                 
                 if ($filterCriteria) {
-                    $response['meta']['availableFilters'] = $filterCriteria->getSupportedFilters($model);
+                    $meta['filters']['available'] = $filterCriteria->getSupportedFilters($model);
                 }
                 
                 if ($searchEngine) {
-                    $response['meta']['availableSearchFields'] = $searchEngine->getSearchableFields($model);
+                    $meta['search']['available_fields'] = $searchEngine->getSearchableFields($model);
                 }
             }
+            
+            // Use ResponseFormatter for consistent response formatting
+            $response = $request->formatResponse($records, $meta, $responseFormat);
             
             $this->logger->info('Records listed successfully with enhanced features', [
                 'model' => $modelName,

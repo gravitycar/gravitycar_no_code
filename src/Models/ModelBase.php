@@ -1022,4 +1022,287 @@ abstract class ModelBase {
         
         return $routes;
     }
+    
+    // ===================================================================
+    // PHASE 3: React Library Configuration Methods
+    // ===================================================================
+    
+    /**
+     * Get searchable fields for React components
+     * 
+     * Returns fields that are appropriate for text search operations.
+     * Override in model subclasses to customize searchable fields.
+     * 
+     * @return array Array of field names that support search
+     */
+    protected function getSearchableFields(): array
+    {
+        // Check metadata first for searchable fields configuration
+        if (isset($this->metadata['searchableFields']) && is_array($this->metadata['searchableFields'])) {
+            return $this->metadata['searchableFields'];
+        }
+        
+        // Auto-detect searchable fields based on field types
+        $searchableFields = [];
+        $this->initializeModel(); // Ensure fields are loaded
+        
+        foreach ($this->fields as $fieldName => $field) {
+            if ($this->isFieldSearchable($field)) {
+                $searchableFields[] = $fieldName;
+            }
+        }
+        
+        // Ensure we always return at least ID field as a safe default
+        if (empty($searchableFields) && isset($this->fields['id'])) {
+            $searchableFields = ['id'];
+        }
+        
+        return $searchableFields;
+    }
+    
+    /**
+     * Get sortable fields for React components
+     * 
+     * Returns fields that are safe and efficient to sort by.
+     * Override in model subclasses to customize sortable fields.
+     * 
+     * @return array Array of field names that support sorting
+     */
+    protected function getSortableFields(): array
+    {
+        // Check metadata first for sortable fields configuration
+        if (isset($this->metadata['sortableFields']) && is_array($this->metadata['sortableFields'])) {
+            return $this->metadata['sortableFields'];
+        }
+        
+        // Auto-detect sortable fields based on field types
+        $sortableFields = [];
+        $this->initializeModel(); // Ensure fields are loaded
+        
+        foreach ($this->fields as $fieldName => $field) {
+            if ($this->isFieldSortable($field)) {
+                $sortableFields[] = $fieldName;
+            }
+        }
+        
+        // Default sortable fields for safety
+        $defaultSortable = ['id', 'created_at', 'updated_at'];
+        foreach ($defaultSortable as $defaultField) {
+            if (isset($this->fields[$defaultField]) && !in_array($defaultField, $sortableFields)) {
+                $sortableFields[] = $defaultField;
+            }
+        }
+        
+        return $sortableFields;
+    }
+    
+    /**
+     * Get default sorting for React components
+     * 
+     * Returns the default sort order when no sorting is specified.
+     * Override in model subclasses to customize default sorting.
+     * 
+     * @return array Array of sort definitions [['field' => 'fieldName', 'direction' => 'asc|desc']]
+     */
+    protected function getDefaultSort(): array
+    {
+        // Check metadata first for default sort configuration
+        if (isset($this->metadata['defaultSort']) && is_array($this->metadata['defaultSort'])) {
+            return $this->metadata['defaultSort'];
+        }
+        
+        // Default to ID ascending for consistent results
+        return [['field' => 'id', 'direction' => 'asc']];
+    }
+    
+    /**
+     * Get filterable fields configuration (deprecated - use field-based operators instead)
+     * 
+     * This method is maintained for backward compatibility but the new field-based
+     * operator system is preferred for filter validation.
+     * 
+     * @return array Array of filterable field configurations
+     * @deprecated Use field-based operators defined in field metadata instead
+     */
+    protected function getFilterableFields(): array
+    {
+        $this->logger->warning("getFilterableFields() is deprecated, use field-based operators instead", [
+            'model' => static::class,
+            'method' => __METHOD__
+        ]);
+        
+        // Return basic configuration for backward compatibility
+        $filterableFields = [];
+        $this->initializeModel(); // Ensure fields are loaded
+        
+        foreach ($this->fields as $fieldName => $field) {
+            $filterableFields[$fieldName] = [
+                'type' => $this->getFieldTypeName($field),
+                'operators' => $field->getSupportedOperators()
+            ];
+        }
+        
+        return $filterableFields;
+    }
+    
+    /**
+     * Custom filter validation for business rules
+     * 
+     * Override this method in model subclasses to implement custom validation
+     * logic for filters based on business rules, user permissions, etc.
+     * 
+     * @param array $filters Array of validated filters
+     * @return array Array of filters after custom validation
+     */
+    protected function validateCustomFilters(array $filters): array
+    {
+        // Default implementation - no custom validation
+        // Override in model subclasses for custom business rules
+        return $filters;
+    }
+    
+    /**
+     * Get pagination configuration for React components
+     * 
+     * Returns pagination settings specific to this model.
+     * Override in model subclasses to customize pagination behavior.
+     * 
+     * @return array Pagination configuration
+     */
+    protected function getPaginationConfig(): array
+    {
+        // Check metadata first for pagination configuration
+        if (isset($this->metadata['pagination']) && is_array($this->metadata['pagination'])) {
+            return $this->metadata['pagination'];
+        }
+        
+        // Default pagination configuration
+        return [
+            'defaultPageSize' => 20,
+            'maxPageSize' => 1000,
+            'allowedPageSizes' => [10, 20, 50, 100, 200, 500, 1000]
+        ];
+    }
+    
+    /**
+     * Get React library compatibility information
+     * 
+     * Returns information about which React libraries and formats this model supports.
+     * 
+     * @return array React compatibility configuration
+     */
+    protected function getReactCompatibility(): array
+    {
+        // Check metadata first for React compatibility configuration
+        if (isset($this->metadata['reactCompatibility']) && is_array($this->metadata['reactCompatibility'])) {
+            return $this->metadata['reactCompatibility'];
+        }
+        
+        // Default compatibility - supports all React libraries
+        return [
+            'supportedFormats' => ['standard', 'ag-grid', 'mui', 'tanstack-query', 'swr', 'infinite-scroll'],
+            'defaultFormat' => 'standard',
+            'optimizedFor' => ['tanstack-query'], // Preferred React library
+            'cursorPagination' => false, // Enable for large datasets
+            'realTimeUpdates' => false   // Enable for live data
+        ];
+    }
+    
+    // ===================================================================
+    // Helper Methods for Field Classification
+    // ===================================================================
+    
+    /**
+     * Check if a field is searchable based on its type
+     */
+    private function isFieldSearchable(FieldBase $field): bool
+    {
+        $fieldClassName = get_class($field);
+        $shortName = substr($fieldClassName, strrpos($fieldClassName, '\\') + 1);
+        
+        // Field types that support text search
+        $searchableTypes = [
+            'TextField', 'EmailField', 'BigTextField', 'Enum', 'MultiEnum'
+        ];
+        
+        // Field types that should NOT be searchable for security/performance
+        $nonSearchableTypes = [
+            'PasswordField', 'ImageField'
+        ];
+        
+        if (in_array($shortName, $nonSearchableTypes)) {
+            return false;
+        }
+        
+        return in_array($shortName, $searchableTypes);
+    }
+    
+    /**
+     * Check if a field is sortable based on its type
+     */
+    private function isFieldSortable(FieldBase $field): bool
+    {
+        $fieldClassName = get_class($field);
+        $shortName = substr($fieldClassName, strrpos($fieldClassName, '\\') + 1);
+        
+        // Field types that should NOT be sortable for performance/logic reasons
+        $nonSortableTypes = [
+            'PasswordField', 'ImageField', 'BigTextField', 'MultiEnum'
+        ];
+        
+        return !in_array($shortName, $nonSortableTypes);
+    }
+    
+    /**
+     * Get field type name for configuration
+     */
+    private function getFieldTypeName(FieldBase $field): string
+    {
+        $fieldClassName = get_class($field);
+        return substr($fieldClassName, strrpos($fieldClassName, '\\') + 1);
+    }
+    
+    // ===================================================================
+    // Public Methods for API Controllers
+    // ===================================================================
+    
+    /**
+     * Get all searchable fields (public accessor)
+     */
+    public function getSearchableFieldsList(): array
+    {
+        return $this->getSearchableFields();
+    }
+    
+    /**
+     * Get all sortable fields (public accessor)
+     */
+    public function getSortableFieldsList(): array
+    {
+        return $this->getSortableFields();
+    }
+    
+    /**
+     * Get default sort configuration (public accessor)
+     */
+    public function getDefaultSortConfig(): array
+    {
+        return $this->getDefaultSort();
+    }
+    
+    /**
+     * Get pagination configuration (public accessor)
+     */
+    public function getPaginationConfiguration(): array
+    {
+        return $this->getPaginationConfig();
+    }
+    
+    /**
+     * Get React compatibility configuration (public accessor)
+     */
+    public function getReactCompatibilityInfo(): array
+    {
+        return $this->getReactCompatibility();
+    }
 }
