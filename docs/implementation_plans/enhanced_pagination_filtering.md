@@ -328,54 +328,2274 @@ class RequestParameterParser {
 
 // Filter Criteria Management
 class FilterCriteria {
+    private array $sqlOperatorMap = [
+        'equals' => '=',
+        'notEquals' => '!=',
+        'contains' => 'LIKE',
+        'notContains' => 'NOT LIKE',
+        'startsWith' => 'LIKE',
+        'endsWith' => 'LIKE',
+        'in' => 'IN',
+        'notIn' => 'NOT IN',
+        'gt' => '>',
+        'gte' => '>=',
+        'lt' => '<',
+        'lte' => '<=',
+        'between' => 'BETWEEN',
+        'notBetween' => 'NOT BETWEEN',
+        'before' => '<',
+        'after' => '>',
+        'isEmpty' => "= ''",
+        'isNotEmpty' => "!= ''",
+        'isNull' => 'IS NULL',
+        'isNotNull' => 'IS NOT NULL',
+        'isValidEmail' => 'REGEXP', // Database-specific implementation
+        'hasFile' => 'IS NOT NULL', // For ImageField
+        'exists' => 'EXISTS', // For RelatedRecordField
+        'notExists' => 'NOT EXISTS', // For RelatedRecordField
+        'containsAll' => 'JSON_CONTAINS', // For MultiEnumField - MySQL specific
+        'containsAny' => 'JSON_OVERLAPS', // For MultiEnumField - MySQL specific
+        'containsNone' => 'NOT JSON_OVERLAPS' // For MultiEnumField - MySQL specific
+    ];
+    
+    private LoggerInterface $logger;
+    
     public function __construct(Request $request) {
-        // Setup without storing Request
+        // Setup logging for validation tracking
+        $this->logger = ServiceLocator::getLogger();
     }
     
-    public function applyToQuery(QueryBuilder $qb, array $filters, string $mainAlias, array $modelFields): void;
-    public function validateFilters(array $filters, string $model): bool;
-    public function getSupportedFilters(string $model): array;
-    public function parseAgGridFilters(array $filterModel): array;
-    public function parseMuiFilters(string $filterModelJson): array;
+    /**
+     * Validate filters against model fields and their allowed operators
+     * This is the core validation method called by Request::validateAllParameters()
+     * Uses ParameterValidationException for error aggregation
+     */
+    public function validateAndFilterForModel(array $filters, ModelBase $model): array {
+        $validatedFilters = [];
+        $validationException = new ParameterValidationException();
+        
+        $this->logger->info("Starting filter validation", [
+            'model' => get_class($model),
+            'filter_count' => count($filters),
+            'available_fields' => array_keys($model->getFields())
+        ]);
+        
+        foreach ($filters as $filter) {
+            $fieldName = $filter['field'] ?? null;
+            $operator = $filter['operator'] ?? 'equals';
+            $value = $filter['value'] ?? null;
+            
+            // Validate field name is not empty
+            if (empty($fieldName)) {
+                $validationException->addError('filter', 'field', 'Filter field name cannot be empty');
+                $this->logger->warning("Filter validation failed: Empty field name", ['filter' => $filter]);
+                continue;
+            }
+            
+            // Check if field exists in model using ModelBase method
+            if (!$model->hasField($fieldName)) {
+                $validationException->addError('filter', $fieldName, "Field '{$fieldName}' does not exist in model");
+                $this->logger->warning("Filter validation failed: Field '{$fieldName}' not found in model", [
+                    'model' => get_class($model),
+                    'available_fields' => array_keys($model->getFields()),
+                    'requested_field' => $fieldName
+                ]);
+                continue; // Skip invalid field
+            }
+            
+            // Get field instance using ModelBase method
+            $fieldInstance = $model->getField($fieldName);
+            if (!$fieldInstance) {
+                $validationException->addError('filter', $fieldName, "Could not retrieve field instance for '{$fieldName}'");
+                $this->logger->warning("Filter validation failed: Could not retrieve field instance for '{$fieldName}'", [
+                    'model' => get_class($model),
+                    'field_name' => $fieldName
+                ]);
+                continue; // Skip if field instance not available
+            }
+            
+            // CRITICAL: Only allow filtering on database fields
+            if (!$fieldInstance->isDBField()) {
+                $validationException->addError('filter', $fieldName, "Field '{$fieldName}' is not a database field and cannot be filtered");
+                $this->logger->warning("Filter validation failed: Field '{$fieldName}' is not a database field", [
+                    'field_name' => $fieldName,
+                    'field_class' => get_class($fieldInstance),
+                    'model' => get_class($model)
+                ]);
+                continue; // Skip non-database fields
+            }
+            
+            // Check if field allows filtering using field-level configuration
+            if (!$fieldInstance->isFilterable()) {
+                $validationException->addError('filter', $fieldName, "Field '{$fieldName}' is not configured to allow filtering");
+                $this->logger->warning("Filter validation failed: Field '{$fieldName}' is not filterable", [
+                    'field_name' => $fieldName,
+                    'field_class' => get_class($fieldInstance),
+                    'model' => get_class($model)
+                ]);
+                continue; // Skip non-filterable fields
+            }
+            
+            // Get allowed operators for this specific field instance
+            $allowedOperators = $fieldInstance->getOperators();
+            
+            // Validate operator is allowed for this field
+            if (!in_array($operator, $allowedOperators)) {
+                $validationException->addError('filter', $fieldName, 
+                    "Operator '{$operator}' not allowed for field '{$fieldName}'. Allowed operators: " . implode(', ', $allowedOperators));
+                $this->logger->warning("Filter validation failed: Operator '{$operator}' not allowed for field '{$fieldName}'", [
+                    'field_class' => get_class($fieldInstance),
+                    'allowed_operators' => $allowedOperators,
+                    'requested_operator' => $operator,
+                    'field_name' => $fieldName
+                ]);
+                continue; // Skip invalid operator
+            }
+            
+            // Validate operator exists in our SQL mapping
+            if (!isset($this->sqlOperatorMap[$operator])) {
+                $validationException->addError('filter', $fieldName, "Operator '{$operator}' not implemented in SQL mapping");
+                $this->logger->warning("Filter validation failed: Operator '{$operator}' not implemented in SQL mapping", [
+                    'operator' => $operator,
+                    'field_name' => $fieldName,
+                    'available_operators' => array_keys($this->sqlOperatorMap)
+                ]);
+                continue; // Skip unimplemented operator
+            }
+            
+            // Skip null/empty operators that don't need values
+            $nullOperators = ['isNull', 'isNotNull', 'isEmpty', 'isNotEmpty', 'hasFile'];
+            if (!in_array($operator, $nullOperators)) {
+                // Validate value using field's validation method
+                if (!$fieldInstance->isValidFilterValue($value, $operator)) {
+                    $validationException->addError('filter', $fieldName, 
+                        "Invalid filter value '{$value}' for operator '{$operator}' on field '{$fieldName}'");
+                    $this->logger->warning("Filter validation failed: Value invalid for field '{$fieldName}' with operator '{$operator}'", [
+                        'field_name' => $fieldName,
+                        'operator' => $operator,
+                        'value' => $value,
+                        'field_class' => get_class($fieldInstance)
+                    ]);
+                    continue; // Skip invalid value
+                }
+            }
+            
+            // Normalize/convert value using field's method
+            $normalizedValue = $fieldInstance->normalizeFilterValue($value, $operator);
+            
+            $validatedFilters[] = [
+                'field' => $fieldName,
+                'operator' => $operator,
+                'value' => $normalizedValue,
+                'sql_operator' => $this->sqlOperatorMap[$operator],
+                'field_instance' => $fieldInstance // Keep reference for advanced operations
+            ];
+            
+            $this->logger->info("Filter validation passed", [
+                'field' => $fieldName,
+                'operator' => $operator,
+                'value' => $normalizedValue,
+                'field_class' => get_class($fieldInstance)
+            ]);
+        }
+        
+        // Throw aggregated validation errors if any exist
+        if ($validationException->hasErrors()) {
+            $this->logger->warning("Filter validation failed", [
+                'total_errors' => count($validationException->getErrors()),
+                'error_summary' => $validationException->getErrorCountByType()
+            ]);
+            throw $validationException;
+        }
+        
+        $this->logger->info("Filter validation complete", [
+            'original_count' => count($filters),
+            'validated_count' => count($validatedFilters)
+        ]);
+        
+        return $validatedFilters;
+    }
+    
+    /**
+     * Apply validated filters to QueryBuilder
+     * All filters passed to this method are already validated and safe
+     */
+    public function applyToQuery(QueryBuilder $qb, array $validatedFilters, string $mainAlias): void {
+        foreach ($validatedFilters as $filter) {
+            $field = $filter['field'];
+            $operator = $filter['operator'];
+            $value = $filter['value'];
+            $fieldInstance = $filter['field_instance'];
+            
+            $columnName = "$mainAlias.$field";
+            $paramName = "filter_" . str_replace(['.', '-'], '_', $field) . '_' . uniqid();
+            
+            switch ($operator) {
+                case 'equals':
+                case 'notEquals':
+                    $sqlOp = $operator === 'equals' ? '=' : '!=';
+                    $qb->andWhere("$columnName $sqlOp :$paramName");
+                    $qb->setParameter($paramName, $value);
+                    break;
+                    
+                case 'contains':
+                case 'notContains':
+                    $sqlOp = $operator === 'contains' ? 'LIKE' : 'NOT LIKE';
+                    $qb->andWhere("$columnName $sqlOp :$paramName");
+                    $qb->setParameter($paramName, "%$value%");
+                    break;
+                    
+                case 'startsWith':
+                    $qb->andWhere("$columnName LIKE :$paramName");
+                    $qb->setParameter($paramName, "$value%");
+                    break;
+                    
+                case 'endsWith':
+                    $qb->andWhere("$columnName LIKE :$paramName");
+                    $qb->setParameter($paramName, "%$value");
+                    break;
+                    
+                case 'in':
+                case 'notIn':
+                    $sqlOp = $operator === 'in' ? 'IN' : 'NOT IN';
+                    $qb->andWhere("$columnName $sqlOp (:$paramName)");
+                    $qb->setParameter($paramName, is_array($value) ? $value : [$value], \Doctrine\DBAL\Connection::PARAM_STR_ARRAY);
+                    break;
+                    
+                case 'gt':
+                case 'gte':
+                case 'lt':
+                case 'lte':
+                    $sqlOp = $this->sqlOperatorMap[$operator];
+                    $qb->andWhere("$columnName $sqlOp :$paramName");
+                    $qb->setParameter($paramName, $value);
+                    break;
+                    
+                case 'between':
+                case 'notBetween':
+                    $sqlOp = $operator === 'between' ? 'BETWEEN' : 'NOT BETWEEN';
+                    if (is_array($value) && count($value) >= 2) {
+                        $qb->andWhere("$columnName $sqlOp :${paramName}_start AND :${paramName}_end");
+                        $qb->setParameter("${paramName}_start", $value[0]);
+                        $qb->setParameter("${paramName}_end", $value[1]);
+                    }
+                    break;
+                    
+                case 'before':
+                case 'after':
+                    $sqlOp = $operator === 'before' ? '<' : '>';
+                    $qb->andWhere("$columnName $sqlOp :$paramName");
+                    $qb->setParameter($paramName, $value);
+                    break;
+                    
+                case 'isEmpty':
+                case 'isNotEmpty':
+                    $sqlOp = $operator === 'isEmpty' ? "= ''" : "!= ''";
+                    $qb->andWhere("$columnName $sqlOp");
+                    break;
+                    
+                case 'isNull':
+                case 'isNotNull':
+                    $sqlOp = $operator === 'isNull' ? 'IS NULL' : 'IS NOT NULL';
+                    $qb->andWhere("$columnName $sqlOp");
+                    break;
+                    
+                case 'isValidEmail':
+                    // Database-specific email validation
+                    $platform = $qb->getConnection()->getDatabasePlatform()->getName();
+                    if ($platform === 'mysql') {
+                        $qb->andWhere("$columnName REGEXP :$paramName");
+                        $qb->setParameter($paramName, '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$');
+                    } else {
+                        // Fallback for other databases
+                        $qb->andWhere("$columnName LIKE :$paramName");
+                        $qb->setParameter($paramName, '%@%.%');
+                    }
+                    break;
+                    
+                case 'hasFile':
+                    // For ImageField - check if file path is not null and not empty
+                    $qb->andWhere("$columnName IS NOT NULL AND $columnName != ''");
+                    break;
+                    
+                case 'exists':
+                case 'notExists':
+                    // For RelatedRecordField - check if foreign key relationship exists
+                    if ($fieldInstance instanceof RelatedRecordField) {
+                        $relatedModel = $fieldInstance->getRelatedModel();
+                        $foreignKey = $fieldInstance->getForeignKey();
+                        $relatedTable = $relatedModel::getTableName();
+                        
+                        $existsOp = $operator === 'exists' ? 'EXISTS' : 'NOT EXISTS';
+                        $qb->andWhere("$existsOp (SELECT 1 FROM $relatedTable WHERE id = $mainAlias.$foreignKey)");
+                    }
+                    break;
+                    
+                case 'containsAll':
+                case 'containsAny':
+                case 'containsNone':
+                    // For MultiEnumField - JSON operations (MySQL specific)
+                    if ($fieldInstance instanceof MultiEnumField) {
+                        $platform = $qb->getConnection()->getDatabasePlatform()->getName();
+                        if ($platform === 'mysql') {
+                            switch ($operator) {
+                                case 'containsAll':
+                                    $qb->andWhere("JSON_CONTAINS($columnName, :$paramName)");
+                                    break;
+                                case 'containsAny':
+                                    $qb->andWhere("JSON_OVERLAPS($columnName, :$paramName)");
+                                    break;
+                                case 'containsNone':
+                                    $qb->andWhere("NOT JSON_OVERLAPS($columnName, :$paramName)");
+                                    break;
+                            }
+                            $qb->setParameter($paramName, json_encode(is_array($value) ? $value : [$value]));
+                        }
+                    }
+                    break;
+                    
+                default:
+                    $this->logger->warning("Unhandled filter operator in query building", [
+                        'operator' => $operator,
+                        'field' => $field
+                    ]);
+                    break;
+            }
+        }
+    }
+    
+    /**
+     * Validate filters without model context (basic structure validation)
+     * Used for early validation before model is known
+     */
+    public function validateFilters(array $filters, string $model): bool {
+        try {
+            foreach ($filters as $filter) {
+                if (!is_array($filter)) {
+                    return false;
+                }
+                
+                if (!isset($filter['field']) || empty($filter['field'])) {
+                    return false;
+                }
+                
+                if (!isset($filter['operator'])) {
+                    return false;
+                }
+                
+                // Check if operator exists in our mapping
+                if (!isset($this->sqlOperatorMap[$filter['operator']])) {
+                    return false;
+                }
+            }
+            return true;
+        } catch (\Exception $e) {
+            $this->logger->error("Filter validation error", [
+                'error' => $e->getMessage(),
+                'model' => $model
+            ]);
+            return false;
+        }
+    }
+    
+    /**
+     * Get all filterable fields for a model with their supported operators
+     */
+    public function getSupportedFilters(string $modelName): array {
+        try {
+            $modelInstance = ModelFactory::new($modelName);
+            $supportedFilters = [];
+            
+            // Use ModelBase methods to iterate through fields
+            foreach ($modelInstance->getFields() as $fieldName => $fieldInstance) {
+                // Only include database fields that can be filtered
+                if ($modelInstance->hasField($fieldName) && $fieldInstance->isDBField()) {
+                    $supportedFilters[$fieldName] = [
+                        'type' => get_class($fieldInstance),
+                        'operators' => $fieldInstance->getOperators(),
+                        'description' => $this->getFieldDescription($fieldInstance)
+                    ];
+                }
+            }
+            
+            return $supportedFilters;
+        } catch (\Exception $e) {
+            $this->logger->error("Error getting supported filters", [
+                'model' => $modelName,
+                'error' => $e->getMessage()
+            ]);
+            return [];
+        }
+    }
+    
+    /**
+     * Parse AG-Grid filter model into standard filter format
+     */
+    public function parseAgGridFilters(array $filterModel): array {
+        $filters = [];
+        
+        foreach ($filterModel as $field => $filterConfig) {
+            if (!is_array($filterConfig)) {
+                continue;
+            }
+            
+            $type = $filterConfig['type'] ?? 'text';
+            $filter = $filterConfig['filter'] ?? null;
+            
+            if ($filter === null) {
+                continue;
+            }
+            
+            // Map AG-Grid filter types to our operators
+            $operator = $this->mapAgGridFilterType($type, $filterConfig);
+            
+            $filters[] = [
+                'field' => $field,
+                'operator' => $operator,
+                'value' => $filter
+            ];
+        }
+        
+        return $filters;
+    }
+    
+    /**
+     * Parse MUI DataGrid filter model (JSON string) into standard format
+     */
+    public function parseMuiFilters(string $filterModelJson): array {
+        $filters = [];
+        
+        try {
+            $filterModel = json_decode($filterModelJson, true);
+            if (!is_array($filterModel)) {
+                return [];
+            }
+            
+            foreach ($filterModel as $field => $filterConfig) {
+                if (is_string($filterConfig)) {
+                    // Simple field = value format
+                    $filters[] = [
+                        'field' => $field,
+                        'operator' => 'equals',
+                        'value' => $filterConfig
+                    ];
+                } elseif (is_array($filterConfig)) {
+                    // Complex filter with operators
+                    foreach ($filterConfig as $operator => $value) {
+                        $filters[] = [
+                            'field' => $field,
+                            'operator' => $this->mapMuiOperator($operator),
+                            'value' => $value
+                        ];
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            $this->logger->error("Error parsing MUI filters", [
+                'json' => $filterModelJson,
+                'error' => $e->getMessage()
+            ]);
+        }
+        
+        return $filters;
+    }
+    
+    /**
+     * Map AG-Grid filter types to our operator names
+     */
+    private function mapAgGridFilterType(string $type, array $config): string {
+        $typeMap = [
+            'text' => 'contains',
+            'equals' => 'equals',
+            'notEqual' => 'notEquals',
+            'contains' => 'contains',
+            'notContains' => 'notContains',
+            'startsWith' => 'startsWith',
+            'endsWith' => 'endsWith',
+            'number' => 'equals',
+            'greaterThan' => 'gt',
+            'greaterThanOrEqual' => 'gte',
+            'lessThan' => 'lt',
+            'lessThanOrEqual' => 'lte',
+            'inRange' => 'between',
+            'date' => 'equals',
+            'dateEquals' => 'equals',
+            'dateBefore' => 'before',
+            'dateAfter' => 'after'
+        ];
+        
+        return $typeMap[$type] ?? 'equals';
+    }
+    
+    /**
+     * Map MUI DataGrid operators to our operator names
+     */
+    private function mapMuiOperator(string $muiOperator): string {
+        $operatorMap = [
+            'eq' => 'equals',
+            'neq' => 'notEquals',
+            'gt' => 'gt',
+            'gte' => 'gte',
+            'lt' => 'lt',
+            'lte' => 'lte',
+            'contains' => 'contains',
+            'startsWith' => 'startsWith',
+            'endsWith' => 'endsWith',
+            'is' => 'equals',
+            'not' => 'notEquals',
+            'isAnyOf' => 'in'
+        ];
+        
+        return $operatorMap[$muiOperator] ?? 'equals';
+    }
+    
+    /**
+     * Get human-readable description for a field type
+     */
+    private function getFieldDescription(FieldBase $field): string {
+        $descriptions = [
+            'TextField' => 'Text field supporting string operations',
+            'BigTextField' => 'Large text field with limited operators for performance',
+            'IntegerField' => 'Integer field supporting numeric comparisons',
+            'FloatField' => 'Float field supporting numeric comparisons',
+            'BooleanField' => 'Boolean field supporting true/false values',
+            'DateField' => 'Date field supporting date comparisons',
+            'DateTimeField' => 'DateTime field supporting timestamp comparisons',
+            'EmailField' => 'Email field with validation support',
+            'PasswordField' => 'Password field with limited operators for security',
+            'EnumField' => 'Enumeration field with predefined values',
+            'MultiEnumField' => 'Multiple selection enumeration field',
+            'RadioButtonSetField' => 'Radio button selection field',
+            'IDField' => 'ID field for primary/foreign keys',
+            'ImageField' => 'Image upload field',
+            'RelatedRecordField' => 'Foreign key relationship field'
+        ];
+        
+        $className = get_class($field);
+        $shortName = substr($className, strrpos($className, '\\') + 1);
+        
+        return $descriptions[$shortName] ?? 'Custom field type';
+    }
 }
 
 // Search Engine
 class SearchEngine {
+    private LoggerInterface $logger;
+    private array $searchOperators = [
+        'contains', 'startsWith', 'endsWith', 'equals', 'fullText'
+    ];
+    
     public function __construct(Request $request) {
-        // Setup without storing Request
+        // Setup logging for search query tracking
+        $this->logger = ServiceLocator::getLogger();
     }
     
-    public function buildSearchQuery(QueryBuilder $qb, string $searchTerm, array $searchFields, string $mainAlias): void;
-    public function getSearchableFields(string $model): array;
-    public function parseSearchTerm(string $term): array;
-    public function buildFullTextSearch(QueryBuilder $qb, string $term): void;
+    /**
+     * Build search query conditions across multiple fields
+     */
+    public function buildSearchQuery(QueryBuilder $qb, string $searchTerm, array $searchFields, string $mainAlias): void {
+        if (empty($searchTerm) || empty($searchFields)) {
+            return;
+        }
+        
+        $searchConditions = [];
+        $paramCounter = 0;
+        
+        foreach ($searchFields as $fieldConfig) {
+            $fieldName = is_array($fieldConfig) ? $fieldConfig['field'] : $fieldConfig;
+            $searchType = is_array($fieldConfig) ? ($fieldConfig['type'] ?? 'contains') : 'contains';
+            $weight = is_array($fieldConfig) ? ($fieldConfig['weight'] ?? 1.0) : 1.0;
+            
+            $paramName = "search_param_{$paramCounter}";
+            $paramCounter++;
+            
+            switch ($searchType) {
+                case 'contains':
+                    $searchConditions[] = "{$mainAlias}.{$fieldName} LIKE :{$paramName}";
+                    $qb->setParameter($paramName, "%{$searchTerm}%");
+                    break;
+                    
+                case 'startsWith':
+                    $searchConditions[] = "{$mainAlias}.{$fieldName} LIKE :{$paramName}";
+                    $qb->setParameter($paramName, "{$searchTerm}%");
+                    break;
+                    
+                case 'endsWith':
+                    $searchConditions[] = "{$mainAlias}.{$fieldName} LIKE :{$paramName}";
+                    $qb->setParameter($paramName, "%{$searchTerm}");
+                    break;
+                    
+                case 'equals':
+                    $searchConditions[] = "{$mainAlias}.{$fieldName} = :{$paramName}";
+                    $qb->setParameter($paramName, $searchTerm);
+                    break;
+                    
+                case 'fullText':
+                    // MySQL full-text search
+                    $searchConditions[] = "MATCH({$mainAlias}.{$fieldName}) AGAINST(:{$paramName} IN NATURAL LANGUAGE MODE)";
+                    $qb->setParameter($paramName, $searchTerm);
+                    break;
+                    
+                default:
+                    $this->logger->warning("Unknown search type: {$searchType} for field: {$fieldName}");
+            }
+        }
+        
+        if (!empty($searchConditions)) {
+            $qb->andWhere('(' . implode(' OR ', $searchConditions) . ')');
+            
+            $this->logger->info("Search query built", [
+                'search_term' => $searchTerm,
+                'fields_count' => count($searchFields),
+                'conditions_count' => count($searchConditions)
+            ]);
+        }
+    }
+    
+    /**
+     * Validate search parameters against model fields
+     * Uses ParameterValidationException for error aggregation
+     */
+    public function validateSearchForModel(array $searchParams, ModelBase $model): array {
+        $validatedSearch = [];
+        $validationException = new ParameterValidationException();
+        
+        // Validate search term
+        if (isset($searchParams['term']) && !empty($searchParams['term'])) {
+            $searchTerm = trim($searchParams['term']);
+            if (strlen($searchTerm) < 1) {
+                $validationException->addError('search', 'term', 'Search term cannot be empty');
+            } elseif (strlen($searchTerm) > 1000) {
+                $validationException->addError('search', 'term', 'Search term exceeds maximum length of 1000 characters');
+            } else {
+                $validatedSearch['term'] = $searchTerm;
+            }
+        }
+        
+        // Validate and filter search fields
+        $requestedFields = $searchParams['fields'] ?? [];
+        $availableFields = $this->getSearchableFields($model);
+        
+        if (empty($requestedFields)) {
+            // Use default searchable fields if none specified
+            $validatedSearch['fields'] = array_keys($availableFields);
+        } else {
+            $validFields = [];
+            foreach ($requestedFields as $fieldName) {
+                if (isset($availableFields[$fieldName])) {
+                    $validFields[] = $fieldName;
+                } else {
+                    $validationException->addError('search', $fieldName, "Field '{$fieldName}' is not searchable");
+                    $this->logger->warning("Search field not searchable", [
+                        'field' => $fieldName,
+                        'model' => get_class($model)
+                    ]);
+                }
+            }
+            $validatedSearch['fields'] = $validFields;
+            
+            // Check if any valid fields remain
+            if (empty($validFields) && !empty($requestedFields)) {
+                $validationException->addError('search', 'fields', 'None of the requested search fields are searchable');
+            }
+        }
+        
+        // Validate search type
+        $searchType = $searchParams['type'] ?? 'contains';
+        if (in_array($searchType, $this->searchOperators)) {
+            $validatedSearch['type'] = $searchType;
+        } else {
+            $validationException->addError('search', 'type', 
+                "Invalid search type '{$searchType}'. Available types: " . implode(', ', $this->searchOperators));
+            $validatedSearch['type'] = 'contains'; // Default fallback
+            $this->logger->warning("Invalid search type, defaulting to 'contains'", [
+                'requested_type' => $searchType,
+                'available_types' => $this->searchOperators
+            ]);
+        }
+        
+        // Throw aggregated validation errors if any exist
+        if ($validationException->hasErrors()) {
+            $this->logger->warning("Search validation failed", [
+                'total_errors' => count($validationException->getErrors()),
+                'error_summary' => $validationException->getErrorCountByType()
+            ]);
+            throw $validationException;
+        }
+        
+        return $validatedSearch;
+    }
+    
+    /**
+     * Get all searchable fields for a model with their search configuration
+     */
+    public function getSearchableFields(ModelBase $model): array {
+        $searchableFields = [];
+        $fields = $model->getFields();
+        
+        foreach ($fields as $fieldName => $field) {
+            // Only include database fields that are searchable
+            if (!$field->isDBField()) {
+                continue;
+            }
+            
+            // Use field-level configuration to determine searchability
+            if (!$field->isSearchable()) {
+                continue;
+            }
+            
+            $fieldType = get_class($field);
+            $shortName = substr($fieldType, strrpos($fieldType, '\\') + 1);
+            
+            // Determine search configuration based on field type
+            $searchTypes = [];
+            $weight = 1.0;
+            
+            switch ($shortName) {
+                case 'TextField':
+                case 'EmailField':
+                    $searchTypes = ['contains', 'startsWith', 'endsWith', 'equals'];
+                    $weight = 1.0;
+                    break;
+                    
+                case 'BigTextField':
+                    // BigTextField can be searchable if explicitly enabled
+                    $searchTypes = ['contains', 'fulltext'];
+                    $weight = 0.8; // Lower weight for performance reasons
+                    break;
+                    
+                case 'IntegerField':
+                case 'FloatField':
+                case 'IDField':
+                    $searchTypes = ['equals'];
+                    $weight = 1.2; // Higher weight for exact matches
+                    break;
+                    
+                case 'DateField':
+                case 'DateTimeField':
+                    $searchTypes = ['equals'];
+                    $weight = 1.0;
+                    break;
+                    
+                case 'BooleanField':
+                    $searchTypes = ['equals'];
+                    $weight = 1.0;
+                    break;
+                    
+                case 'EnumField':
+                case 'RadioButtonSetField':
+                    $searchTypes = ['equals'];
+                    $weight = 1.1;
+                    break;
+                    
+                case 'MultiEnumField':
+                    $searchTypes = ['contains', 'equals'];
+                    $weight = 0.9;
+                    break;
+                    
+                case 'PasswordField':
+                case 'ImageField':
+                    // These field types override isSearchable to false in their class definition
+                    $searchTypes = [];
+                    break;
+                    
+                case 'RelatedRecordField':
+                    // RelatedRecord fields have limited search capabilities
+                    $searchTypes = ['equals'];
+                    $weight = 0.7; // Lower weight for relationship searches
+                    break;
+                    
+                default:
+                    // Custom field types - basic search capability
+                    $searchTypes = ['contains', 'equals'];
+                    $weight = 0.8;
+            }
+            
+            // Allow metadata to override search configuration
+            $metadataSearchTypes = $field->getMetadataValue('searchTypes');
+            if (is_array($metadataSearchTypes)) {
+                $searchTypes = array_intersect($metadataSearchTypes, $this->searchOperators);
+            }
+            
+            $metadataWeight = $field->getMetadataValue('searchWeight');
+            if (is_numeric($metadataWeight)) {
+                $weight = (float) $metadataWeight;
+            }
+            
+            if (!empty($searchTypes)) {
+                $searchableFields[$fieldName] = [
+                    'field' => $fieldName,
+                    'types' => $searchTypes,
+                    'weight' => $weight,
+                    'description' => $this->getFieldDescription($field)
+                ];
+            }
+        }
+        
+        return $searchableFields;
+    }
+    
+    /**
+     * Parse search term into components for advanced search features
+     */
+    public function parseSearchTerm(string $term): array {
+        $parsedTerm = [
+            'original' => $term,
+            'cleaned' => trim($term),
+            'words' => [],
+            'phrases' => [],
+            'operators' => []
+        ];
+        
+        // Extract quoted phrases
+        if (preg_match_all('/"([^"]+)"/', $term, $matches)) {
+            $parsedTerm['phrases'] = $matches[1];
+            // Remove phrases from term for word extraction
+            $term = preg_replace('/"[^"]+"/', '', $term);
+        }
+        
+        // Extract individual words (3+ characters)
+        $words = array_filter(
+            explode(' ', $term),
+            function($word) {
+                return strlen(trim($word)) >= 2;
+            }
+        );
+        $parsedTerm['words'] = array_map('trim', $words);
+        
+        // Detect boolean operators (future enhancement)
+        if (strpos($parsedTerm['original'], ' AND ') !== false) {
+            $parsedTerm['operators'][] = 'AND';
+        }
+        if (strpos($parsedTerm['original'], ' OR ') !== false) {
+            $parsedTerm['operators'][] = 'OR';
+        }
+        if (strpos($parsedTerm['original'], ' NOT ') !== false) {
+            $parsedTerm['operators'][] = 'NOT';
+        }
+        
+        return $parsedTerm;
+    }
+    
+    /**
+     * Build MySQL full-text search query (requires FULLTEXT indexes)
+     */
+    public function buildFullTextSearch(QueryBuilder $qb, string $searchTerm, array $fullTextFields, string $mainAlias): void {
+        if (empty($searchTerm) || empty($fullTextFields)) {
+            return;
+        }
+        
+        $fullTextColumns = [];
+        foreach ($fullTextFields as $field) {
+            $fullTextColumns[] = "{$mainAlias}.{$field}";
+        }
+        
+        $columnsString = implode(', ', $fullTextColumns);
+        $qb->andWhere("MATCH({$columnsString}) AGAINST(:fulltext_term IN NATURAL LANGUAGE MODE)")
+           ->setParameter('fulltext_term', $searchTerm);
+        
+        $this->logger->info("Full-text search query built", [
+            'search_term' => $searchTerm,
+            'fields' => $fullTextFields
+        ]);
+    }
+    
+    /**
+     * Get human-readable description for a field type
+     */
+    private function getFieldDescription(FieldBase $field): string {
+        $fieldType = get_class($field);
+        $shortName = substr($fieldType, strrpos($fieldType, '\\') + 1);
+        
+        $descriptions = [
+            'TextField' => 'Text field supporting partial matches',
+            'BigTextField' => 'Large text field (full-text search available)',
+            'EmailField' => 'Email field with text search capabilities',
+            'IntegerField' => 'Integer field supporting exact matches',
+            'FloatField' => 'Decimal number field supporting exact matches',
+            'IDField' => 'ID field supporting exact matches',
+            'DateField' => 'Date field supporting exact date matches',
+            'DateTimeField' => 'Date/time field supporting exact matches',
+            'BooleanField' => 'Boolean field (true/false)',
+            'EnumField' => 'Selection field with predefined options',
+            'MultiEnumField' => 'Multiple selection field',
+            'RadioButtonSetField' => 'Radio button selection field',
+            'RelatedRecordField' => 'Related record reference'
+        ];
+        
+        return $descriptions[$shortName] ?? 'Custom field type';
+    }
+}
+
+// Sorting Manager - handles multi-field sorting with validation
+class SortingManager {
+    private LoggerInterface $logger;
+    private array $validDirections = ['asc', 'desc'];
+    private const DEFAULT_DIRECTION = 'asc';
+    private const MAX_SORT_FIELDS = 10; // Prevent excessive sorting overhead
+    
+    public function __construct(Request $request) {
+        // Setup logging for sorting operation tracking
+        $this->logger = ServiceLocator::getLogger();
+    }
+    
+    /**
+     * Validate sorting parameters against model fields
+     * Uses ParameterValidationException for error aggregation
+     */
+    public function validateSortingForModel(array $sorting, ModelBase $model): array {
+        $validatedSorting = [];
+        $validationException = new ParameterValidationException();
+        
+        $this->logger->info("Starting sorting validation", [
+            'model' => get_class($model),
+            'sort_count' => count($sorting),
+            'available_fields' => array_keys($model->getFields())
+        ]);
+        
+        // Check maximum sort fields limit
+        if (count($sorting) > self::MAX_SORT_FIELDS) {
+            $validationException->addError('sorting', 'fields', 
+                "Too many sort fields. Maximum allowed: " . self::MAX_SORT_FIELDS);
+        }
+        
+        foreach ($sorting as $index => $sort) {
+            $fieldName = $sort['field'] ?? null;
+            $direction = strtolower($sort['direction'] ?? self::DEFAULT_DIRECTION);
+            $priority = $sort['priority'] ?? $index + 1;
+            
+            // Validate field name
+            if (empty($fieldName)) {
+                $validationException->addError('sorting', 'field', 'Sorting field name cannot be empty');
+                continue;
+            }
+            
+            // Check if field exists in model
+            if (!$model->hasField($fieldName)) {
+                $validationException->addError('sorting', $fieldName, 
+                    "Field '{$fieldName}' does not exist in model");
+                continue;
+            }
+            
+            // Get field instance for validation
+            $fieldInstance = $model->getField($fieldName);
+            if (!$fieldInstance) {
+                $validationException->addError('sorting', $fieldName, 
+                    "Could not retrieve field instance for '{$fieldName}'");
+                continue;
+            }
+            
+            // CRITICAL: Only allow sorting on database fields
+            if (!$fieldInstance->isDBField()) {
+                $validationException->addError('sorting', $fieldName, 
+                    "Field '{$fieldName}' is not a database field and cannot be sorted");
+                continue;
+            }
+            
+            // Check if field allows sorting (some field types may disable sorting via metadata)
+            if (!$this->isFieldSortable($fieldInstance)) {
+                $validationException->addError('sorting', $fieldName, 
+                    "Field '{$fieldName}' does not allow sorting");
+                continue;
+            }
+            
+            // Validate sort direction
+            if (!in_array($direction, $this->validDirections)) {
+                $validationException->addError('sorting', $fieldName, 
+                    "Invalid sort direction '{$direction}'. Must be 'asc' or 'desc'");
+                $direction = self::DEFAULT_DIRECTION; // Use default for recovery
+            }
+            
+            // Validate priority (for multi-field sorting)
+            if (!is_numeric($priority) || $priority < 1) {
+                $priority = $index + 1; // Auto-assign priority based on order
+            }
+            
+            $validatedSorting[] = [
+                'field' => $fieldName,
+                'direction' => $direction,
+                'priority' => (int) $priority,
+                'field_instance' => $fieldInstance,
+                'sql_column' => $this->getSqlColumnName($fieldInstance, $fieldName)
+            ];
+            
+            $this->logger->info("Sorting validation passed", [
+                'field' => $fieldName,
+                'direction' => $direction,
+                'priority' => $priority,
+                'field_class' => get_class($fieldInstance)
+            ]);
+        }
+        
+        // Throw aggregated validation errors if any exist
+        if ($validationException->hasErrors()) {
+            $this->logger->warning("Sorting validation failed", [
+                'total_errors' => count($validationException->getErrors()),
+                'error_summary' => $validationException->getErrorCountByType()
+            ]);
+            throw $validationException;
+        }
+        
+        // Sort by priority for multi-field sorting
+        usort($validatedSorting, function($a, $b) {
+            return $a['priority'] <=> $b['priority'];
+        });
+        
+        $this->logger->info("Sorting validation complete", [
+            'original_count' => count($sorting),
+            'validated_count' => count($validatedSorting)
+        ]);
+        
+        return $validatedSorting;
+    }
+    
+    /**
+     * Apply validated sorting to QueryBuilder
+     */
+    public function applyToQuery(QueryBuilder $qb, array $validatedSorting, string $mainAlias): void {
+        foreach ($validatedSorting as $sort) {
+            $field = $sort['field'];
+            $direction = strtoupper($sort['direction']);
+            $fieldInstance = $sort['field_instance'];
+            
+            // Build column reference
+            $columnName = $this->buildColumnReference($mainAlias, $field, $fieldInstance);
+            
+            // Apply sorting with proper SQL escaping
+            $qb->addOrderBy($columnName, $direction);
+            
+            $this->logger->debug("Applied sorting", [
+                'field' => $field,
+                'direction' => $direction,
+                'column' => $columnName,
+                'priority' => $sort['priority']
+            ]);
+        }
+    }
+    
+    /**
+     * Parse various sorting parameter formats into standard format
+     */
+    public function parseSortingParams(array $params, string $format): array {
+        $sorting = [];
+        
+        switch ($format) {
+            case 'simple':
+                $sorting = $this->parseSimpleSorting($params);
+                break;
+                
+            case 'structured':
+                $sorting = $this->parseStructuredSorting($params);
+                break;
+                
+            case 'json':
+                $sorting = $this->parseJsonSorting($params);
+                break;
+                
+            case 'ag-grid':
+                $sorting = $this->parseAgGridSorting($params);
+                break;
+                
+            case 'mui':
+                $sorting = $this->parseMuiSorting($params);
+                break;
+                
+            default:
+                $this->logger->warning("Unknown sorting format", ['format' => $format]);
+                $sorting = $this->parseSimpleSorting($params);
+        }
+        
+        return $sorting;
+    }
+    
+    /**
+     * Parse simple sorting format: sort=field1:asc,field2:desc
+     */
+    private function parseSimpleSorting(array $params): array {
+        $sorting = [];
+        $sortParam = $params['sort'] ?? $params['sortBy'] ?? null;
+        
+        if (empty($sortParam)) {
+            return [];
+        }
+        
+        // Handle single field with separate direction parameter
+        if (isset($params['sortOrder']) || isset($params['sortDirection'])) {
+            $direction = $params['sortOrder'] ?? $params['sortDirection'] ?? 'asc';
+            return [[
+                'field' => $sortParam,
+                'direction' => strtolower($direction),
+                'priority' => 1
+            ]];
+        }
+        
+        // Handle multi-field format: field1:asc,field2:desc
+        $sortFields = explode(',', $sortParam);
+        foreach ($sortFields as $index => $sortField) {
+            $parts = explode(':', trim($sortField));
+            $field = trim($parts[0]);
+            $direction = isset($parts[1]) ? strtolower(trim($parts[1])) : 'asc';
+            
+            if (!empty($field)) {
+                $sorting[] = [
+                    'field' => $field,
+                    'direction' => $direction,
+                    'priority' => $index + 1
+                ];
+            }
+        }
+        
+        return $sorting;
+    }
+    
+    /**
+     * Parse structured sorting format: sort[0][field]=name&sort[0][direction]=asc
+     */
+    private function parseStructuredSorting(array $params): array {
+        $sorting = [];
+        $sortParams = $params['sort'] ?? [];
+        
+        if (!is_array($sortParams)) {
+            return [];
+        }
+        
+        foreach ($sortParams as $index => $sortConfig) {
+            if (!is_array($sortConfig)) continue;
+            
+            $field = $sortConfig['field'] ?? $sortConfig['colId'] ?? null;
+            $direction = $sortConfig['direction'] ?? $sortConfig['sort'] ?? 'asc';
+            
+            if (!empty($field)) {
+                $sorting[] = [
+                    'field' => $field,
+                    'direction' => strtolower($direction),
+                    'priority' => is_numeric($index) ? $index + 1 : count($sorting) + 1
+                ];
+            }
+        }
+        
+        return $sorting;
+    }
+    
+    /**
+     * Parse JSON sorting format (MUI DataGrid)
+     */
+    private function parseJsonSorting(array $params): array {
+        $sorting = [];
+        $sortModel = $params['sortModel'] ?? null;
+        
+        if (empty($sortModel)) {
+            return [];
+        }
+        
+        try {
+            $sortArray = is_string($sortModel) ? json_decode($sortModel, true) : $sortModel;
+            
+            if (is_array($sortArray)) {
+                foreach ($sortArray as $index => $sortConfig) {
+                    $field = $sortConfig['field'] ?? null;
+                    $direction = $sortConfig['sort'] ?? 'asc';
+                    
+                    if (!empty($field)) {
+                        $sorting[] = [
+                            'field' => $field,
+                            'direction' => strtolower($direction),
+                            'priority' => $index + 1
+                        ];
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning("Failed to parse JSON sorting", [
+                'sortModel' => $sortModel,
+                'error' => $e->getMessage()
+            ]);
+        }
+        
+        return $sorting;
+    }
+    
+    /**
+     * Parse AG-Grid sorting format
+     */
+    private function parseAgGridSorting(array $params): array {
+        return $this->parseStructuredSorting($params);
+    }
+    
+    /**
+     * Parse MUI DataGrid sorting format
+     */
+    private function parseMuiSorting(array $params): array {
+        return $this->parseJsonSorting($params);
+    }
+    
+    /**
+     * Get sortable fields for a model with their configuration
+     */
+    public function getSortableFields(ModelBase $model): array {
+        $sortableFields = [];
+        $fields = $model->getFields();
+        
+        foreach ($fields as $fieldName => $field) {
+            // Only include database fields that can be sorted
+            if (!$field->isDBField()) {
+                continue;
+            }
+            
+            // Use field-level configuration to determine sortability
+            if ($field->isSortable()) {
+                $sortableFields[$fieldName] = [
+                    'field' => $fieldName,
+                    'type' => get_class($field),
+                    'description' => $this->getFieldDescription($field),
+                    'supports_null_ordering' => $this->supportsNullOrdering($field)
+                ];
+            }
+        }
+        
+        return $sortableFields;
+    }
+    
+    /**
+     * Check if a field instance allows sorting
+     */
+    private function isFieldSortable(FieldBase $field): bool {
+        // Check metadata override
+        $sortableMetadata = $field->getMetadataValue('sortable');
+        if ($sortableMetadata !== null) {
+            return (bool) $sortableMetadata;
+        }
+        
+        // Field type-based defaults
+        $fieldType = get_class($field);
+        $shortName = substr($fieldType, strrpos($fieldType, '\\') + 1);
+        
+        switch ($shortName) {
+            case 'PasswordField':
+                // Never sortable for security reasons
+                return false;
+                
+            case 'BigTextField':
+                // Disabled by default for performance, can be enabled via metadata
+                return false;
+                
+            case 'ImageField':
+                // Not meaningful to sort by file paths
+                return false;
+                
+            case 'MultiEnumField':
+                // Complex to sort, disabled by default
+                return false;
+                
+            default:
+                // Most field types are sortable by default
+                return true;
+        }
+    }
+    
+    /**
+     * Get SQL column name for sorting
+     */
+    private function getSqlColumnName(FieldBase $field, string $fieldName): string {
+        // Allow field to customize column name for sorting
+        if (method_exists($field, 'getSortColumn')) {
+            return $field->getSortColumn();
+        }
+        
+        return $fieldName;
+    }
+    
+    /**
+     * Build proper column reference for QueryBuilder
+     */
+    private function buildColumnReference(string $mainAlias, string $field, FieldBase $fieldInstance): string {
+        $columnName = $this->getSqlColumnName($fieldInstance, $field);
+        
+        // Handle special cases like JSON fields or computed columns
+        if (method_exists($fieldInstance, 'buildSortExpression')) {
+            return $fieldInstance->buildSortExpression($mainAlias, $columnName);
+        }
+        
+        return "{$mainAlias}.{$columnName}";
+    }
+    
+    /**
+     * Check if field supports NULL ordering (NULLS FIRST/LAST)
+     */
+    private function supportsNullOrdering(FieldBase $field): bool {
+        // Fields that commonly have NULL values benefit from explicit NULL ordering
+        $fieldType = get_class($field);
+        $shortName = substr($fieldType, strrpos($fieldType, '\\') + 1);
+        
+        return in_array($shortName, [
+            'DateField', 'DateTimeField', 'FloatField', 'IntegerField', 'RelatedRecordField'
+        ]);
+    }
+    
+    /**
+     * Get human-readable description for a field type
+     */
+    private function getFieldDescription(FieldBase $field): string {
+        $fieldType = get_class($field);
+        $shortName = substr($fieldType, strrpos($fieldType, '\\') + 1);
+        
+        $descriptions = [
+            'TextField' => 'Text field - alphabetical sorting',
+            'IntegerField' => 'Integer field - numeric sorting',
+            'FloatField' => 'Decimal field - numeric sorting',
+            'DateField' => 'Date field - chronological sorting',
+            'DateTimeField' => 'DateTime field - chronological sorting',
+            'BooleanField' => 'Boolean field - false before true',
+            'EmailField' => 'Email field - alphabetical sorting',
+            'EnumField' => 'Selection field - alphabetical by value',
+            'RadioButtonSetField' => 'Radio selection - alphabetical by value',
+            'IDField' => 'ID field - numeric sorting',
+            'RelatedRecordField' => 'Related record - sorting by foreign key'
+        ];
+        
+        return $descriptions[$shortName] ?? 'Custom field type';
+    }
+    
+    /**
+     * Generate default sorting for a model
+     */
+    public function getDefaultSorting(ModelBase $model): array {
+        // Check if model defines default sorting
+        if (method_exists($model, 'getDefaultSort')) {
+            $defaultSort = $model->getDefaultSort();
+            if (!empty($defaultSort)) {
+                return $defaultSort;
+            }
+        }
+        
+        // Auto-generate sensible default sorting
+        $fields = $model->getFields();
+        
+        // Prefer ID field for primary sorting
+        if (isset($fields['id']) && $fields['id']->isDBField()) {
+            return [
+                [
+                    'field' => 'id',
+                    'direction' => 'desc',
+                    'priority' => 1
+                ]
+            ];
+        }
+        
+        // Fallback to created_at or updated_at
+        foreach (['created_at', 'updated_at'] as $timeField) {
+            if (isset($fields[$timeField]) && $fields[$timeField]->isDBField()) {
+                return [
+                    [
+                        'field' => $timeField,
+                        'direction' => 'desc',
+                        'priority' => 1
+                    ]
+                ];
+            }
+        }
+        
+        // Last resort: use first sortable field
+        foreach ($fields as $fieldName => $field) {
+            if ($field->isDBField() && $field->isSortable()) {
+                return [
+                    [
+                        'field' => $fieldName,
+                        'direction' => 'asc',
+                        'priority' => 1
+                    ]
+                ];
+            }
+        }
+        
+        // No sortable fields found
+        return [];
+    }
 }
 
 // Pagination Manager
 class PaginationManager {
+    private LoggerInterface $logger;
+    private const MAX_PAGE_SIZE = 1000;
+    private const DEFAULT_PAGE_SIZE = 20;
+    private const CURSOR_SALT = 'gc_pagination_salt_2025';
+    
     public function __construct(Request $request) {
-        // Setup without storing Request
+        // Setup logging for pagination tracking
+        $this->logger = ServiceLocator::getLogger();
     }
     
-    public function buildOffsetPagination(array $data, array $paginationParams, int $total): array;
-    public function buildCursorPagination(array $data, array $paginationParams, int $total = null): array;
-    public function calculatePageInfo(int $total, int $page, int $perPage): array;
-    public function generatePaginationLinks(string $baseUrl, array $params): array;
-    public function encodeCursor(array $lastRecord): string;
-    public function decodeCursor(string $cursor): array;
+    /**
+     * Build offset-based pagination metadata for traditional page navigation
+     */
+    public function buildOffsetPagination(array $data, array $paginationParams, int $total): array {
+        $page = max(1, (int) ($paginationParams['page'] ?? 1));
+        $perPage = $this->validatePageSize($paginationParams['pageSize'] ?? $paginationParams['per_page'] ?? self::DEFAULT_PAGE_SIZE);
+        
+        // Calculate pagination metadata
+        $totalPages = (int) ceil($total / $perPage);
+        $currentPage = min($page, max(1, $totalPages)); // Ensure current page is valid
+        $offset = ($currentPage - 1) * $perPage;
+        $hasNextPage = $currentPage < $totalPages;
+        $hasPreviousPage = $currentPage > 1;
+        
+        // Calculate item range
+        $from = $total > 0 ? $offset + 1 : 0;
+        $to = min($offset + $perPage, $total);
+        
+        $paginationMeta = [
+            'current_page' => $currentPage,
+            'per_page' => $perPage,
+            'total' => $total,
+            'total_pages' => $totalPages,
+            'from' => $from,
+            'to' => $to,
+            'has_next_page' => $hasNextPage,
+            'has_previous_page' => $hasPreviousPage,
+            'is_first_page' => $currentPage === 1,
+            'is_last_page' => $currentPage === $totalPages || $totalPages === 0,
+            'offset' => $offset,
+            'limit' => $perPage
+        ];
+        
+        // Add page numbers for pagination UI
+        $paginationMeta['page_numbers'] = $this->generatePageNumbers($currentPage, $totalPages);
+        
+        $this->logger->info("Offset pagination built", [
+            'current_page' => $currentPage,
+            'per_page' => $perPage,
+            'total' => $total,
+            'total_pages' => $totalPages
+        ]);
+        
+        return $paginationMeta;
+    }
+    
+    /**
+     * Build cursor-based pagination for infinite scroll and real-time data
+     */
+    public function buildCursorPagination(array $data, array $paginationParams, int $total = null): array {
+        $limit = $this->validatePageSize($paginationParams['limit'] ?? $paginationParams['pageSize'] ?? self::DEFAULT_PAGE_SIZE);
+        $cursor = $paginationParams['cursor'] ?? null;
+        $before = $paginationParams['before'] ?? null;
+        
+        // Determine if we have more data
+        $hasMoreData = count($data) > $limit;
+        if ($hasMoreData) {
+            // Remove the extra record used for has_next detection
+            array_pop($data);
+        }
+        
+        $paginationMeta = [
+            'limit' => $limit,
+            'has_next_page' => $hasMoreData,
+            'has_previous_page' => !empty($cursor) || !empty($before),
+            'count' => count($data)
+        ];
+        
+        // Generate cursors if we have data
+        if (!empty($data)) {
+            $firstRecord = reset($data);
+            $lastRecord = end($data);
+            
+            $paginationMeta['start_cursor'] = $this->encodeCursor($firstRecord);
+            $paginationMeta['end_cursor'] = $this->encodeCursor($lastRecord);
+            
+            // For GraphQL-style pagination
+            $paginationMeta['edges'] = array_map(function($record) {
+                return [
+                    'node' => $record,
+                    'cursor' => $this->encodeCursor($record)
+                ];
+            }, $data);
+        } else {
+            $paginationMeta['start_cursor'] = null;
+            $paginationMeta['end_cursor'] = null;
+            $paginationMeta['edges'] = [];
+        }
+        
+        // Include total count if provided (optional for performance)
+        if ($total !== null) {
+            $paginationMeta['total_count'] = $total;
+        }
+        
+        $this->logger->info("Cursor pagination built", [
+            'limit' => $limit,
+            'has_next' => $hasMoreData,
+            'count' => count($data),
+            'cursor_provided' => !empty($cursor)
+        ]);
+        
+        return $paginationMeta;
+    }
+    
+    /**
+     * Calculate comprehensive page information for UI components
+     */
+    public function calculatePageInfo(int $total, int $page, int $perPage): array {
+        $totalPages = (int) ceil($total / $perPage);
+        $currentPage = min($page, max(1, $totalPages));
+        $offset = ($currentPage - 1) * $perPage;
+        
+        return [
+            'current_page' => $currentPage,
+            'total_pages' => $totalPages,
+            'per_page' => $perPage,
+            'total' => $total,
+            'offset' => $offset,
+            'from' => $total > 0 ? $offset + 1 : 0,
+            'to' => min($offset + $perPage, $total),
+            'has_next' => $currentPage < $totalPages,
+            'has_previous' => $currentPage > 1,
+            'is_first' => $currentPage === 1,
+            'is_last' => $currentPage === $totalPages || $totalPages === 0,
+            'page_numbers' => $this->generatePageNumbers($currentPage, $totalPages),
+            'showing_from' => $offset + 1,
+            'showing_to' => min($offset + $perPage, $total),
+            'showing_of' => $total
+        ];
+    }
+    
+    /**
+     * Generate pagination navigation links for REST API hypermedia
+     */
+    public function generatePaginationLinks(string $baseUrl, array $params): array {
+        $page = (int) ($params['page'] ?? 1);
+        $perPage = $this->validatePageSize($params['pageSize'] ?? $params['per_page'] ?? self::DEFAULT_PAGE_SIZE);
+        $total = (int) ($params['total'] ?? 0);
+        $totalPages = (int) ceil($total / $perPage);
+        
+        // Remove page from params to rebuild URLs
+        $queryParams = $params;
+        unset($queryParams['page'], $queryParams['total']);
+        
+        $links = [
+            'self' => $this->buildUrl($baseUrl, array_merge($queryParams, ['page' => $page])),
+            'first' => $this->buildUrl($baseUrl, array_merge($queryParams, ['page' => 1])),
+            'last' => $totalPages > 0 ? $this->buildUrl($baseUrl, array_merge($queryParams, ['page' => $totalPages])) : null
+        ];
+        
+        // Add previous page link
+        if ($page > 1) {
+            $links['prev'] = $this->buildUrl($baseUrl, array_merge($queryParams, ['page' => $page - 1]));
+        } else {
+            $links['prev'] = null;
+        }
+        
+        // Add next page link
+        if ($page < $totalPages) {
+            $links['next'] = $this->buildUrl($baseUrl, array_merge($queryParams, ['page' => $page + 1]));
+        } else {
+            $links['next'] = null;
+        }
+        
+        return $links;
+    }
+    
+    /**
+     * Encode cursor for stateless pagination
+     */
+    public function encodeCursor(array $lastRecord): string {
+        // Use primary key and timestamp for cursor if available
+        $cursorData = [];
+        
+        // Prefer ID field for cursor
+        if (isset($lastRecord['id'])) {
+            $cursorData['id'] = $lastRecord['id'];
+        }
+        
+        // Add timestamp for ordering consistency
+        if (isset($lastRecord['created_at'])) {
+            $cursorData['created_at'] = $lastRecord['created_at'];
+        } elseif (isset($lastRecord['updated_at'])) {
+            $cursorData['updated_at'] = $lastRecord['updated_at'];
+        }
+        
+        // Add sort fields if present in record
+        foreach (['name', 'title', 'email'] as $sortField) {
+            if (isset($lastRecord[$sortField])) {
+                $cursorData[$sortField] = $lastRecord[$sortField];
+                break; // Only include one sort field
+            }
+        }
+        
+        // Add security hash to prevent cursor tampering
+        $dataString = json_encode($cursorData, JSON_SORT_KEYS);
+        $hash = hash_hmac('sha256', $dataString, self::CURSOR_SALT);
+        $cursorData['_hash'] = $hash;
+        
+        return base64_encode(json_encode($cursorData));
+    }
+    
+    /**
+     * Decode and validate cursor for pagination
+     */
+    public function decodeCursor(string $cursor): array {
+        try {
+            $decoded = base64_decode($cursor, true);
+            if ($decoded === false) {
+                throw new \InvalidArgumentException('Invalid cursor encoding');
+            }
+            
+            $cursorData = json_decode($decoded, true);
+            if (!is_array($cursorData)) {
+                throw new \InvalidArgumentException('Invalid cursor format');
+            }
+            
+            // Verify cursor integrity
+            $providedHash = $cursorData['_hash'] ?? '';
+            unset($cursorData['_hash']);
+            
+            $dataString = json_encode($cursorData, JSON_SORT_KEYS);
+            $expectedHash = hash_hmac('sha256', $dataString, self::CURSOR_SALT);
+            
+            if (!hash_equals($expectedHash, $providedHash)) {
+                throw new \InvalidArgumentException('Cursor integrity check failed');
+            }
+            
+            return $cursorData;
+            
+        } catch (\Exception $e) {
+            $this->logger->warning("Cursor decode failed", [
+                'cursor' => $cursor,
+                'error' => $e->getMessage()
+            ]);
+            
+            // Return empty array for invalid cursors - let query start from beginning
+            return [];
+        }
+    }
+    
+    /**
+     * Validate and normalize page size
+     */
+    private function validatePageSize($pageSize): int {
+        $size = (int) $pageSize;
+        
+        if ($size <= 0) {
+            return self::DEFAULT_PAGE_SIZE;
+        }
+        
+        if ($size > self::MAX_PAGE_SIZE) {
+            $this->logger->warning("Page size exceeded maximum", [
+                'requested' => $size,
+                'max_allowed' => self::MAX_PAGE_SIZE,
+                'using' => self::MAX_PAGE_SIZE
+            ]);
+            return self::MAX_PAGE_SIZE;
+        }
+        
+        return $size;
+    }
+    
+    /**
+     * Generate page numbers for pagination UI (smart pagination)
+     */
+    private function generatePageNumbers(int $currentPage, int $totalPages, int $maxVisible = 7): array {
+        if ($totalPages <= $maxVisible) {
+            return range(1, $totalPages);
+        }
+        
+        $pages = [];
+        $halfVisible = (int) floor($maxVisible / 2);
+        
+        // Always show first page
+        $pages[] = 1;
+        
+        // Calculate start and end of middle section
+        $start = max(2, $currentPage - $halfVisible);
+        $end = min($totalPages - 1, $currentPage + $halfVisible);
+        
+        // Adjust if we're near the beginning
+        if ($start <= 3) {
+            $start = 2;
+            $end = min($totalPages - 1, $maxVisible - 1);
+        }
+        
+        // Adjust if we're near the end
+        if ($end >= $totalPages - 2) {
+            $end = $totalPages - 1;
+            $start = max(2, $totalPages - $maxVisible + 2);
+        }
+        
+        // Add ellipsis if there's a gap after page 1
+        if ($start > 2) {
+            $pages[] = '...';
+        }
+        
+        // Add middle pages
+        for ($i = $start; $i <= $end; $i++) {
+            $pages[] = $i;
+        }
+        
+        // Add ellipsis if there's a gap before last page
+        if ($end < $totalPages - 1) {
+            $pages[] = '...';
+        }
+        
+        // Always show last page (if it exists and isn't already included)
+        if ($totalPages > 1) {
+            $pages[] = $totalPages;
+        }
+        
+        return $pages;
+    }
+    
+    /**
+     * Build URL with query parameters
+     */
+    private function buildUrl(string $baseUrl, array $params): string {
+        if (empty($params)) {
+            return $baseUrl;
+        }
+        
+        $queryString = http_build_query($params);
+        $separator = strpos($baseUrl, '?') !== false ? '&' : '?';
+        
+        return $baseUrl . $separator . $queryString;
+    }
+    
+    /**
+     * Build AG-Grid compatible pagination for server-side row model
+     */
+    public function buildAgGridPagination(array $data, array $paginationParams, int $total): array {
+        $startRow = (int) ($paginationParams['startRow'] ?? 0);
+        $endRow = (int) ($paginationParams['endRow'] ?? 100);
+        $requestedRows = $endRow - $startRow;
+        
+        // AG-Grid expects 'lastRow' to indicate total count for infinite scroll
+        $lastRow = count($data) < $requestedRows ? $startRow + count($data) : null;
+        
+        return [
+            'lastRow' => $lastRow, // null means more data available
+            'rowData' => $data, // AG-Grid expects 'rowData' property
+            'rowCount' => count($data),
+            'startRow' => $startRow,
+            'endRow' => $startRow + count($data),
+            'totalRows' => $total // Optional total count
+        ];
+    }
+    
+    /**
+     * Build MUI DataGrid compatible pagination metadata
+     */
+    public function buildMuiPagination(array $data, array $paginationParams, int $total): array {
+        $page = (int) ($paginationParams['page'] ?? 0); // MUI uses 0-based pages
+        $pageSize = $this->validatePageSize($paginationParams['pageSize'] ?? self::DEFAULT_PAGE_SIZE);
+        
+        return [
+            'rows' => $data, // MUI expects 'rows' property
+            'rowCount' => $total, // Total count for pagination
+            'page' => $page,
+            'pageSize' => $pageSize,
+            'loading' => false,
+            'error' => null
+        ];
+    }
 }
 
 // Response Formatter - handles multiple output formats
 class ResponseFormatter {
+    private LoggerInterface $logger;
+    private array $supportedFormats = [
+        'standard', 'tanstack', 'ag-grid', 'mui', 'infinite-scroll', 'cursor', 'swr'
+    ];
+    
     public function __construct(Request $request) {
-        // Setup without storing Request
+        // Setup logging for response formatting tracking
+        $this->logger = ServiceLocator::getLogger();
     }
     
-    public function format(array $data, array $meta, string $format): array;
-    public function formatForTanStackQuery(array $data, array $meta, array $links): array;
-    public function formatForAgGrid(array $data, int $totalCount): array;
-    public function formatForInfiniteScroll(array $data, array $pageInfo): array;
-    public function formatStandard(array $data, array $meta): array;
+    /**
+     * Universal response formatter - detects format and delegates to specific formatter
+     */
+    public function format(array $data, array $meta, string $format): array {
+        $format = strtolower($format);
+        
+        if (!in_array($format, $this->supportedFormats)) {
+            $this->logger->warning("Unsupported response format requested", [
+                'requested_format' => $format,
+                'supported_formats' => $this->supportedFormats,
+                'defaulting_to' => 'standard'
+            ]);
+            $format = 'standard';
+        }
+        
+        $response = [];
+        $startTime = microtime(true);
+        
+        switch ($format) {
+            case 'tanstack':
+                $response = $this->formatForTanStackQuery($data, $meta, $meta['links'] ?? []);
+                break;
+                
+            case 'ag-grid':
+                $totalCount = $meta['pagination']['total'] ?? count($data);
+                $response = $this->formatForAgGrid($data, $totalCount, $meta);
+                break;
+                
+            case 'mui':
+                $response = $this->formatForMuiDataGrid($data, $meta);
+                break;
+                
+            case 'infinite-scroll':
+            case 'cursor':
+                $pageInfo = $meta['pagination'] ?? [];
+                $response = $this->formatForInfiniteScroll($data, $pageInfo, $meta);
+                break;
+                
+            case 'swr':
+                $response = $this->formatForSWR($data, $meta);
+                break;
+                
+            case 'standard':
+            default:
+                $response = $this->formatStandard($data, $meta);
+                break;
+        }
+        
+        $formatTime = round((microtime(true) - $startTime) * 1000, 2);
+        $this->logger->info("Response formatted", [
+            'format' => $format,
+            'data_count' => count($data),
+            'format_time_ms' => $formatTime
+        ]);
+        
+        return $response;
+    }
+    
+    /**
+     * Format response for TanStack Query (React Query) compatibility
+     */
+    public function formatForTanStackQuery(array $data, array $meta, array $links): array {
+        $pagination = $meta['pagination'] ?? [];
+        $search = $meta['search'] ?? [];
+        $filters = $meta['filters'] ?? [];
+        
+        return [
+            'success' => true,
+            'status' => 200,
+            'data' => $data,
+            'meta' => [
+                'pagination' => [
+                    'current_page' => $pagination['current_page'] ?? 1,
+                    'per_page' => $pagination['per_page'] ?? 20,
+                    'total' => $pagination['total'] ?? count($data),
+                    'total_pages' => $pagination['total_pages'] ?? 1,
+                    'from' => $pagination['from'] ?? 1,
+                    'to' => $pagination['to'] ?? count($data),
+                    'has_next_page' => $pagination['has_next_page'] ?? false,
+                    'has_previous_page' => $pagination['has_previous_page'] ?? false
+                ],
+                'search' => [
+                    'term' => $search['term'] ?? null,
+                    'fields' => $search['fields'] ?? [],
+                    'total_searchable_fields' => count($search['available_fields'] ?? [])
+                ],
+                'filters' => [
+                    'active' => $filters['active'] ?? [],
+                    'available' => $filters['available'] ?? []
+                ],
+                'sorting' => $meta['sorting'] ?? [],
+                'query_time_ms' => $meta['query_time_ms'] ?? 0,
+                'total_query_time_ms' => $meta['total_time_ms'] ?? 0
+            ],
+            'links' => [
+                'self' => $links['self'] ?? null,
+                'first' => $links['first'] ?? null,
+                'last' => $links['last'] ?? null,
+                'prev' => $links['prev'] ?? null,
+                'next' => $links['next'] ?? null
+            ],
+            'timestamp' => date('c'), // ISO 8601 format
+            'cache_key' => $this->generateCacheKey($meta)
+        ];
+    }
+    
+    /**
+     * Format response for AG-Grid server-side row model
+     */
+    public function formatForAgGrid(array $data, int $totalCount, array $meta = []): array {
+        $pagination = $meta['pagination'] ?? [];
+        $startRow = $pagination['offset'] ?? 0;
+        $endRow = $startRow + count($data);
+        
+        // AG-Grid expects 'lastRow' to indicate when we've reached the end
+        // If we have fewer records than requested, this is the last batch
+        $requestedRows = $pagination['per_page'] ?? count($data);
+        $lastRow = count($data) < $requestedRows ? $endRow : null;
+        
+        $response = [
+            'success' => true,
+            'rowData' => $data, // AG-Grid expects 'rowData' property
+            'lastRow' => $lastRow, // null = more data available, number = total count
+            'startRow' => $startRow,
+            'endRow' => $endRow
+        ];
+        
+        // Include additional metadata that AG-Grid can use
+        if (isset($meta['columns'])) {
+            $response['secondaryColumns'] = $meta['columns'];
+        }
+        
+        if (isset($meta['group_info'])) {
+            $response['groupKeys'] = $meta['group_info'];
+        }
+        
+        // Include performance metrics
+        if (isset($meta['query_time_ms'])) {
+            $response['queryTimeMs'] = $meta['query_time_ms'];
+        }
+        
+        return $response;
+    }
+    
+    /**
+     * Format response for Material-UI DataGrid
+     */
+    public function formatForMuiDataGrid(array $data, array $meta): array {
+        $pagination = $meta['pagination'] ?? [];
+        
+        return [
+            'success' => true,
+            'rows' => $data, // MUI expects 'rows' property
+            'rowCount' => $pagination['total'] ?? count($data),
+            'page' => max(0, ($pagination['current_page'] ?? 1) - 1), // MUI uses 0-based pages
+            'pageSize' => $pagination['per_page'] ?? 25,
+            'loading' => false,
+            'error' => null,
+            'hasNextPage' => $pagination['has_next_page'] ?? false,
+            'hasPreviousPage' => $pagination['has_previous_page'] ?? false,
+            'filterModel' => $meta['filters']['active'] ?? [],
+            'sortModel' => $this->convertSortingToMuiFormat($meta['sorting'] ?? []),
+            'queryTime' => $meta['query_time_ms'] ?? 0
+        ];
+    }
+    
+    /**
+     * Format response for infinite scroll / cursor-based pagination
+     */
+    public function formatForInfiniteScroll(array $data, array $pageInfo, array $meta = []): array {
+        return [
+            'success' => true,
+            'data' => $data,
+            'pageInfo' => [
+                'hasNextPage' => $pageInfo['has_next_page'] ?? false,
+                'hasPreviousPage' => $pageInfo['has_previous_page'] ?? false,
+                'startCursor' => $pageInfo['start_cursor'] ?? null,
+                'endCursor' => $pageInfo['end_cursor'] ?? null
+            ],
+            'edges' => $pageInfo['edges'] ?? array_map(function($item, $index) use ($pageInfo) {
+                return [
+                    'node' => $item,
+                    'cursor' => $pageInfo['edges'][$index]['cursor'] ?? null
+                ];
+            }, $data, array_keys($data)),
+            'totalCount' => $pageInfo['total_count'] ?? null, // Optional for performance
+            'count' => count($data),
+            'queryTime' => $meta['query_time_ms'] ?? 0,
+            'timestamp' => date('c')
+        ];
+    }
+    
+    /**
+     * Format response for SWR library compatibility
+     */
+    public function formatForSWR(array $data, array $meta): array {
+        $pagination = $meta['pagination'] ?? [];
+        
+        return [
+            'data' => $data,
+            'pagination' => [
+                'page' => $pagination['current_page'] ?? 1,
+                'pageSize' => $pagination['per_page'] ?? 20,
+                'total' => $pagination['total'] ?? count($data),
+                'hasMore' => $pagination['has_next_page'] ?? false
+            ],
+            'meta' => [
+                'timestamp' => time(),
+                'queryTime' => $meta['query_time_ms'] ?? 0,
+                'cacheKey' => $this->generateCacheKey($meta),
+                'filters' => $meta['filters']['active'] ?? [],
+                'search' => $meta['search']['term'] ?? null
+            ],
+            'error' => null,
+            'isValidating' => false
+        ];
+    }
+    
+    /**
+     * Standard Gravitycar API response format
+     */
+    public function formatStandard(array $data, array $meta): array {
+        return [
+            'success' => true,
+            'status' => 200,
+            'data' => $data,
+            'meta' => $meta,
+            'count' => count($data),
+            'timestamp' => date('c'),
+            'api_version' => '2.0',
+            'response_format' => 'standard'
+        ];
+    }
+    
+    /**
+     * Format error response for specific React library
+     */
+    public function formatError(\Exception $exception, string $format = 'standard'): array {
+        $errorData = [
+            'message' => $exception->getMessage(),
+            'code' => $exception->getCode(),
+            'type' => get_class($exception)
+        ];
+        
+        $baseError = [
+            'success' => false,
+            'status' => $this->getHttpStatusFromException($exception),
+            'error' => $errorData,
+            'timestamp' => date('c')
+        ];
+        
+        switch (strtolower($format)) {
+            case 'tanstack':
+                return array_merge($baseError, [
+                    'data' => null,
+                    'meta' => null,
+                    'links' => null
+                ]);
+                
+            case 'ag-grid':
+                return [
+                    'success' => false,
+                    'rowData' => [],
+                    'lastRow' => 0,
+                    'error' => $errorData
+                ];
+                
+            case 'mui':
+                return [
+                    'success' => false,
+                    'rows' => [],
+                    'rowCount' => 0,
+                    'loading' => false,
+                    'error' => $errorData
+                ];
+                
+            case 'infinite-scroll':
+            case 'cursor':
+                return [
+                    'success' => false,
+                    'data' => [],
+                    'pageInfo' => [
+                        'hasNextPage' => false,
+                        'hasPreviousPage' => false,
+                        'startCursor' => null,
+                        'endCursor' => null
+                    ],
+                    'error' => $errorData
+                ];
+                
+            case 'swr':
+                return [
+                    'data' => null,
+                    'error' => $errorData,
+                    'isValidating' => false,
+                    'meta' => [
+                        'timestamp' => time()
+                    ]
+                ];
+                
+            default:
+                return $baseError;
+        }
+    }
+    
+    /**
+     * Convert internal sorting format to MUI DataGrid format
+     */
+    private function convertSortingToMuiFormat(array $sorting): array {
+        $muiSort = [];
+        
+        foreach ($sorting as $sort) {
+            if (isset($sort['field']) && isset($sort['direction'])) {
+                $muiSort[] = [
+                    'field' => $sort['field'],
+                    'sort' => strtolower($sort['direction']) === 'desc' ? 'desc' : 'asc'
+                ];
+            }
+        }
+        
+        return $muiSort;
+    }
+    
+    /**
+     * Generate cache key for client-side caching
+     */
+    private function generateCacheKey(array $meta): string {
+        $keyData = [
+            'filters' => $meta['filters']['active'] ?? [],
+            'search' => $meta['search']['term'] ?? '',
+            'sorting' => $meta['sorting'] ?? [],
+            'pagination' => [
+                'page' => $meta['pagination']['current_page'] ?? 1,
+                'per_page' => $meta['pagination']['per_page'] ?? 20
+            ]
+        ];
+        
+        return 'gc_' . md5(json_encode($keyData, JSON_SORT_KEYS));
+    }
+    
+    /**
+     * Get appropriate HTTP status code from exception
+     */
+    private function getHttpStatusFromException(\Exception $exception): int {
+        if ($exception instanceof \InvalidArgumentException) {
+            return 400; // Bad Request
+        }
+        
+        if ($exception instanceof \UnauthorizedHttpException) {
+            return 401; // Unauthorized
+        }
+        
+        if ($exception instanceof \AccessDeniedHttpException) {
+            return 403; // Forbidden
+        }
+        
+        if ($exception instanceof \NotFoundHttpException) {
+            return 404; // Not Found
+        }
+        
+        if ($exception instanceof \MethodNotAllowedHttpException) {
+            return 405; // Method Not Allowed
+        }
+        
+        if ($exception instanceof \TooManyRequestsHttpException) {
+            return 429; // Too Many Requests
+        }
+        
+        // Default to 500 for any other exception
+        return 500; // Internal Server Error
+    }
+    
+    /**
+     * Add debug information to response (development mode only)
+     */
+    public function addDebugInfo(array $response, array $debugData): array {
+        $config = \Gravitycar\Core\ServiceLocator::getConfig();
+        $isDevelopment = $config->get('environment') === 'development';
+        
+        if (!$isDevelopment) {
+            return $response;
+        }
+        
+        $response['debug'] = [
+            'sql_queries' => $debugData['queries'] ?? [],
+            'query_count' => count($debugData['queries'] ?? []),
+            'memory_usage' => memory_get_usage(true),
+            'peak_memory' => memory_get_peak_usage(true),
+            'execution_time_ms' => $debugData['execution_time_ms'] ?? 0,
+            'database_time_ms' => $debugData['database_time_ms'] ?? 0,
+            'cache_hits' => $debugData['cache_hits'] ?? 0,
+            'cache_misses' => $debugData['cache_misses'] ?? 0
+        ];
+        
+        return $response;
+    }
+    
+    /**
+     * Validate response data before formatting
+     */
+    private function validateResponseData(array $data, array $meta): void {
+        // Ensure data is an array of records
+        if (!is_array($data)) {
+            throw new \InvalidArgumentException('Response data must be an array');
+        }
+        
+        // Validate pagination metadata if present
+        if (isset($meta['pagination'])) {
+            $pagination = $meta['pagination'];
+            
+            if (isset($pagination['current_page']) && $pagination['current_page'] < 1) {
+                throw new \InvalidArgumentException('Current page must be >= 1');
+            }
+            
+            if (isset($pagination['per_page']) && $pagination['per_page'] < 1) {
+                throw new \InvalidArgumentException('Per page must be >= 1');
+            }
+            
+            if (isset($pagination['total']) && $pagination['total'] < 0) {
+                throw new \InvalidArgumentException('Total count cannot be negative');
+            }
+        }
+    }
+}
+
+// ParameterValidationException - For aggregating parameter validation errors
+class ParameterValidationException extends \Exception {
+    private array $errors = [];
+    
+    public function __construct(string $message = 'Parameter validation failed', int $code = 0, ?\Throwable $previous = null) {
+        parent::__construct($message, $code, $previous);
+    }
+    
+    /**
+     * Add a validation error to the collection
+     */
+    public function addError(string $type, string $field, string $message): void {
+        $this->errors[] = [
+            'type' => $type,        // 'filter', 'search', 'sorting', 'pagination'
+            'field' => $field,      // Field name or parameter name
+            'message' => $message,  // Human-readable error message
+            'timestamp' => date('c')
+        ];
+    }
+    
+    /**
+     * Get all collected validation errors
+     */
+    public function getErrors(): array {
+        return $this->errors;
+    }
+    
+    /**
+     * Check if any errors have been collected
+     */
+    public function hasErrors(): bool {
+        return !empty($this->errors);
+    }
+    
+    /**
+     * Get error count by type
+     */
+    public function getErrorCountByType(): array {
+        $counts = ['filter' => 0, 'search' => 0, 'sorting' => 0, 'pagination' => 0];
+        
+        foreach ($this->errors as $error) {
+            $type = $error['type'] ?? 'unknown';
+            if (isset($counts[$type])) {
+                $counts[$type]++;
+            }
+        }
+        
+        return $counts;
+    }
+    
+    /**
+     * Get errors for a specific field
+     */
+    public function getErrorsForField(string $field): array {
+        return array_filter($this->errors, function($error) use ($field) {
+            return ($error['field'] ?? '') === $field;
+        });
+    }
+    
+    /**
+     * Clear all collected errors
+     */
+    public function clearErrors(): void {
+        $this->errors = [];
+    }
 }
 
 // Enhanced API Controller Methods
@@ -391,6 +2611,228 @@ class ModelBaseAPIController {
     }
 }
 ```
+
+## 5.3 Validation Orchestration Execution Timing
+
+### 5.3.1 Controller Implementation Pattern
+
+The validation orchestration approach is executed in the **Controller layer** where the model is known. Here's the recommended implementation pattern:
+
+```php
+// Enhanced ModelBaseAPIController with validation orchestration
+class ModelBaseAPIController {
+    
+    public function list(Request $request): array {
+        // 1. Instantiate model (required for validation)
+        $modelName = $this->getModelName();
+        $model = ModelFactory::new($modelName);
+        
+        // 2. SINGLE validation call - validates ALL parameters at once
+        try {
+            $validatedParams = $request->validateAllParameters($model);
+        } catch (BadRequestException $e) {
+            // Return comprehensive error response with all validation issues
+            return $request->getResponseFormatter()->formatError($e, $request->getResponseFormat());
+        }
+        
+        // 3. Extract validated parameters (guaranteed to be valid)
+        $filters = $validatedParams['filters'];
+        $searchParams = $validatedParams['search'];
+        $sorting = $validatedParams['sorting'];
+        $pagination = $validatedParams['pagination'];
+        
+        // 4. Execute query with validated parameters
+        $databaseConnector = new DatabaseConnector();
+        $queryResult = $databaseConnector->getEnhancedList(
+            $modelName,
+            $filters,
+            $searchParams,
+            $sorting,
+            $pagination
+        );
+        
+        // 5. Format response for client library
+        return $request->getResponseFormatter()->format(
+            $queryResult['data'],
+            $queryResult['meta'],
+            $request->getResponseFormat()
+        );
+    }
+    
+    // Alternative: Individual validation methods (legacy support)
+    public function listLegacy(Request $request): array {
+        $modelName = $this->getModelName();
+        $model = ModelFactory::new($modelName);
+        
+        // Individual validation calls (less efficient, multiple exception handling)
+        try {
+            $filters = $request->getValidatedFilters($model);
+        } catch (ParameterValidationException $e) {
+            // Handle filter errors...
+        }
+        
+        try {
+            $searchParams = $request->getValidatedSearchParams($model);
+        } catch (ParameterValidationException $e) {
+            // Handle search errors...
+        }
+        
+        // ... more individual validation calls
+    }
+}
+```
+
+### 5.3.2 Execution Flow Timing
+
+**CRITICAL ARCHITECTURAL DECISION**: Validation now happens in the **Router layer** where we have model access, eliminating controller validation repetition:
+
+#### **NEW Execution Flow**:
+1. **Request Router Phase**: Parse parameters into generic structures (no validation)
+2. **Router Model Detection**: Check if `$request->has('modelName')` and instantiate model if available
+3. **Router Validation Orchestration**: Single validation call for ALL parameters against model schema
+4. **Router Error Handling**: Comprehensive BadRequestException with all validation errors
+5. **Controller Entry**: Controllers receive pre-validated parameters
+6. **Database Query Phase**: Execute with guaranteed-valid parameters
+7. **Response Formatting**: Format results for React library compatibility
+
+#### **Key Benefits of Router-Level Validation**:
+
+##### ✅ **Eliminates Controller Repetition**
+- **Before**: Every controller override needed `getValidatedFilters()`, `getValidatedSorting()`, etc.
+- **After**: Controllers just access `$request->getValidatedParams()` - no validation calls needed
+- **Impact**: Cleaner controller code, no risk of missing validation calls
+
+##### ✅ **Early Error Detection**
+- **Before**: Validation errors surfaced deep in controller methods
+- **After**: Validation happens immediately in Router before expensive controller instantiation
+- **Impact**: Better performance, cleaner error location
+
+##### ✅ **Graceful Non-Model Route Handling**
+- **Routes with model**: Full validation performed (e.g., `/Users/list`)
+- **Routes without model**: Empty arrays returned (e.g., `/metadata`, `/health`)
+- **Impact**: Consistent behavior across all route types
+
+##### ✅ **Comprehensive Error Responses**
+- **Before**: Individual validation errors thrown separately
+- **After**: All validation errors aggregated into single comprehensive response
+- **Impact**: Better developer experience, faster debugging
+
+##### ✅ **Simplified Testing**
+- **Before**: Test validation in every controller method
+- **After**: Test validation once in Router, test business logic in controllers
+- **Impact**: Reduced test complexity, better separation of concerns
+
+#### **Route Types and Validation Behavior**:
+
+```php
+// Model routes - full validation performed
+GET /Users/list?filter[age][gte]=18&sort=name:asc
+// Router extracts 'Users' from modelName parameter
+// Instantiates User model, validates all parameters
+// Controllers receive pre-validated data
+
+// Non-model routes - graceful fallback
+GET /metadata?someParam=value
+// No modelName parameter available
+// Router sets empty validated params
+// Controllers receive empty arrays, work normally
+
+// Invalid model routes - immediate error
+GET /InvalidModel/list
+// Router tries ModelFactory::new('InvalidModel')
+// ModelFactory throws exception
+// Router converts to BadRequestException with helpful error
+```
+
+#### **Controller Simplification Example**:
+
+```php
+// BEFORE (Router-level validation):
+public function list(Request $request): array {
+    $model = ModelFactory::new($this->getModelName($request));
+    
+    // Lots of repetitive validation calls
+    $filters = $request->getValidatedFilters($model);
+    $sorting = $request->getValidatedSorting($model); 
+    $search = $request->getValidatedSearchParams($model);
+    $pagination = $request->getPaginationParams();
+    
+    // ... business logic
+}
+
+// AFTER (Router-level validation):
+public function list(Request $request): array {
+    // Validation already done! Just get the validated data
+    $validatedParams = $request->getValidatedParams();
+    $filters = $validatedParams['filters'];
+    $sorting = $validatedParams['sorting'];
+    $search = $validatedParams['search'];
+    $pagination = $validatedParams['pagination'];
+    
+    // ... business logic (same as before)
+}
+```
+
+This approach transforms validation from a repetitive controller concern into a centralized Router responsibility, dramatically simplifying the framework's usage while improving error handling and performance.
+
+### 5.3.3 Error Response Structure
+
+When validation orchestration fails, clients receive comprehensive error information:
+
+```json
+{
+  "success": false,
+  "error": {
+    "message": "Invalid query parameters",
+    "type": "BadRequestException",
+    "status": 400,
+    "parameter_errors": [
+      {
+        "type": "filter",
+        "field": "invalid_field",
+        "message": "Field 'invalid_field' does not exist in model",
+        "timestamp": "2025-08-18T10:30:00+00:00"
+      },
+      {
+        "type": "search",
+        "field": "search_field",
+        "message": "Field 'search_field' is not searchable",
+        "timestamp": "2025-08-18T10:30:00+00:00"
+      }
+    ],
+    "error_count": 2,
+    "validation_summary": {
+      "filter_errors": 1,
+      "search_errors": 1,
+      "sorting_errors": 0,
+      "pagination_errors": 0,
+      "fields_with_errors": ["invalid_field", "search_field"]
+    },
+    "suggested_fixes": {
+      "filters": {
+        "message": "Check available filterable fields and operators",
+        "available_fields": ["id", "name", "email", "status", "created_at"],
+        "example": "/Users?filter[status]=active&filter[age][gte]=18"
+      },
+      "search": {
+        "message": "Check searchable fields configuration",
+        "available_fields": ["name", "email"],
+        "example": "/Users?search=john&search_fields=name,email"
+      }
+    }
+  },
+  "timestamp": "2025-08-18T10:30:00+00:00"
+}
+```
+
+### 5.3.4 Performance Benefits
+
+**Single Validation Call Advantages**:
+- **Reduced Exception Overhead**: One try/catch block instead of multiple
+- **Better User Experience**: All validation errors returned at once
+- **Faster Development**: Comprehensive error feedback reduces iteration cycles
+- **Database Protection**: Guaranteed valid parameters before expensive queries
+- **Consistent Error Format**: Standardized error response across all endpoints
 
 ## 6. Implementation Steps
 
@@ -474,6 +2916,11 @@ abstract class FieldBase {
     
     protected array $operators = []; // Default operators for this field type
     
+    // Field configuration properties
+    protected bool $isSearchable = true;
+    protected bool $isFilterable = true;
+    protected bool $isSortable = true;
+    
     // ... existing methods ...
     
     /**
@@ -482,6 +2929,27 @@ abstract class FieldBase {
      */
     public function getOperators(): array {
         return $this->operators;
+    }
+    
+    /**
+     * Check if this field can be used for searching
+     */
+    public function isSearchable(): bool {
+        return $this->isSearchable;
+    }
+    
+    /**
+     * Check if this field can be used for filtering
+     */
+    public function isFilterable(): bool {
+        return $this->isFilterable;
+    }
+    
+    /**
+     * Check if this field can be used for sorting
+     */
+    public function isSortable(): bool {
+        return $this->isSortable;
     }
     
     /**
@@ -510,7 +2978,7 @@ abstract class FieldBase {
         return $value;
     }
     
-    // Enhanced ingestMetadata to handle operators
+    // Enhanced ingestMetadata to handle operators and configuration
     public function ingestMetadata(array $metadata): void {
         // ... existing metadata ingestion ...
         
@@ -518,15 +2986,28 @@ abstract class FieldBase {
         if (isset($metadata['operators']) && is_array($metadata['operators'])) {
             $this->operators = $metadata['operators'];
         }
+        
+        // Allow metadata to override configuration flags
+        if (isset($metadata['isSearchable']) && is_bool($metadata['isSearchable'])) {
+            $this->isSearchable = $metadata['isSearchable'];
+        }
+        
+        if (isset($metadata['isFilterable']) && is_bool($metadata['isFilterable'])) {
+            $this->isFilterable = $metadata['isFilterable'];
+        }
+        
+        if (isset($metadata['isSortable']) && is_bool($metadata['isSortable'])) {
+            $this->isSortable = $metadata['isSortable'];
+        }
     }
 }
 
-// Example subclass implementations:
+// Complete Field Subclass Operator Definitions for ALL Framework Field Types:
 
 class TextField extends FieldBase {
     protected array $operators = [
-        'equals', 'contains', 'startsWith', 'endsWith', 
-        'in', 'notIn', 'isNull', 'isNotNull'
+        'equals', 'notEquals', 'contains', 'notContains', 'startsWith', 'endsWith', 
+        'in', 'notIn', 'isNull', 'isNotNull', 'isEmpty', 'isNotEmpty'
     ];
     
     public function isValidFilterValue($value, string $operator): bool {
@@ -540,11 +3021,27 @@ class TextField extends FieldBase {
         
         return is_string($value) || is_numeric($value);
     }
+    
+    public function normalizeFilterValue($value, string $operator) {
+        if (is_array($value)) {
+            return array_map('strval', $value);
+        }
+        return (string) $value;
+    }
+}
+
+class BigTextField extends TextField {
+    // Override to remove expensive operators by default for performance
+    protected array $operators = [
+        'equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull', 'isEmpty', 'isNotEmpty'
+        // Note: 'contains', 'startsWith', 'endsWith' removed due to performance
+        // Can be re-enabled per field via metadata if needed
+    ];
 }
 
 class IntegerField extends FieldBase {
     protected array $operators = [
-        'equals', 'gt', 'gte', 'lt', 'lte', 'between',
+        'equals', 'notEquals', 'gt', 'gte', 'lt', 'lte', 'between', 'notBetween',
         'in', 'notIn', 'isNull', 'isNotNull'
     ];
     
@@ -553,9 +3050,14 @@ class IntegerField extends FieldBase {
             return false;
         }
         
-        if (in_array($operator, ['in', 'notIn', 'between'])) {
+        if (in_array($operator, ['in', 'notIn'])) {
             return is_array($value) && !empty($value) && 
                    array_filter($value, 'is_numeric') === $value;
+        }
+        
+        if (in_array($operator, ['between', 'notBetween'])) {
+            return is_array($value) && count($value) === 2 && 
+                   is_numeric($value[0]) && is_numeric($value[1]);
         }
         
         return is_numeric($value);
@@ -569,8 +3071,40 @@ class IntegerField extends FieldBase {
     }
 }
 
+class FloatField extends FieldBase {
+    protected array $operators = [
+        'equals', 'notEquals', 'gt', 'gte', 'lt', 'lte', 'between', 'notBetween',
+        'in', 'notIn', 'isNull', 'isNotNull'
+    ];
+    
+    public function isValidFilterValue($value, string $operator): bool {
+        if (!parent::isValidFilterValue($value, $operator)) {
+            return false;
+        }
+        
+        if (in_array($operator, ['in', 'notIn'])) {
+            return is_array($value) && !empty($value) && 
+                   array_filter($value, 'is_numeric') === $value;
+        }
+        
+        if (in_array($operator, ['between', 'notBetween'])) {
+            return is_array($value) && count($value) === 2 && 
+                   is_numeric($value[0]) && is_numeric($value[1]);
+        }
+        
+        return is_numeric($value);
+    }
+    
+    public function normalizeFilterValue($value, string $operator) {
+        if (is_array($value)) {
+            return array_map('floatval', $value);
+        }
+        return (float) $value;
+    }
+}
+
 class BooleanField extends FieldBase {
-    protected array $operators = ['equals', 'isNull', 'isNotNull'];
+    protected array $operators = ['equals', 'notEquals', 'isNull', 'isNotNull'];
     
     public function isValidFilterValue($value, string $operator): bool {
         if (!parent::isValidFilterValue($value, $operator)) {
@@ -587,7 +3121,7 @@ class BooleanField extends FieldBase {
 
 class DateField extends FieldBase {
     protected array $operators = [
-        'equals', 'before', 'after', 'between', 
+        'equals', 'notEquals', 'before', 'after', 'between', 'notBetween',
         'isNull', 'isNotNull'
     ];
     
@@ -596,17 +3130,102 @@ class DateField extends FieldBase {
             return false;
         }
         
-        if ($operator === 'between') {
+        if (in_array($operator, ['between', 'notBetween'])) {
             return is_array($value) && count($value) === 2;
         }
         
-        // Validate date format
-        return is_string($value) || $value instanceof \DateTime;
+        // Validate date format - accept string, DateTime, or timestamp
+        return is_string($value) || $value instanceof \DateTime || is_numeric($value);
+    }
+    
+    public function normalizeFilterValue($value, string $operator) {
+        if (is_array($value)) {
+            return array_map([$this, 'normalizeDate'], $value);
+        }
+        return $this->normalizeDate($value);
+    }
+    
+    private function normalizeDate($value): string {
+        if ($value instanceof \DateTime) {
+            return $value->format('Y-m-d');
+        }
+        if (is_numeric($value)) {
+            return date('Y-m-d', $value);
+        }
+        return date('Y-m-d', strtotime($value));
     }
 }
 
-class Enum extends FieldBase {
-    protected array $operators = ['equals', 'in', 'notIn', 'isNull', 'isNotNull'];
+class DateTimeField extends FieldBase {
+    protected array $operators = [
+        'equals', 'notEquals', 'before', 'after', 'between', 'notBetween',
+        'isNull', 'isNotNull'
+    ];
+    
+    public function isValidFilterValue($value, string $operator): bool {
+        if (!parent::isValidFilterValue($value, $operator)) {
+            return false;
+        }
+        
+        if (in_array($operator, ['between', 'notBetween'])) {
+            return is_array($value) && count($value) === 2;
+        }
+        
+        return is_string($value) || $value instanceof \DateTime || is_numeric($value);
+    }
+    
+    public function normalizeFilterValue($value, string $operator) {
+        if (is_array($value)) {
+            return array_map([$this, 'normalizeDateTime'], $value);
+        }
+        return $this->normalizeDateTime($value);
+    }
+    
+    private function normalizeDateTime($value): string {
+        if ($value instanceof \DateTime) {
+            return $value->format('Y-m-d H:i:s');
+        }
+        if (is_numeric($value)) {
+            return date('Y-m-d H:i:s', $value);
+        }
+        return date('Y-m-d H:i:s', strtotime($value));
+    }
+}
+
+class EmailField extends TextField {
+    // Inherit most operators from TextField but add email-specific validation
+    protected array $operators = [
+        'equals', 'notEquals', 'contains', 'notContains', 'startsWith', 'endsWith',
+        'in', 'notIn', 'isNull', 'isNotNull', 'isEmpty', 'isNotEmpty', 'isValidEmail'
+    ];
+    
+    public function isValidFilterValue($value, string $operator): bool {
+        if (!parent::isValidFilterValue($value, $operator)) {
+            return false;
+        }
+        
+        if ($operator === 'isValidEmail') {
+            return true; // No value needed for this operator
+        }
+        
+        return true; // Parent validation handles the rest
+    }
+}
+
+class PasswordField extends FieldBase {
+    // Very limited operators for security - no search/contains operations
+    protected array $operators = ['isNull', 'isNotNull', 'isEmpty', 'isNotEmpty'];
+    
+    // Password fields should not be searchable for security reasons
+    protected bool $isSearchable = false;
+    
+    public function isValidFilterValue($value, string $operator): bool {
+        return parent::isValidFilterValue($value, $operator);
+    }
+}
+
+class EnumField extends FieldBase {
+    protected array $operators = ['equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull'];
     
     public function isValidFilterValue($value, string $operator): bool {
         if (!parent::isValidFilterValue($value, $operator)) {
@@ -624,13 +3243,94 @@ class Enum extends FieldBase {
     }
 }
 
-class BigTextField extends TextField {
-    // Override to remove expensive operators by default
+class MultiEnumField extends FieldBase {
     protected array $operators = [
-        'equals', 'in', 'notIn', 'isNull', 'isNotNull'
-        // Note: 'contains', 'startsWith', 'endsWith' removed due to performance
-        // Can be re-enabled per field via metadata if needed
+        'contains', 'notContains', 'containsAll', 'containsAny', 'containsNone',
+        'equals', 'notEquals', 'isNull', 'isNotNull', 'isEmpty', 'isNotEmpty'
     ];
+    
+    public function isValidFilterValue($value, string $operator): bool {
+        if (!parent::isValidFilterValue($value, $operator)) {
+            return false;
+        }
+        
+        $allowedOptions = $this->getOptions();
+        
+        if (in_array($operator, ['contains', 'notContains', 'containsAll', 'containsAny', 'containsNone'])) {
+            if (is_string($value)) {
+                $value = [$value]; // Single value
+            }
+            return is_array($value) && array_diff($value, $allowedOptions) === [];
+        }
+        
+        if (in_array($operator, ['equals', 'notEquals'])) {
+            return is_array($value) && array_diff($value, $allowedOptions) === [];
+        }
+        
+        return true;
+    }
+}
+
+class RadioButtonSetField extends EnumField {
+    // Same as EnumField since radio buttons represent single selection
+    protected array $operators = ['equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull'];
+}
+
+class IDField extends IntegerField {
+    // ID fields have limited operators for security and performance
+    protected array $operators = [
+        'equals', 'notEquals', 'gt', 'gte', 'lt', 'lte', 'in', 'notIn', 'isNull', 'isNotNull'
+        // Note: No 'between' operator to prevent range scans on primary keys
+    ];
+}
+
+class ImageField extends FieldBase {
+    // Image fields have very limited filtering capabilities
+    protected array $operators = ['isNull', 'isNotNull', 'isEmpty', 'isNotEmpty', 'hasFile'];
+    
+    public function isValidFilterValue($value, string $operator): bool {
+        if ($operator === 'hasFile') {
+            return is_bool($value) || in_array($value, ['true', 'false', '1', '0', 1, 0], true);
+        }
+        
+        return parent::isValidFilterValue($value, $operator);
+    }
+}
+
+class RelatedRecordField extends FieldBase {
+    protected array $operators = [
+        'equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull',
+        'exists', 'notExists' // Special operators for relationship existence
+    ];
+    
+    public function isValidFilterValue($value, string $operator): bool {
+        if (!parent::isValidFilterValue($value, $operator)) {
+            return false;
+        }
+        
+        if (in_array($operator, ['exists', 'notExists'])) {
+            return is_bool($value) || in_array($value, ['true', 'false', '1', '0', 1, 0], true);
+        }
+        
+        if (in_array($operator, ['in', 'notIn'])) {
+            return is_array($value) && !empty($value) && 
+                   array_filter($value, 'is_numeric') === $value;
+        }
+        
+        return is_numeric($value); // Expecting foreign key ID
+    }
+    
+    public function normalizeFilterValue($value, string $operator) {
+        if (in_array($operator, ['exists', 'notExists'])) {
+            return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+        }
+        
+        if (is_array($value)) {
+            return array_map('intval', $value);
+        }
+        
+        return (int) $value;
+    }
 }
 ```
 
@@ -690,9 +3390,11 @@ class Request {
     protected ?RequestParameterParser $parameterParser = null;
     protected ?FilterCriteria $filterCriteria = null;
     protected ?SearchEngine $searchEngine = null;
+    protected ?SortingManager $sortingManager = null;
     protected ?PaginationManager $paginationManager = null;
     protected ?ResponseFormatter $responseFormatter = null;
     protected ?array $parsedParams = null;
+    protected ?array $validatedParams = null; // NEW: Store validated parameters
     
     // NEW: Request data methods
     public function setRequestData(array $requestData): void {
@@ -728,6 +3430,10 @@ class Request {
         return $this->searchEngine;
     }
     
+    public function getSortingManager(): ?SortingManager {
+        return $this->sortingManager;
+    }
+    
     public function getPaginationManager(): ?PaginationManager {
         return $this->paginationManager;
     }
@@ -738,6 +3444,24 @@ class Request {
     
     public function getParsedParams(): ?array {
         return $this->parsedParams;
+    }
+    
+    // NEW: Validated parameters methods
+    public function setValidatedParams(array $validatedParams): void {
+        $this->validatedParams = $validatedParams;
+    }
+    
+    public function getValidatedParams(): array {
+        return $this->validatedParams ?? [
+            'filters' => [],
+            'search' => [],
+            'sorting' => [],
+            'pagination' => ['page' => 1, 'pageSize' => 20]
+        ];
+    }
+    
+    public function hasValidatedParams(): bool {
+        return $this->validatedParams !== null;
     }
     
     // Setters (called by Router only)
@@ -751,6 +3475,10 @@ class Request {
     
     public function setSearchEngine(SearchEngine $engine): void {
         $this->searchEngine = $engine;
+    }
+    
+    public function setSortingManager(SortingManager $manager): void {
+        $this->sortingManager = $manager;
     }
     
     public function setPaginationManager(PaginationManager $manager): void {
@@ -786,7 +3514,108 @@ class Request {
         return $this->parsedParams['format'] ?? 'standard';
     }
     
-    // NEW: Model-aware validation methods (called by Controller once model is known)
+    // NEW: Convenience methods for validated parameters (preferred for controllers)
+    public function getValidatedFilters(): array {
+        return $this->validatedParams['filters'] ?? [];
+    }
+    
+    public function getValidatedSearch(): array {
+        return $this->validatedParams['search'] ?? [];
+    }
+    
+    public function getValidatedSorting(): array {
+        return $this->validatedParams['sorting'] ?? [];
+    }
+    
+    public function getValidatedPagination(): array {
+        return $this->validatedParams['pagination'] ?? ['page' => 1, 'pageSize' => 20];
+    }
+    
+    // NEW: Validation Orchestration Method - Single Point of Parameter Validation
+    /**
+     * Validate all query parameters at once using aggregated error collection.
+     * This is the RECOMMENDED validation approach that collects all validation errors
+     * before throwing, providing comprehensive feedback to API clients.
+     * 
+     * @param ModelBase $model The model to validate parameters against
+     * @return array Validated parameters for all query components
+     * @throws BadRequestException If any validation errors occur (with all errors aggregated)
+     */
+    public function validateAllParameters(ModelBase $model): array {
+        $validationException = new ParameterValidationException();
+        $validatedParams = [];
+        
+        // Validate filters using FilterCriteria helper
+        try {
+            $filters = $this->getFilters();
+            if (!empty($filters)) {
+                $validatedParams['filters'] = $this->filterCriteria->validateAndFilterForModel($filters, $model);
+            } else {
+                $validatedParams['filters'] = [];
+            }
+        } catch (ParameterValidationException $e) {
+            // Collect filter validation errors
+            foreach ($e->getErrors() as $error) {
+                $validationException->addError($error['type'], $error['field'], $error['message']);
+            }
+            $validatedParams['filters'] = []; // Use empty array on validation failure
+        }
+        
+        // Validate search parameters using SearchEngine helper
+        try {
+            $searchParams = $this->getSearchParams();
+            if (!empty($searchParams['term'])) {
+                $validatedParams['search'] = $this->searchEngine->validateSearchForModel($searchParams, $model);
+            } else {
+                $validatedParams['search'] = [];
+            }
+        } catch (ParameterValidationException $e) {
+            // Collect search validation errors
+            foreach ($e->getErrors() as $error) {
+                $validationException->addError($error['type'], $error['field'], $error['message']);
+            }
+            $validatedParams['search'] = []; // Use empty array on validation failure
+        }
+        
+        // Validate sorting parameters using SortingManager helper
+        try {
+            $sorting = $this->getSortingParams();
+            if (!empty($sorting)) {
+                $validatedParams['sorting'] = $this->sortingManager->validateSortingForModel($sorting, $model);
+            } else {
+                $validatedParams['sorting'] = $this->sortingManager->getDefaultSorting($model);
+            }
+        } catch (ParameterValidationException $e) {
+            // Collect sorting validation errors
+            foreach ($e->getErrors() as $error) {
+                $validationException->addError($error['type'], $error['field'], $error['message']);
+            }
+            $validatedParams['sorting'] = $this->sortingManager->getDefaultSorting($model); // Use default sorting on validation failure
+        }
+        
+        // Validate pagination parameters (minimal validation, rarely fails)
+        try {
+            $paginationParams = $this->getPaginationParams();
+            $validatedParams['pagination'] = $this->validatePaginationParams($paginationParams);
+        } catch (ParameterValidationException $e) {
+            // Collect pagination validation errors
+            foreach ($e->getErrors() as $error) {
+                $validationException->addError($error['type'], $error['field'], $error['message']);
+            }
+            $validatedParams['pagination'] = ['page' => 1, 'pageSize' => 20]; // Use defaults on failure
+        }
+        
+        // Throw aggregated errors if any exist
+        if ($validationException->hasErrors()) {
+            throw $validationException; // Router will catch this and convert to BadRequestException
+        }
+        
+        return $validatedParams;
+    }
+    }
+    
+    // Legacy Model-aware validation methods (maintained for backward compatibility)
+    // DEPRECATED: Use validateAllParameters() instead for better error aggregation
     public function getValidatedFilters(ModelBase $model): array {
         $filters = $this->getFilters();
         if (empty($filters)) {
@@ -800,10 +3629,10 @@ class Request {
     public function getValidatedSorting(ModelBase $model): array {
         $sorting = $this->getSortingParams();
         if (empty($sorting)) {
-            return $model->getDefaultSort();
+            return $this->getSortingManager()->getDefaultSorting($model);
         }
         
-        return $this->validateSortingForModel($sorting, $model);
+        return $this->getSortingManager()->validateSortingForModel($sorting, $model);
     }
     
     public function getValidatedSearchParams(ModelBase $model): array {
@@ -816,21 +3645,139 @@ class Request {
         return $searchEngine ? $searchEngine->validateSearchForModel($searchParams, $model) : [];
     }
     
-    private function validateSortingForModel(array $sorting, ModelBase $model): array {
-        $sortableFields = $model->getSortableFields();
-        $validatedSorting = [];
+    private function validatePaginationParams(array $pagination): array {
+        $validationException = new ParameterValidationException();
+        $validatedPagination = [];
         
-        foreach ($sorting as $sort) {
-            $field = $sort['field'] ?? null;
-            $direction = strtoupper($sort['direction'] ?? 'ASC');
-            
-            if ($field && in_array($field, $sortableFields) && in_array($direction, ['ASC', 'DESC'])) {
-                $validatedSorting[] = ['field' => $field, 'direction' => $direction];
+        // Validate page number
+        $page = (int) ($pagination['page'] ?? 1);
+        if ($page < 1) {
+            $validationException->addError('pagination', 'page', 'Page number must be >= 1');
+            $page = 1;
+        }
+        $validatedPagination['page'] = $page;
+        
+        // Validate page size
+        $pageSize = (int) ($pagination['pageSize'] ?? $pagination['per_page'] ?? 20);
+        if ($pageSize < 1) {
+            $validationException->addError('pagination', 'pageSize', 'Page size must be >= 1');
+            $pageSize = 20;
+        }
+        if ($pageSize > 1000) {
+            $validationException->addError('pagination', 'pageSize', 'Page size exceeds maximum limit of 1000');
+            $pageSize = 1000;
+        }
+        $validatedPagination['pageSize'] = $pageSize;
+        
+        // Validate cursor if present
+        if (!empty($pagination['cursor'])) {
+            try {
+                $this->getPaginationManager()->decodeCursor($pagination['cursor']);
+                $validatedPagination['cursor'] = $pagination['cursor'];
+            } catch (\Exception $e) {
+                $validationException->addError('pagination', 'cursor', 'Invalid pagination cursor format');
             }
         }
         
-        // Fall back to default sort if no valid sorting provided
-        return !empty($validatedSorting) ? $validatedSorting : $model->getDefaultSort();
+        // Validate limit for cursor-based pagination
+        if (!empty($pagination['limit'])) {
+            $limit = (int) $pagination['limit'];
+            if ($limit < 1) {
+                $validationException->addError('pagination', 'limit', 'Limit must be >= 1');
+            } elseif ($limit > 1000) {
+                $validationException->addError('pagination', 'limit', 'Limit exceeds maximum of 1000');
+            } else {
+                $validatedPagination['limit'] = $limit;
+            }
+        }
+        
+        if ($validationException->hasErrors()) {
+            throw $validationException;
+        }
+        
+        return $validatedPagination;
+    }
+    
+    private function generateValidationSummary(array $errors): array {
+        $summary = [
+            'filter_errors' => 0,
+            'search_errors' => 0,
+            'sorting_errors' => 0,
+            'pagination_errors' => 0,
+            'fields_with_errors' => []
+        ];
+        
+        foreach ($errors as $error) {
+            $type = $error['type'] ?? 'unknown';
+            $field = $error['field'] ?? 'unknown';
+            
+            switch ($type) {
+                case 'filter':
+                    $summary['filter_errors']++;
+                    break;
+                case 'search':
+                    $summary['search_errors']++;
+                    break;
+                case 'sorting':
+                    $summary['sorting_errors']++;
+                    break;
+                case 'pagination':
+                    $summary['pagination_errors']++;
+                    break;
+            }
+            
+            if ($field !== 'unknown' && !in_array($field, $summary['fields_with_errors'])) {
+                $summary['fields_with_errors'][] = $field;
+            }
+        }
+        
+        return $summary;
+    }
+    
+    private function generateSuggestedFixes(array $errors, ModelBase $model): array {
+        $fixes = [];
+        
+        // Group errors by type for targeted suggestions
+        $errorsByType = [];
+        foreach ($errors as $error) {
+            $type = $error['type'] ?? 'unknown';
+            $errorsByType[$type][] = $error;
+        }
+        
+        // Generate suggestions based on error patterns
+        if (isset($errorsByType['filter'])) {
+            $fixes['filters'] = [
+                'message' => 'Check available filterable fields and operators',
+                'available_fields' => array_keys($this->getFilterCriteria()->getSupportedFilters(get_class($model))),
+                'example' => '/Users?filter[status]=active&filter[age][gte]=18'
+            ];
+        }
+        
+        if (isset($errorsByType['search'])) {
+            $fixes['search'] = [
+                'message' => 'Check searchable fields configuration',
+                'available_fields' => array_keys($this->getSearchEngine()->getSearchableFields($model)),
+                'example' => '/Users?search=john&search_fields=first_name,last_name'
+            ];
+        }
+        
+        if (isset($errorsByType['sorting'])) {
+            $fixes['sorting'] = [
+                'message' => 'Use valid field names and sort directions',
+                'valid_directions' => ['asc', 'desc'],
+                'example' => '/Users?sort=created_at:desc,name:asc'
+            ];
+        }
+        
+        if (isset($errorsByType['pagination'])) {
+            $fixes['pagination'] = [
+                'message' => 'Check pagination parameter values',
+                'valid_range' => ['page' => '1-N', 'pageSize' => '1-1000'],
+                'example' => '/Users?page=1&pageSize=20'
+            ];
+        }
+        
+        return $fixes;
     }
 }
 ```
@@ -880,6 +3827,7 @@ class Router {
         $parameterParser = new RequestParameterParser($request);
         $filterCriteria = new FilterCriteria($request);
         $searchEngine = new SearchEngine($request);
+        $sortingManager = new SortingManager($request);
         $paginationManager = new PaginationManager($request);
         $responseFormatter = new ResponseFormatter($request);
         
@@ -887,11 +3835,279 @@ class Router {
         $request->setParameterParser($parameterParser);
         $request->setFilterCriteria($filterCriteria);
         $request->setSearchEngine($searchEngine);
+        $request->setSortingManager($sortingManager);
         $request->setPaginationManager($paginationManager);
         $request->setResponseFormatter($responseFormatter);
         
-        // Parse parameters immediately for availability
-        $request->setParsedParams($parameterParser->parseUnified());
+        // Parse parameters immediately for availability using the new factory pattern
+        $parsedParams = $parameterParser->parseUnified($request);
+        $request->setParsedParams($parsedParams);
+        
+        // Perform validation if model is available
+        $this->performValidationWithModel($request, $parsedParams);
+    }
+    
+    /**
+     * Get model instance from request, return null if no model or invalid model
+     */
+    protected function getModel(Request $request): ?ModelBase {
+        // Only use route parameter for model detection
+        if (!$request->has('modelName')) {
+            return null;
+        }
+        
+        $modelName = $request->get('modelName');
+        if (empty($modelName)) {
+            return null;
+        }
+        
+        try {
+            $model = ModelFactory::new($modelName);
+            $this->logger->info("Model instantiated for validation", [
+                'model_name' => $modelName,
+                'model_class' => get_class($model)
+            ]);
+            return $model;
+        } catch (\Exception $e) {
+            // ModelFactory failed - this is a client error
+            $this->logger->warning("Invalid model name in route", [
+                'model_name' => $modelName,
+                'error' => $e->getMessage()
+            ]);
+            throw new BadRequestException("Invalid model name: {$modelName}", [
+                'error' => 'MODEL_NOT_FOUND',
+                'model_name' => $modelName,
+                'available_models' => $this->getAvailableModels() // Optional helper
+            ]);
+        }
+    }
+    
+    /**
+     * Perform validation using validation orchestration approach
+     */
+    protected function performValidationWithModel(Request $request, array $parsedParams): void {
+        $model = $this->getModel($request);
+        
+        if (!$model) {
+            // No model available - set empty validated params for graceful fallback
+            $request->setValidatedParams([
+                'filters' => [],
+                'search' => [],
+                'sorting' => [],
+                'pagination' => $this->getDefaultPagination($parsedParams)
+            ]);
+            
+            $this->logger->info("No model available for validation, using empty parameters", [
+                'route' => $request->getPath(),
+                'has_model_param' => $request->has('modelName')
+            ]);
+            return;
+        }
+        
+        // Use validation orchestration to validate all parameters at once
+        try {
+            $validatedParams = $request->validateAllParameters($model);
+            $request->setValidatedParams($validatedParams);
+            
+            $this->logger->info("Parameter validation successful", [
+                'model' => get_class($model),
+                'filters_count' => count($validatedParams['filters']),
+                'sorting_count' => count($validatedParams['sorting']),
+                'has_search' => !empty($validatedParams['search']['term'])
+            ]);
+            
+        } catch (ParameterValidationException $e) {
+            // Validation failed - throw comprehensive error
+            $this->logger->warning("Parameter validation failed in Router", [
+                'model' => get_class($model),
+                'total_errors' => count($e->getErrors()),
+                'error_summary' => $e->getErrorCountByType()
+            ]);
+            
+            throw new BadRequestException('Invalid query parameters', [
+                'errors' => $e->getErrors(),
+                'model' => get_class($model),
+                'validation_summary' => $this->generateValidationSummary($e->getErrors()),
+                'suggestions' => $this->generateSuggestedFixes($e->getErrors(), $model),
+                'available_filters' => $this->getAvailableFilters($model),
+                'available_sort_fields' => $this->getAvailableSortFields($model)
+            ]);
+        }
+    }
+    
+    /**
+     * Get default pagination when no model is available
+     */
+    protected function getDefaultPagination(array $parsedParams): array {
+        $pagination = $parsedParams['pagination'] ?? [];
+        return [
+            'page' => max(1, (int) ($pagination['page'] ?? 1)),
+            'pageSize' => min(1000, max(1, (int) ($pagination['pageSize'] ?? 20))),
+            'type' => $pagination['type'] ?? 'simple'
+        ];
+    }
+    
+    /**
+     * Generate validation error summary for API response
+     */
+    protected function generateValidationSummary(array $errors): array {
+        $summary = [
+            'total_errors' => count($errors),
+            'error_types' => [],
+            'affected_fields' => []
+        ];
+        
+        foreach ($errors as $error) {
+            $type = $error['type'] ?? 'unknown';
+            $field = $error['field'] ?? 'unknown';
+            
+            if (!isset($summary['error_types'][$type])) {
+                $summary['error_types'][$type] = 0;
+            }
+            $summary['error_types'][$type]++;
+            
+            if (!in_array($field, $summary['affected_fields'])) {
+                $summary['affected_fields'][] = $field;
+            }
+        }
+        
+        return $summary;
+    }
+    
+    /**
+     * Generate suggested fixes for validation errors
+     */
+    protected function generateSuggestedFixes(array $errors, ModelBase $model): array {
+        $fixes = [];
+        $errorsByType = [];
+        
+        // Group errors by type
+        foreach ($errors as $error) {
+            $type = $error['type'] ?? 'unknown';
+            $errorsByType[$type][] = $error;
+        }
+        
+        // Generate type-specific suggestions
+        if (isset($errorsByType['filter'])) {
+            $fixes['filters'] = [
+                'message' => 'Check field names and operators',
+                'available_fields' => array_keys($model->getFields()),
+                'example' => 'filter[field_name][operator]=value'
+            ];
+        }
+        
+        if (isset($errorsByType['search'])) {
+            $fixes['search'] = [
+                'message' => 'Verify search fields and term length',
+                'searchable_fields' => $this->getSearchableFields($model),
+                'example' => 'search=term&search_fields=field1,field2'
+            ];
+        }
+        
+        if (isset($errorsByType['sorting'])) {
+            $fixes['sorting'] = [
+                'message' => 'Use valid field names and directions (asc/desc)',
+                'sortable_fields' => $this->getSortableFields($model),
+                'example' => 'sort=field1:asc,field2:desc'
+            ];
+        }
+        
+        if (isset($errorsByType['pagination'])) {
+            $fixes['pagination'] = [
+                'message' => 'Check page numbers and sizes',
+                'limits' => ['min_page' => 1, 'max_page_size' => 1000],
+                'example' => 'page=1&pageSize=20'
+            ];
+        }
+        
+        return $fixes;
+    }
+    
+    /**
+     * Get available filters for a model (for error responses)
+     */
+    protected function getAvailableFilters(ModelBase $model): array {
+        $filters = [];
+        foreach ($model->getFields() as $fieldName => $field) {
+            if ($field->isDBField()) {
+                $filters[$fieldName] = [
+                    'operators' => $field->getOperators(),
+                    'type' => get_class($field)
+                ];
+            }
+        }
+        return $filters;
+    }
+    
+    /**
+     * Get available sort fields for a model (for error responses)
+     */
+    protected function getAvailableSortFields(ModelBase $model): array {
+        $sortableFields = [];
+        foreach ($model->getFields() as $fieldName => $field) {
+            if ($field->isDBField() && $this->isFieldSortable($field)) {
+                $sortableFields[] = $fieldName;
+            }
+        }
+        return $sortableFields;
+    }
+    
+    /**
+     * Get searchable fields for a model (for error responses)
+     */
+    protected function getSearchableFields(ModelBase $model): array {
+        $searchableFields = [];
+        foreach ($model->getFields() as $fieldName => $field) {
+            if ($field->isDBField() && $this->isFieldSearchable($field)) {
+                $searchableFields[] = $fieldName;
+            }
+        }
+        return $searchableFields;
+    }
+    
+    /**
+     * Check if field is sortable (helper for error messages)
+     */
+    protected function isFieldSortable(FieldBase $field): bool {
+        // Basic sortability check - can be enhanced
+        $sortableMetadata = $field->getMetadataValue('sortable');
+        if ($sortableMetadata !== null) {
+            return (bool) $sortableMetadata;
+        }
+        
+        // Most fields are sortable by default except certain types
+        $fieldType = get_class($field);
+        $shortName = substr($fieldType, strrpos($fieldType, '\\') + 1);
+        
+        $nonSortableTypes = ['PasswordField', 'ImageField'];
+        return !in_array($shortName, $nonSortableTypes);
+    }
+    
+    /**
+     * Check if field is searchable (helper for error messages)
+     */
+    protected function isFieldSearchable(FieldBase $field): bool {
+        // Basic searchability check - can be enhanced
+        $searchableMetadata = $field->getMetadataValue('searchable');
+        if ($searchableMetadata !== null) {
+            return (bool) $searchableMetadata;
+        }
+        
+        // Text fields are searchable by default
+        $fieldType = get_class($field);
+        $shortName = substr($fieldType, strrpos($fieldType, '\\') + 1);
+        
+        $searchableTypes = ['TextField', 'EmailField', 'IntegerField', 'FloatField', 'EnumField'];
+        return in_array($shortName, $searchableTypes);
+    }
+    
+    /**
+     * Get list of available models (optional helper for error responses)
+     */
+    protected function getAvailableModels(): array {
+        // This could be implemented to return a list of available models
+        // For now, return empty array to avoid complexity
+        return [];
     }
     
     // UPDATED: Remove $additionalParams parameter
@@ -919,69 +4135,842 @@ class Router {
 
 #### Step 3: Helper Classes Enhancement for Request Data Access
 ```php
-class RequestParameterParser {
-    // Constructor receives Request but DOES NOT store it
-    public function __construct(Request $request) {
-        // Can access both path params and request data during initialization
-        // $request->get() for path params
-        // $request->getRequestData() for query/body params
+// Abstract base class for format-specific request parsers
+abstract class FormatSpecificRequestParser {
+    protected const MAX_PAGE_SIZE = 1000;
+    protected const MAX_FILTER_DEPTH = 10;
+    protected const DEFAULT_PAGE_SIZE = 20;
+    
+    protected LoggerInterface $logger;
+    protected array $requestData;
+    
+    public function __construct(array $requestData) {
+        $this->requestData = $requestData;
+        $this->logger = ServiceLocator::getLogger();
     }
     
-    public function parseUnified(Request $request): array {
-        $format = $this->detectFormat($request);
-        
+    /**
+     * Get the format identifier for this parser
+     */
+    abstract public function getFormatName(): string;
+    
+    /**
+     * Check if this parser can handle the given request data
+     */
+    abstract public function canHandle(array $requestData): bool;
+    
+    /**
+     * Parse pagination parameters for this format
+     */
+    abstract public function parsePagination(): array;
+    
+    /**
+     * Parse filter parameters for this format
+     */
+    abstract public function parseFilters(): array;
+    
+    /**
+     * Parse sorting parameters for this format
+     */
+    abstract public function parseSorting(): array;
+    
+    /**
+     * Parse search parameters for this format
+     */
+    abstract public function parseSearch(): array;
+    
+    /**
+     * Parse additional options for this format
+     */
+    public function parseOptions(): array {
         return [
-            'pagination' => $this->parsePagination($request, $format),
-            'filters' => $this->parseFilters($request, $format),
-            'sorting' => $this->parseSorting($request, $format),
-            'search' => $this->parseSearch($request, $format),
-            'format' => $format
+            'include_total' => $this->parseBooleanParam($this->requestData['include_total'] ?? 'true'),
+            'include_metadata' => $this->parseBooleanParam($this->requestData['include_metadata'] ?? 'true'),
+            'include_deleted' => $this->parseBooleanParam($this->requestData['include_deleted'] ?? 'false'),
+            'include_related' => $this->parseRelatedFields($this->requestData['include_related'] ?? []),
+            'response_format' => $this->requestData['response_format'] ?? $this->getFormatName(),
+            'debug' => $this->parseBooleanParam($this->requestData['debug'] ?? 'false')
         ];
     }
     
-    public function detectFormat(Request $request): string {
-        $requestData = $request->getRequestData();
+    /**
+     * Get default page size from config
+     */
+    protected function getDefaultPageSize(): int {
+        $config = \Gravitycar\Core\ServiceLocator::getConfig();
+        return $config->get('default_page_size', self::DEFAULT_PAGE_SIZE);
+    }
+    
+    /**
+     * Normalize operator names across different formats
+     */
+    protected function normalizeOperator(string $operator): string {
+        $operatorMap = [
+            // AG-Grid operators
+            'contains' => 'contains',
+            'notContains' => 'notContains',
+            'equals' => 'equals',
+            'notEqual' => 'notEquals',
+            'startsWith' => 'startsWith',
+            'endsWith' => 'endsWith',
+            'lessThan' => 'lt',
+            'lessThanOrEqual' => 'lte',
+            'greaterThan' => 'gt',
+            'greaterThanOrEqual' => 'gte',
+            'inRange' => 'between',
+            
+            // MUI operators
+            'is' => 'equals',
+            'not' => 'notEquals',
+            'after' => 'gt',
+            'onOrAfter' => 'gte',
+            'before' => 'lt',
+            'onOrBefore' => 'lte',
+            'isEmpty' => 'isEmpty',
+            'isNotEmpty' => 'isNotEmpty',
+            'isAnyOf' => 'in',
+            
+            // Standard operators
+            'eq' => 'equals',
+            'ne' => 'notEquals',
+            'neq' => 'notEquals',
+            'like' => 'contains',
+            'ilike' => 'contains',
+            'begins_with' => 'startsWith',
+            'ends_with' => 'endsWith',
+            'gte' => 'gte',
+            'lte' => 'lte',
+            'gt' => 'gt',
+            'lt' => 'lt',
+            'in' => 'in',
+            'not_in' => 'notIn',
+            'null' => 'isNull',
+            'not_null' => 'isNotNull',
+            'between' => 'between'
+        ];
         
-        // Detect based on parameter patterns:
-        if (isset($requestData['startRow']) && isset($requestData['endRow'])) {
-            return 'ag-grid';
+        return $operatorMap[strtolower($operator)] ?? $operator;
+    }
+    
+    /**
+     * Parse filter values based on operator type
+     */
+    protected function parseFilterValue($value, string $operator) {
+        switch ($operator) {
+            case 'in':
+            case 'notIn':
+                if (is_string($value)) {
+                    return array_map('trim', explode(',', $value));
+                }
+                return is_array($value) ? $value : [$value];
+                
+            case 'between':
+            case 'notBetween':
+                if (is_string($value)) {
+                    $parts = array_map('trim', explode(',', $value));
+                    return count($parts) >= 2 ? [$parts[0], $parts[1]] : $value;
+                }
+                return is_array($value) ? $value : [$value];
+                
+            default:
+                return $value;
         }
-        if (isset($requestData['filterModel']) || isset($requestData['sortModel'])) {
-            return 'mui';
+    }
+    
+    /**
+     * Parse search fields specification
+     */
+    protected function parseSearchFields($fields): array {
+        if (is_string($fields)) {
+            return array_map('trim', explode(',', $fields));
         }
-        if (isset($requestData['filter']) && is_array($requestData['filter'])) {
-            return 'structured';
+        
+        return is_array($fields) ? $fields : [];
+    }
+    
+    /**
+     * Parse boolean parameters
+     */
+    protected function parseBooleanParam($value): bool {
+        if (is_bool($value)) {
+            return $value;
         }
+        
+        if (is_string($value)) {
+            return in_array(strtolower($value), ['true', '1', 'yes', 'on']);
+        }
+        
+        return (bool) $value;
+    }
+    
+    /**
+     * Parse related fields specification
+     */
+    protected function parseRelatedFields($fields): array {
+        if (is_string($fields)) {
+            return array_map('trim', explode(',', $fields));
+        }
+        
+        return is_array($fields) ? $fields : [];
+    }
+    
+    /**
+     * Validate direction parameter
+     */
+    protected function validateDirection(string $direction): string {
+        $direction = strtoupper(trim($direction));
+        return in_array($direction, ['ASC', 'DESC']) ? $direction : 'ASC';
+    }
+    
+    /**
+     * Sanitize field name
+     */
+    protected function sanitizeFieldName(string $field): ?string {
+        $field = trim($field);
+        // Basic sanitization - allow alphanumeric, underscore, and dot for relationships
+        if (preg_match('/^[a-zA-Z_][a-zA-Z0-9_\.]*$/', $field)) {
+            return $field;
+        }
+        
+        $this->logger->warning("Invalid field name detected", ['field' => $field]);
+        return null;
+    }
+}
+
+// AG-Grid format parser
+class AgGridRequestParser extends FormatSpecificRequestParser {
+    
+    public function getFormatName(): string {
+        return 'ag-grid';
+    }
+    
+    public function canHandle(array $requestData): bool {
+        return isset($requestData['startRow']) && isset($requestData['endRow']);
+    }
+    
+    public function parsePagination(): array {
+        $startRow = max(0, (int) ($this->requestData['startRow'] ?? 0));
+        $endRow = (int) ($this->requestData['endRow'] ?? 100);
+        $pageSize = min(self::MAX_PAGE_SIZE, max(1, $endRow - $startRow));
+        
+        return [
+            'type' => 'ag-grid',
+            'startRow' => $startRow,
+            'endRow' => $endRow,
+            'pageSize' => $pageSize,
+            'offset' => $startRow,
+            'limit' => $pageSize
+        ];
+    }
+    
+    public function parseFilters(): array {
+        $filters = [];
+        
+        if (!isset($this->requestData['filters']) || !is_array($this->requestData['filters'])) {
+            return $filters;
+        }
+        
+        foreach ($this->requestData['filters'] as $field => $filterDef) {
+            $field = $this->sanitizeFieldName($field);
+            if (!$field || !is_array($filterDef)) {
+                continue;
+            }
+            
+            $operator = $filterDef['type'] ?? 'equals';
+            $value = $filterDef['filter'] ?? null;
+            
+            $operator = $this->normalizeOperator($operator);
+            
+            if ($value !== null && $value !== '') {
+                $filters[] = [
+                    'field' => $field,
+                    'operator' => $operator,
+                    'value' => $this->parseFilterValue($value, $operator)
+                ];
+            }
+        }
+        
+        return $filters;
+    }
+    
+    public function parseSorting(): array {
+        $sorting = [];
+        
+        if (!isset($this->requestData['sort']) || !is_array($this->requestData['sort'])) {
+            return $sorting;
+        }
+        
+        foreach ($this->requestData['sort'] as $index => $sortDef) {
+            if (!is_array($sortDef)) continue;
+            
+            $field = $this->sanitizeFieldName($sortDef['colId'] ?? $sortDef['field'] ?? '');
+            $direction = $this->validateDirection($sortDef['sort'] ?? $sortDef['direction'] ?? 'ASC');
+            
+            if ($field) {
+                $sorting[] = [
+                    'field' => $field,
+                    'direction' => $direction,
+                    'priority' => $index + 1
+                ];
+            }
+        }
+        
+        return $sorting;
+    }
+    
+    public function parseSearch(): array {
+        $search = [
+            'term' => '',
+            'fields' => [],
+            'mode' => 'contains'
+        ];
+        
+        // AG-Grid global search
+        if (isset($this->requestData['globalFilter'])) {
+            $search['term'] = trim($this->requestData['globalFilter']);
+        }
+        
+        return $search;
+    }
+}
+
+// MUI DataGrid format parser
+class MuiDataGridRequestParser extends FormatSpecificRequestParser {
+    
+    public function getFormatName(): string {
+        return 'mui';
+    }
+    
+    public function canHandle(array $requestData): bool {
+        return isset($requestData['filterModel']) || isset($requestData['sortModel']);
+    }
+    
+    public function parsePagination(): array {
+        $page = max(0, (int) ($this->requestData['page'] ?? 0)); // 0-based for MUI
+        $pageSize = min(self::MAX_PAGE_SIZE, max(1, (int) ($this->requestData['pageSize'] ?? 25)));
+        
+        return [
+            'type' => 'mui',
+            'page' => $page,
+            'pageSize' => $pageSize,
+            'offset' => $page * $pageSize,
+            'limit' => $pageSize
+        ];
+    }
+    
+    public function parseFilters(): array {
+        $filters = [];
+        
+        if (!isset($this->requestData['filterModel'])) {
+            return $filters;
+        }
+        
+        $filterModel = $this->decodeJsonParam($this->requestData['filterModel']);
+        if (!is_array($filterModel)) {
+            return $filters;
+        }
+        
+        // Handle items array format (MUI DataGrid Pro)
+        if (isset($filterModel['items']) && is_array($filterModel['items'])) {
+            foreach ($filterModel['items'] as $item) {
+                if (!is_array($item)) continue;
+                
+                $field = $this->sanitizeFieldName($item['field'] ?? '');
+                $operator = $this->normalizeOperator($item['operator'] ?? 'equals');
+                $value = $item['value'] ?? null;
+                
+                if ($field && $value !== null && $value !== '') {
+                    $filters[] = [
+                        'field' => $field,
+                        'operator' => $operator,
+                        'value' => $this->parseFilterValue($value, $operator)
+                    ];
+                }
+            }
+        } else {
+            // Handle direct field mapping format
+            foreach ($filterModel as $field => $filterDef) {
+                $field = $this->sanitizeFieldName($field);
+                if (!$field) continue;
+                
+                if (is_scalar($filterDef)) {
+                    // Simple field = value format
+                    if ($filterDef !== null && $filterDef !== '') {
+                        $filters[] = [
+                            'field' => $field,
+                            'operator' => 'equals',
+                            'value' => $filterDef
+                        ];
+                    }
+                } elseif (is_array($filterDef)) {
+                    // Complex filter definition
+                    foreach ($filterDef as $operator => $value) {
+                        $normalizedOperator = $this->normalizeOperator($operator);
+                        if ($value !== null && $value !== '') {
+                            $filters[] = [
+                                'field' => $field,
+                                'operator' => $normalizedOperator,
+                                'value' => $this->parseFilterValue($value, $normalizedOperator)
+                            ];
+                        }
+                    }
+                }
+            }
+        }
+        
+        return $filters;
+    }
+    
+    public function parseSorting(): array {
+        $sorting = [];
+        
+        if (!isset($this->requestData['sortModel'])) {
+            return $sorting;
+        }
+        
+        $sortModel = $this->decodeJsonParam($this->requestData['sortModel']);
+        if (!is_array($sortModel)) {
+            return $sorting;
+        }
+        
+        foreach ($sortModel as $index => $sortDef) {
+            if (!is_array($sortDef)) continue;
+            
+            $field = $this->sanitizeFieldName($sortDef['field'] ?? '');
+            $direction = $this->validateDirection($sortDef['sort'] ?? $sortDef['direction'] ?? 'ASC');
+            
+            if ($field) {
+                $sorting[] = [
+                    'field' => $field,
+                    'direction' => $direction,
+                    'priority' => $index + 1
+                ];
+            }
+        }
+        
+        return $sorting;
+    }
+    
+    public function parseSearch(): array {
+        return [
+            'term' => trim($this->requestData['search'] ?? ''),
+            'fields' => [],
+            'mode' => 'contains'
+        ];
+    }
+    
+    /**
+     * Decode JSON parameter (string or array)
+     */
+    private function decodeJsonParam($param) {
+        if (is_string($param)) {
+            $decoded = json_decode($param, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $this->logger->warning("Invalid JSON in parameter", [
+                    'json_error' => json_last_error_msg(),
+                    'param' => substr($param, 0, 100) // Log first 100 chars
+                ]);
+                return null;
+            }
+            return $decoded;
+        }
+        
+        return $param;
+    }
+}
+
+// Structured format parser (filter[field][operator]=value)
+class StructuredRequestParser extends FormatSpecificRequestParser {
+    
+    public function getFormatName(): string {
+        return 'structured';
+    }
+    
+    public function canHandle(array $requestData): bool {
+        return isset($requestData['filter']) && is_array($requestData['filter']);
+    }
+    
+    public function parsePagination(): array {
+        $page = max(1, (int) ($this->requestData['page'] ?? 1)); // 1-based
+        $pageSize = min(self::MAX_PAGE_SIZE, max(1, (int) ($this->requestData['pageSize'] ?? $this->getDefaultPageSize())));
+        
+        return [
+            'type' => 'structured',
+            'page' => $page,
+            'pageSize' => $pageSize,
+            'offset' => ($page - 1) * $pageSize,
+            'limit' => $pageSize
+        ];
+    }
+    
+    public function parseFilters(): array {
+        $filters = [];
+        
+        if (!isset($this->requestData['filter']) || !is_array($this->requestData['filter'])) {
+            return $filters;
+        }
+        
+        foreach ($this->requestData['filter'] as $field => $filterDef) {
+            $field = $this->sanitizeFieldName($field);
+            if (!$field) continue;
+            
+            if (is_scalar($filterDef)) {
+                // Simple field = value format
+                if ($filterDef !== null && $filterDef !== '') {
+                    $filters[] = [
+                        'field' => $field,
+                        'operator' => 'equals',
+                        'value' => $filterDef
+                    ];
+                }
+            } elseif (is_array($filterDef)) {
+                // Complex filter definition: filter[field][operator] = value
+                foreach ($filterDef as $operator => $value) {
+                    $normalizedOperator = $this->normalizeOperator($operator);
+                    if ($value !== null && $value !== '') {
+                        $filters[] = [
+                            'field' => $field,
+                            'operator' => $normalizedOperator,
+                            'value' => $this->parseFilterValue($value, $normalizedOperator)
+                        ];
+                    }
+                }
+            }
+        }
+        
+        return $filters;
+    }
+    
+    public function parseSorting(): array {
+        $sorting = [];
+        
+        if (isset($this->requestData['sort']) && is_array($this->requestData['sort'])) {
+            foreach ($this->requestData['sort'] as $index => $sortDef) {
+                if (!is_array($sortDef)) continue;
+                
+                $field = $this->sanitizeFieldName($sortDef['field'] ?? '');
+                $direction = $this->validateDirection($sortDef['direction'] ?? 'ASC');
+                
+                if ($field) {
+                    $sorting[] = [
+                        'field' => $field,
+                        'direction' => $direction,
+                        'priority' => is_numeric($index) ? $index + 1 : count($sorting) + 1
+                    ];
+                }
+            }
+        }
+        
+        return $sorting;
+    }
+    
+    public function parseSearch(): array {
+        $search = [
+            'term' => trim($this->requestData['search'] ?? ''),
+            'fields' => $this->parseSearchFields($this->requestData['search_fields'] ?? []),
+            'mode' => $this->requestData['search_mode'] ?? 'contains'
+        ];
+        
+        return $search;
+    }
+}
+
+// Advanced format parser (comprehensive parameter support)
+class AdvancedRequestParser extends FormatSpecificRequestParser {
+    
+    public function getFormatName(): string {
+        return 'advanced';
+    }
+    
+    public function canHandle(array $requestData): bool {
+        return isset($requestData['search_fields']) || 
+               isset($requestData['per_page']) ||
+               isset($requestData['include_total']);
+    }
+    
+    public function parsePagination(): array {
+        $page = max(1, (int) ($this->requestData['page'] ?? 1)); // 1-based
+        $perPage = min(self::MAX_PAGE_SIZE, max(1, (int) ($this->requestData['per_page'] ?? $this->getDefaultPageSize())));
+        
+        return [
+            'type' => 'advanced',
+            'page' => $page,
+            'per_page' => $perPage,
+            'pageSize' => $perPage,
+            'offset' => ($page - 1) * $perPage,
+            'limit' => $perPage,
+            'cursor' => $this->requestData['cursor'] ?? null,
+            'before' => $this->requestData['before'] ?? null
+        ];
+    }
+    
+    public function parseFilters(): array {
+        $filters = [];
+        
+        // Parse structured filters first (if present)
+        if (isset($this->requestData['filter']) && is_array($this->requestData['filter'])) {
+            $structuredParser = new StructuredRequestParser($this->requestData);
+            $filters = array_merge($filters, $structuredParser->parseFilters());
+        }
+        
+        // Parse direct field filters (field=value format)
+        $excludeParams = ['page', 'per_page', 'search', 'search_fields', 'search_mode', 'sort', 'filter', 'cursor', 'before', 'include_total', 'include_metadata', 'include_deleted', 'include_related', 'response_format', 'debug'];
+        
+        foreach ($this->requestData as $key => $value) {
+            if (in_array($key, $excludeParams)) {
+                continue;
+            }
+            
+            $field = $this->sanitizeFieldName($key);
+            if ($field && is_scalar($value) && $value !== '') {
+                $filters[] = [
+                    'field' => $field,
+                    'operator' => 'equals',
+                    'value' => $value
+                ];
+            }
+        }
+        
+        return $filters;
+    }
+    
+    public function parseSorting(): array {
+        $sorting = [];
+        
+        if (isset($this->requestData['sort'])) {
+            if (is_string($this->requestData['sort'])) {
+                // Parse comma-separated format: "field1:desc,field2:asc"
+                $sortPairs = explode(',', $this->requestData['sort']);
+                foreach ($sortPairs as $index => $sortPair) {
+                    $parts = explode(':', trim($sortPair));
+                    $field = $this->sanitizeFieldName(trim($parts[0] ?? ''));
+                    $direction = $this->validateDirection(trim($parts[1] ?? 'ASC'));
+                    
+                    if ($field) {
+                        $sorting[] = [
+                            'field' => $field,
+                            'direction' => $direction,
+                            'priority' => $index + 1
+                        ];
+                    }
+                }
+            } elseif (is_array($this->requestData['sort'])) {
+                // Parse structured array format
+                $structuredParser = new StructuredRequestParser($this->requestData);
+                $sorting = $structuredParser->parseSorting();
+            }
+        }
+        
+        return $sorting;
+    }
+    
+    public function parseSearch(): array {
+        return [
+            'term' => trim($this->requestData['search'] ?? ''),
+            'fields' => $this->parseSearchFields($this->requestData['search_fields'] ?? []),
+            'mode' => $this->requestData['search_mode'] ?? 'contains'
+        ];
+    }
+}
+
+// Simple/Default format parser (basic field=value parameters)
+class SimpleRequestParser extends FormatSpecificRequestParser {
+    
+    public function getFormatName(): string {
         return 'simple';
     }
     
-    private function parsePagination(Request $request, string $format): array {
-        $requestData = $request->getRequestData();
-        
-        switch ($format) {
-            case 'ag-grid':
-                return [
-                    'startRow' => (int) ($requestData['startRow'] ?? 0),
-                    'endRow' => (int) ($requestData['endRow'] ?? 100),
-                    'type' => 'ag-grid'
-                ];
-            case 'mui':
-                return [
-                    'page' => (int) ($requestData['page'] ?? 0), // 0-based for MUI
-                    'pageSize' => (int) ($requestData['pageSize'] ?? 25),
-                    'type' => 'mui'
-                ];
-            default:
-                return [
-                    'page' => (int) ($requestData['page'] ?? 1), // 1-based for standard
-                    'pageSize' => (int) ($requestData['pageSize'] ?? 20),
-                    'type' => 'standard'
-                ];
-        }
+    public function canHandle(array $requestData): bool {
+        // Default parser - always can handle any request
+        return true;
     }
     
-    // Similar implementations for parseFilters, parseSorting, parseSearch
+    public function parsePagination(): array {
+        $page = max(1, (int) ($this->requestData['page'] ?? 1)); // 1-based for standard
+        $pageSize = min(self::MAX_PAGE_SIZE, max(1, (int) ($this->requestData['pageSize'] ?? $this->getDefaultPageSize())));
+        
+        return [
+            'type' => 'simple',
+            'page' => $page,
+            'pageSize' => $pageSize,
+            'offset' => ($page - 1) * $pageSize,
+            'limit' => $pageSize
+        ];
+    }
+    
+    public function parseFilters(): array {
+        $filters = [];
+        
+        // Parse direct field parameters (excluding known pagination/sort parameters)
+        $excludeParams = ['page', 'pageSize', 'search', 'sortBy', 'sortOrder', 'limit', 'offset'];
+        
+        foreach ($this->requestData as $key => $value) {
+            if (in_array($key, $excludeParams)) {
+                continue;
+            }
+            
+            $field = $this->sanitizeFieldName($key);
+            if ($field && is_scalar($value) && $value !== '') {
+                $filters[] = [
+                    'field' => $field,
+                    'operator' => 'equals',
+                    'value' => $value
+                ];
+            }
+        }
+        
+        return $filters;
+    }
+    
+    public function parseSorting(): array {
+        $sorting = [];
+        
+        $field = $this->sanitizeFieldName($this->requestData['sortBy'] ?? '');
+        $direction = $this->validateDirection($this->requestData['sortOrder'] ?? 'ASC');
+        
+        if ($field) {
+            $sorting[] = [
+                'field' => $field,
+                'direction' => $direction,
+                'priority' => 1
+            ];
+        }
+        
+        return $sorting;
+    }
+    
+    public function parseSearch(): array {
+        return [
+            'term' => trim($this->requestData['search'] ?? ''),
+            'fields' => [],
+            'mode' => 'contains'
+        ];
+    }
 }
+
+/**
+ * FORMAT-SPECIFIC PARSER ARCHITECTURE OVERVIEW
+ * =============================================
+ * 
+ * The RequestParameterParser has been refactored to use a factory pattern with format-specific parsers:
+ * 
+ * PARSERS:
+ * - FormatSpecificRequestParser: Abstract base class with common utility methods
+ * - AgGridRequestParser: Handles AG-Grid startRow/endRow and complex filter formats
+ * - MuiDataGridRequestParser: Handles MUI DataGrid JSON-encoded filterModel/sortModel
+ * - StructuredRequestParser: Handles filter[field][operator]=value format
+ * - AdvancedRequestParser: Comprehensive format with multiple parameter styles
+ * - SimpleRequestParser: Basic field=value format (default fallback)
+ * 
+ * BENEFITS:
+ * - Testability: Each format parser can be unit tested independently
+ * - Extensibility: Adding new React component formats requires only creating new parser class
+ * - Maintainability: Format-specific logic isolated in dedicated classes
+ * - Performance: Format detection happens once per request with proper logging
+ * - Robustness: Field name sanitization and fallback to SimpleRequestParser ensures no request failures
+ */
+
+// Refactored RequestParameterParser - now acts as a factory/coordinator
+class RequestParameterParser {
+    private const MAX_PAGE_SIZE = 1000;
+    private const MAX_FILTER_DEPTH = 10;
+    
+    private LoggerInterface $logger;
+    private array $formatParsers = [];
+    
+    public function __construct(Request $request) {
+        $this->logger = ServiceLocator::getLogger();
+        
+        // Register format-specific parsers in order of specificity
+        // Most specific parsers should be checked first
+        $this->registerParser(new AgGridRequestParser($request->getRequestData()));
+        $this->registerParser(new MuiDataGridRequestParser($request->getRequestData()));
+        $this->registerParser(new StructuredRequestParser($request->getRequestData()));
+        $this->registerParser(new AdvancedRequestParser($request->getRequestData()));
+        $this->registerParser(new SimpleRequestParser($request->getRequestData())); // Default - always last
+    }
+    
+    /**
+     * Register a format-specific parser
+     */
+    private function registerParser(FormatSpecificRequestParser $parser): void {
+        $this->formatParsers[] = $parser;
+    }
+    
+    /**
+     * Main entry point - detects format and delegates to appropriate parser
+     */
+    public function parseUnified(Request $request): array {
+        $requestData = $request->getRequestData();
+        $parser = $this->selectParser($requestData);
+        
+        $this->logger->info("Using format parser", [
+            'parser' => get_class($parser),
+            'format' => $parser->getFormatName(),
+            'request_params' => array_keys($requestData)
+        ]);
+        
+        $startTime = microtime(true);
+        
+        $parsed = [
+            'pagination' => $parser->parsePagination(),
+            'filters' => $parser->parseFilters(),
+            'sorting' => $parser->parseSorting(),
+            'search' => $parser->parseSearch(),
+            'format' => $parser->getFormatName(),
+            'options' => $parser->parseOptions()
+        ];
+        
+        $parseTime = round((microtime(true) - $startTime) * 1000, 2);
+        
+        $this->logger->info("Parameter parsing complete", [
+            'format' => $parser->getFormatName(),
+            'parse_time_ms' => $parseTime,
+            'filters_count' => count($parsed['filters']),
+            'sorting_count' => count($parsed['sorting']),
+            'search_term_length' => strlen($parsed['search']['term'] ?? '')
+        ]);
+        
+        return $parsed;
+    }
+    
+    /**
+     * Select the appropriate format parser
+     */
+    private function selectParser(array $requestData): FormatSpecificRequestParser {
+        foreach ($this->formatParsers as $parser) {
+            if ($parser->canHandle($requestData)) {
+                return $parser;
+            }
+        }
+        
+        // This should never happen since SimpleRequestParser always returns true
+        // But just in case, create a fallback
+        $this->logger->warning("No parser could handle request, using SimpleRequestParser as fallback");
+        return new SimpleRequestParser($requestData);
+    }
+    
+    /**
+     * Get available format parsers (for testing/debugging)
+     */
+    public function getAvailableParsers(): array {
+        return array_map(function($parser) {
+            return [
+                'class' => get_class($parser),
+                'format' => $parser->getFormatName()
+            ];
+        }, $this->formatParsers);
+    }
+    
+    /**
+     * Test which parser would be selected for given request data (for testing)
+     */
+    public function testFormatDetection(array $requestData): string {
+        $parser = $this->selectParser($requestData);
+        return $parser->getFormatName();
+    }
+}
+```php
 
 class FilterCriteria {
     private array $sqlOperatorMap = [
@@ -1217,19 +5206,17 @@ class FilterCriteria {
 
 ```php
 class ModelBaseAPIController {
-    // UPDATED: Remove $additionalParams parameter from ALL methods
+    // NEW APPROACH: Use pre-validated parameters from Router
     public function list(Request $request): array {
         $modelName = $this->getModelName($request);
         $this->validateModelName($modelName);
         
-        // Create model instance for validation (before database operations)
-        $queryInstance = ModelFactory::new($modelName);
-        
-        // CRITICAL: Use model-aware validation methods from Request
-        $filters = $request->getValidatedFilters($queryInstance);
-        $searchParams = $request->getValidatedSearchParams($queryInstance);
-        $paginationParams = $request->getPaginationParams(); // No model validation needed
-        $sortingParams = $request->getValidatedSorting($queryInstance);
+        // Access pre-validated parameters (validation already done in Router!)
+        $validatedParams = $request->getValidatedParams();
+        $filters = $validatedParams['filters'];
+        $sorting = $validatedParams['sorting'];
+        $search = $validatedParams['search'];
+        $pagination = $validatedParams['pagination'];
         $responseFormat = $request->getResponseFormat();
         
         // Access specific request data when needed
@@ -1237,17 +5224,75 @@ class ModelBaseAPIController {
         $includeMetadata = $request->getRequestParam('include_metadata', true);
         
         try {
-            // Use enhanced DatabaseConnector methods with VALIDATED parameters
+            // Create model instance for database operations
+            $queryInstance = ModelFactory::new($modelName);
+            
+            // Use enhanced DatabaseConnector methods with PRE-VALIDATED parameters
             $databaseConnector = ServiceLocator::get(DatabaseConnector::class);
             
             // Get total count for pagination (filters and search already validated)
             $total = $databaseConnector->getCountWithCriteria(
                 $queryInstance, 
                 $filters, 
-                $searchParams
+                $search
             );
             
             // Get paginated data (all parameters are validated)
+            $records = $databaseConnector->findWithReactParameters(
+                $queryInstance,
+                $filters,
+                $search,
+                $sorting,
+                $pagination
+            );
+            
+            // Format response using ResponseFormatter
+            $responseFormatter = $request->getResponseFormatter();
+            $meta = [
+                'pagination' => $this->buildPaginationMeta($pagination, $total),
+                'filters' => $this->buildFiltersMeta($filters, $queryInstance),
+                'search' => $this->buildSearchMeta($search, $queryInstance),
+                'sorting' => $sorting
+            ];
+            
+            return $responseFormatter->format($records, $meta, $responseFormat);
+            
+        } catch (\Exception $e) {
+            $this->logger->error("Error in list method", [
+                'model' => $modelName,
+                'error' => $e->getMessage(),
+                'validated_params_count' => [
+                    'filters' => count($filters),
+                    'sorting' => count($sorting),
+                    'search_term_length' => strlen($search['term'] ?? '')
+                ]
+            ]);
+            throw $e;
+        }
+    }
+    
+    // LEGACY METHODS: Maintained for backward compatibility during transition
+    // These now just delegate to the validated params from Router
+    /**
+     * @deprecated Use $request->getValidatedParams()['filters'] instead
+     */
+    public function getValidatedFilters(ModelBase $model): array {
+        return $this->request->getValidatedFilters();
+    }
+    
+    /**
+     * @deprecated Use $request->getValidatedParams()['sorting'] instead
+     */
+    public function getValidatedSorting(ModelBase $model): array {
+        return $this->request->getValidatedSorting();
+    }
+    
+    /**
+     * @deprecated Use $request->getValidatedParams()['search'] instead
+     */
+    public function getValidatedSearchParams(ModelBase $model): array {
+        return $this->request->getValidatedSearch();
+    }
             $rows = $databaseConnector->findWithReactParams(
                 $queryInstance,
                 $filters,
@@ -2734,22 +6779,95 @@ const buildQueryParams = (filters: any, options: DataFetchOptions): string => {
 ## 9. Testing Strategy
 
 ### 9.1 Unit Tests
-- FilterCriteria class methods
-- SearchEngine functionality
-- PaginationManager calculations
-- Query parameter parsing
+
+#### Core Helper Classes Testing
+- **FilterCriteria class methods**: Validation logic, SQL operator mapping, field-based operator checking
+- **SearchEngine functionality**: Multi-field search, search term parsing, field type validation
+- **PaginationManager calculations**: Offset/cursor pagination, page metadata generation, cursor encoding/decoding
+- **RequestParameterParser**: Format detection, parameter extraction for all supported React library formats
+- **SortingManager**: Multi-field sorting validation, priority ordering, default sorting generation
+- **ResponseFormatter**: React library-specific formatting, error response structure, cache key generation
+
+#### Field-Level Configuration Testing
+- **FieldBase operator validation**: Each field type's supported operators and validation rules
+- **Metadata override functionality**: Configuration inheritance and override mechanisms
+- **Security validation**: PasswordField restrictions, field-level accessibility controls
+
+#### Router-Level Validation Testing
+- **Model detection and instantiation**: Valid and invalid model name handling
+- **Validation orchestration**: Comprehensive parameter validation with error aggregation
+- **Error response generation**: BadRequestException formatting with suggested fixes
 
 ### 9.2 Integration Tests
-- End-to-end filtering scenarios
-- Search functionality across different field types
-- Pagination edge cases
-- Performance tests with large datasets
+
+#### End-to-End Filtering Scenarios
+- **Complex filter combinations**: Multiple operators on different field types simultaneously
+- **Field type validation**: Ensure proper operator restrictions for each field type (e.g., no 'contains' on IntegerField)
+- **Invalid parameter handling**: Malformed filters, non-existent fields, invalid operators
+- **Model-aware validation**: Field existence validation, database field verification
+
+#### Search Functionality Testing
+- **Multi-field search**: Search across different field types with proper weighting
+- **Search term parsing**: Quote handling, word extraction, boolean operator detection
+- **Field-level search controls**: Respect isSearchable configuration, PasswordField exclusions
+- **Full-text search integration**: MySQL FULLTEXT search capabilities where enabled
+
+#### Pagination Edge Cases
+- **Boundary conditions**: First page, last page, empty results, single record
+- **Cursor-based pagination**: Forward/backward navigation, cursor integrity validation
+- **Large dataset handling**: Performance with 10k+ records, memory usage optimization
+- **React library compatibility**: AG-Grid infinite scroll, MUI DataGrid server-side pagination
+
+#### Error Handling Integration
+- **Validation error aggregation**: Multiple parameter errors in single response
+- **Graceful degradation**: Default values when validation fails, empty parameter handling
+- **Client library error formats**: Proper error response formatting for each React library
 
 ### 9.3 Performance Tests
-- Query performance with various filter combinations
-- Large dataset pagination
-- Memory usage during processing
-- Response time benchmarks
+
+#### Query Performance Benchmarks
+- **Filter query optimization**: Test with various filter combinations and field types
+- **Search query performance**: Multi-field search across different dataset sizes
+- **Sorting performance**: Multi-field sorting with priority ordering
+- **Index utilization**: Verify proper database index usage for common query patterns
+
+#### Scalability Testing
+- **Large dataset pagination**: Performance with 100k+ records using cursor-based pagination
+- **Memory usage monitoring**: Ensure consistent memory usage regardless of dataset size
+- **Response time benchmarks**: Target <100ms for typical queries, <500ms for complex searches
+- **Concurrent request handling**: Multiple simultaneous filtering/search requests
+
+#### Database Performance
+- **Query complexity analysis**: Monitor SQL query generation and execution plans
+- **Index effectiveness**: Verify performance improvement from recommended indexes
+- **Connection efficiency**: Database connection usage and query batching where applicable
+
+### 9.4 Security Testing
+
+#### Input Validation Security
+- **SQL injection prevention**: Parameterized query validation, malicious filter detection
+- **Field access control**: Verify field-level permissions respected in filtering/search
+- **Parameter sanitization**: Ensure proper sanitization of all input parameters
+
+#### Access Control Integration
+- **Model-level permissions**: Integration with existing RBAC system
+- **Sensitive field protection**: PasswordField and other sensitive data exclusions
+- **Performance attack prevention**: Rate limiting validation, query complexity limits
+
+### 9.5 React Library Compatibility Testing
+
+#### Format-Specific Parser Testing
+- **AG-Grid compatibility**: startRow/endRow pagination, complex filter models
+- **MUI DataGrid compatibility**: JSON-encoded filterModel/sortModel parsing
+- **TanStack Query integration**: Response format validation, cache key generation
+- **SWR library support**: Proper response structure and error handling
+
+#### Error Response Testing
+- **Library-specific error formats**: Ensure proper error structure for each React library
+- **Loading state compatibility**: Proper response metadata for loading indicators
+- **Empty result handling**: Graceful empty state responses for all supported libraries
+
+This comprehensive testing strategy ensures the Enhanced Pagination & Filtering system meets all functional, performance, and security requirements while maintaining compatibility with major React data grid libraries.
 
 ## 10. Security Considerations
 
@@ -3123,6 +7241,8 @@ Provide a comprehensive checklist for developers:
 - ✅ Elimination of $additionalParams pattern for cleaner controller signatures
 - ✅ Helper classes properly encapsulated without circular dependencies
 - ✅ Comprehensive unit test coverage for new architecture
+- ✅ **Router-Level Validation Architecture** - Centralized validation eliminates controller repetition
+- ✅ **Format-Specific Parser Architecture** - Factory pattern provides extensible request parsing
 
 ## 8. React Integration Examples
 
@@ -3270,3 +7390,57 @@ function UserDataGrid() {
   );
 }
 ```
+
+## 9. Architectural Improvements Summary
+
+### 9.1 Format-Specific Parser Architecture ✅ COMPLETED
+
+The RequestParameterParser has been refactored to use a factory pattern with format-specific parsers:
+
+**ARCHITECTURE OVERVIEW**:
+- **FormatSpecificRequestParser** - Abstract base class with common utility methods
+- **AgGridRequestParser** - Handles AG-Grid `startRow`/`endRow` and complex filter formats
+- **MuiDataGridRequestParser** - Handles MUI DataGrid JSON-encoded `filterModel`/`sortModel`
+- **StructuredRequestParser** - Handles `filter[field][operator]=value` format
+- **AdvancedRequestParser** - Comprehensive format with multiple parameter styles
+- **SimpleRequestParser** - Basic `field=value` format (default fallback)
+
+**KEY BENEFITS**:
+- **Testability**: Each format parser can be unit tested independently
+- **Extensibility**: Adding new React component formats requires only creating new parser class
+- **Maintainability**: Format-specific logic isolated in dedicated classes
+- **Performance**: Format detection happens once per request with proper logging
+- **Robustness**: Field name sanitization and fallback to SimpleRequestParser ensures no request failures
+
+### 9.2 Router-Level Validation Architecture ✅ COMPLETED
+
+Centralized validation in Router layer eliminates controller repetition and provides comprehensive error handling:
+
+**ARCHITECTURE OVERVIEW**:
+- **Model Detection**: Uses only `Request->get('modelName')` from route parameters
+- **Validation Orchestration**: Router.attachRequestHelpers() performs comprehensive validation
+- **Error Aggregation**: ParameterValidationException collects all validation errors
+- **Controller Simplification**: Controllers access pre-validated data without validation calls
+
+**KEY BENEFITS**:
+1. **Elimination of Controller Repetition**: All validation moved to Router layer
+2. **Early Error Detection**: Validation occurs before controller execution
+3. **Comprehensive Error Responses**: All validation errors returned in single response
+4. **Graceful Fallback**: Non-model routes bypass validation seamlessly
+5. **Clean Controller Logic**: Controllers focus solely on business logic
+
+**IMPLEMENTATION DETAILS**:
+- **Router.getModel()**: Safe model instantiation with error handling
+- **Router.performValidationWithModel()**: Comprehensive validation orchestration
+- **Request.setValidatedParams()/getValidatedParams()**: Validated parameter storage
+- **Request.validateAllParameters()**: Enhanced with ParameterValidationException
+- **ModelBaseAPIController**: Simplified to use pre-validated data
+
+**EXECUTION FLOW**:
+1. Router detects model from route parameters
+2. Router instantiates model and performs comprehensive validation
+3. Router stores validated parameters in Request object
+4. Controller accesses pre-validated data for business logic execution
+5. Validation errors return early with comprehensive error details
+
+This architecture provides significant performance and maintainability benefits while ensuring comprehensive error handling and simplified controller logic.
