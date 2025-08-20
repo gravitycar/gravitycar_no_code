@@ -165,15 +165,15 @@ class GravitycarTest extends TestCase {
      */
     public function testRequestHandling(): void {
         $_SERVER['REQUEST_METHOD'] = 'GET';
-        $_SERVER['REQUEST_URI'] = '/api/test';
+        $_SERVER['REQUEST_URI'] = '/TestModel';
 
         $app = new Gravitycar();
         $app->bootstrap();
 
         // This would normally process the request through the router
-        // In a test environment without routes, we expect a GCException
+        // With auto-discovery, we expect a model not found error for non-existent models
         $this->expectException(GCException::class);
-        $this->expectExceptionMessage('No routes registered');
+        $this->expectExceptionMessage('Model not found or cannot be instantiated');
 
         $app->run();
     }
@@ -280,9 +280,9 @@ class GravitycarTest extends TestCase {
 
         $this->assertSame($app, $result);
 
-        // Test chaining bootstrap -> run (expects GCException due to no routes in test environment)
+        // Test chaining bootstrap -> run (expects GCException due to no matching route for root path)
         $this->expectException(GCException::class);
-        $this->expectExceptionMessage('No routes registered');
+        $this->expectExceptionMessage('No matching route found for GET /');
 
         $app->bootstrap()->run();
     }
@@ -334,7 +334,7 @@ class GravitycarTest extends TestCase {
      */
     public function testFullApplicationLifecycle(): void {
         $_SERVER['REQUEST_METHOD'] = 'GET';
-        $_SERVER['REQUEST_URI'] = '/health';
+        $_SERVER['REQUEST_URI'] = '/NonExistentModel';
 
         $app = new Gravitycar(['environment' => 'testing']);
 
@@ -347,9 +347,9 @@ class GravitycarTest extends TestCase {
         $container = $app->getContainer();
         $this->assertInstanceOf(Container::class, $container);
 
-        // Run would process the request but will fail due to no routes in test environment
+        // Run would process the request but will fail due to non-existent model
         $this->expectException(GCException::class);
-        $this->expectExceptionMessage('No routes registered');
+        $this->expectExceptionMessage('Model not found or cannot be instantiated');
 
         $app->run();
     }

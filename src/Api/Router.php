@@ -507,7 +507,7 @@ class Router {
         $params = [];
 
         // GET parameters
-        $params = array_merge($params, $_GET);
+        $params = array_merge($params, $_GET ?? []);
 
         // POST/PUT/PATCH body
         if (in_array($_SERVER['REQUEST_METHOD'], ['POST', 'PUT', 'PATCH'])) {
@@ -516,7 +516,7 @@ class Router {
             if ($jsonData) {
                 $params = array_merge($params, $jsonData);
             } else {
-                $params = array_merge($params, $_POST);
+                $params = array_merge($params, $_POST ?? []);
             }
         }
 

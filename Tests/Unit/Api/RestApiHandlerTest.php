@@ -51,7 +51,7 @@ class RestApiHandlerTest extends TestCase
     {
         // Mock $_SERVER superglobal
         $_SERVER['REQUEST_METHOD'] = 'GET';
-        $_SERVER['REQUEST_URI'] = '/api/users?page=1&limit=10';
+        $_SERVER['REQUEST_URI'] = '/Users?page=1&limit=10';
         $_SERVER['HTTP_HOST'] = 'example.com';
 
         // Mock $_GET superglobal
@@ -75,7 +75,7 @@ class RestApiHandlerTest extends TestCase
     {
         // Mock $_SERVER superglobal
         $_SERVER['REQUEST_METHOD'] = 'POST';
-        $_SERVER['REQUEST_URI'] = '/api/users';
+        $_SERVER['REQUEST_URI'] = '/Users';
         $_SERVER['HTTP_HOST'] = 'example.com';
 
         try {
@@ -305,9 +305,9 @@ class RestApiHandlerTest extends TestCase
 
     public function testComplexRequestInfoExtraction(): void
     {
-        // Test with complex URL structure
+        // Test with complex URL structure that matches our actual API design
         $_SERVER['REQUEST_METHOD'] = 'PATCH';
-        $_SERVER['REQUEST_URI'] = '/api/v1/users/123/profile?format=json&include=metadata';
+        $_SERVER['REQUEST_URI'] = '/Users/123?format=json&include=metadata';
         $_SERVER['HTTP_HOST'] = 'api.example.com';
         $_SERVER['HTTPS'] = 'on';
 
@@ -316,7 +316,7 @@ class RestApiHandlerTest extends TestCase
             $result = $method->invoke($this->handler);
 
             $this->assertEquals('PATCH', $result['method']);
-            $this->assertStringContainsString('/api/v1/users/123/profile', $result['path']);
+            $this->assertStringContainsString('/Users/123', $result['path']);
             $this->assertArrayHasKey('additionalParams', $result);
             
         } catch (GCException $e) {
