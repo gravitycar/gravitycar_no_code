@@ -31,9 +31,9 @@ class CoreFieldsMetadata
     private Logger $logger;
     private string $templatePath;
 
-    public function __construct(?string $templatePath = null)
+    public function __construct(?string $templatePath = null, ?Logger $logger = null)
     {
-        $this->logger = ServiceLocator::getLogger();
+        $this->logger = $logger ?? ServiceLocator::getLogger();
         $this->templatePath = $templatePath ?? __DIR__ . '/templates/core_fields_metadata.php';
     }
 

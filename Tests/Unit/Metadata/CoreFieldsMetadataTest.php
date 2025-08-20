@@ -14,7 +14,7 @@ use PHPUnit\Framework\MockObject\MockObject;
 class CoreFieldsMetadataTest extends UnitTestCase
 {
     private CoreFieldsMetadata $coreFieldsMetadata;
-    private MockObject $mockLogger;
+    private Logger|MockObject $mockLogger;
     private string $testTemplatePath;
     private array $testCoreFieldsData;
 
@@ -60,7 +60,7 @@ class CoreFieldsMetadataTest extends UnitTestCase
         // Write test template file
         file_put_contents($this->testTemplatePath, '<?php return ' . var_export($this->testCoreFieldsData, true) . ';');
         
-        $this->coreFieldsMetadata = new CoreFieldsMetadata($this->mockLogger, $this->testTemplatePath);
+        $this->coreFieldsMetadata = new CoreFieldsMetadata($this->testTemplatePath, $this->mockLogger);
     }
 
     protected function tearDown(): void
@@ -82,7 +82,7 @@ class CoreFieldsMetadataTest extends UnitTestCase
      */
     public function testConstructorSetsProperties(): void
     {
-        $coreFields = new CoreFieldsMetadata($this->mockLogger);
+        $coreFields = new CoreFieldsMetadata();
         
         $this->assertInstanceOf(CoreFieldsMetadata::class, $coreFields);
     }
@@ -93,7 +93,7 @@ class CoreFieldsMetadataTest extends UnitTestCase
     public function testConstructorWithCustomTemplatePath(): void
     {
         $customPath = '/custom/path/to/template.php';
-        $coreFields = new CoreFieldsMetadata($this->mockLogger, $customPath);
+        $coreFields = new CoreFieldsMetadata($customPath);
         
         $this->assertInstanceOf(CoreFieldsMetadata::class, $coreFields);
     }
@@ -138,7 +138,7 @@ class CoreFieldsMetadataTest extends UnitTestCase
     public function testGetStandardCoreFieldsThrowsExceptionForMissingTemplate(): void
     {
         $nonExistentPath = '/non/existent/path.php';
-        $coreFields = new CoreFieldsMetadata($this->mockLogger, $nonExistentPath);
+        $coreFields = new CoreFieldsMetadata($nonExistentPath, $this->mockLogger);
         
         $this->mockLogger->expects($this->once())
             ->method('error')
@@ -162,7 +162,7 @@ class CoreFieldsMetadataTest extends UnitTestCase
         $invalidTemplatePath = sys_get_temp_dir() . '/invalid_template.php';
         file_put_contents($invalidTemplatePath, '<?php return "not an array";');
         
-        $coreFields = new CoreFieldsMetadata($this->mockLogger, $invalidTemplatePath);
+        $coreFields = new CoreFieldsMetadata($invalidTemplatePath, $this->mockLogger);
         
         $this->mockLogger->expects($this->once())
             ->method('error')
