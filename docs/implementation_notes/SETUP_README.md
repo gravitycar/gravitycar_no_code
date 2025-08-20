@@ -72,7 +72,6 @@ The script creates the following users:
 - `users` - User accounts and authentication
 - `movies` - Movie information
 - `movie_quotes` - Movie quotes
-- `auditable` - Audit trail records
 - `rel_1_movies_M_movie_quotes` - Movie-to-quotes relationships
 
 ### Core Fields (added to all tables)

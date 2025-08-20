@@ -122,7 +122,7 @@ All field classes follow the same pattern: `(array $metadata, Logger $logger)`
 - **Special Note**: Already partially migrated
 
 **Model Subclasses**:
-- Auditable, Movies, Movie_Quotes, Installer
+- Movies, Movie_Quotes, Installer
 - **Migration**: Automatic via ModelBase change
 - **Risk**: Low
 
