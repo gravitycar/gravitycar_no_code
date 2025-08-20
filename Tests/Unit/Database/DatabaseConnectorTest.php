@@ -649,6 +649,18 @@ class TestableDatabaseConnector extends DatabaseConnector
         return $this->mockConnection ?? parent::getConnection();
     }
 
+    /**
+     * Override find method to use mock service locator when available
+     */
+    public function find($model, array $criteria = [], array $fields = [], array $parameters = []): array {
+        // Handle mocked service locator for testing
+        if (is_string($model) && $this->mockServiceLocator) {
+            $model = $this->mockServiceLocator;
+        }
+        
+        return parent::find($model, $criteria, $fields, $parameters);
+    }
+
     // Expose protected methods for testing
     public function testSetupQueryBuilder(string $modelClass): array
     {

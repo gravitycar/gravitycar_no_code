@@ -317,7 +317,15 @@ class GravitycarTest extends TestCase {
         // Clean up temp file
         unlink($tempLogFile);
 
-        $this->assertStringContainsString('Gravitycar application bootstrap starting', $logContent);
+        // In CLI mode (like PHPUnit), error_log output should be suppressed
+        // to avoid noise during test runs, so we expect no output
+        if (php_sapi_name() === 'cli') {
+            $this->assertEmpty($logContent, 'Bootstrap logging should be suppressed in CLI mode');
+        } else {
+            // In web environments, error_log fallback should work
+            $this->assertStringContainsString('Gravitycar application bootstrap starting', $logContent);
+        }
+        
         $this->assertTrue($app->isBootstrapped());
     }
 

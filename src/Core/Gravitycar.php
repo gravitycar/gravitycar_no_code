@@ -316,7 +316,10 @@ class Gravitycar {
      */
     private function logBootstrapStart(): void {
         // Use error_log initially since logger might not be available yet
-        error_log("Gravitycar application bootstrap starting (environment: {$this->environment})");
+        // Only log to error_log in web environment, not during CLI/tests
+        if (php_sapi_name() !== 'cli') {
+            error_log("Gravitycar application bootstrap starting (environment: {$this->environment})");
+        }
     }
 
     /**
@@ -325,7 +328,8 @@ class Gravitycar {
     private function logBootstrapStep(string $step): void {
         if ($this->logger) {
             $this->logger->info("Bootstrap step: {$step}");
-        } else {
+        } elseif (php_sapi_name() !== 'cli') {
+            // Only log to error_log in web environment, not during CLI/tests
             error_log("Bootstrap step: {$step}");
         }
     }

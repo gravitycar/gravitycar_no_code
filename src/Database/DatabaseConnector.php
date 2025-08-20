@@ -8,6 +8,7 @@ use Gravitycar\Fields\FieldBase;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Models\ModelBase;
 use Monolog\Logger;
+use Psr\Log\LoggerInterface;
 
 /**
  * DatabaseConnector provides DBAL connection and utility methods for Gravitycar.
@@ -15,17 +16,22 @@ use Monolog\Logger;
 class DatabaseConnector {
     /** @var array */
     protected array $dbParams;
-    /** @var Logger */
-    protected Logger $logger;
+    /** @var LoggerInterface */
+    protected LoggerInterface $logger;
     /** @var Connection|null */
     protected ?Connection $connection = null;
     /** @var int */
     protected int $joinCounter = 0;
 
-    public function __construct() {
-        $this->logger = ServiceLocator::getLogger();
-        $config = ServiceLocator::getConfig();
-        $this->dbParams = $config->get('database') ?? [];
+    public function __construct(?LoggerInterface $logger = null, ?array $dbParams = null) {
+        $this->logger = $logger ?? ServiceLocator::getLogger();
+        
+        if ($dbParams !== null) {
+            $this->dbParams = $dbParams;
+        } else {
+            $config = ServiceLocator::getConfig();
+            $this->dbParams = $config->get('database') ?? [];
+        }
     }
 
     /**
@@ -41,6 +47,16 @@ class DatabaseConnector {
             }
         }
         return $this->connection;
+    }
+
+    /**
+     * Reset the connection (useful after database creation)
+     */
+    public function resetConnection(): void {
+        if ($this->connection !== null) {
+            $this->connection->close();
+            $this->connection = null;
+        }
     }
 
     /**
@@ -72,7 +88,7 @@ class DatabaseConnector {
     }
 
     /**
-     * Create a new database if it does not exist
+     * Create database if it doesn't exist
      */
     public function createDatabaseIfNotExists(): bool {
         $dbName = $this->dbParams['dbname'] ?? null;
@@ -86,14 +102,16 @@ class DatabaseConnector {
             $conn = DriverManager::getConnection($params);
             $conn->executeStatement("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
             $this->logger->info("Database '$dbName' created or already exists.");
+            
+            // Reset connection so next getConnection() call will use the new database
+            $this->resetConnection();
+            
             return true;
         } catch (\Exception $e) {
             $this->logger->error('Database creation failed: ' . $e->getMessage());
             return false;
         }
-    }
-
-    /**
+    }    /**
      * Check if a database exists
      */
     public function databaseExists(string $databaseName): bool {
@@ -407,10 +425,49 @@ class DatabaseConnector {
     }
 
     /**
-     * Find records by criteria using an existing model instance
+     * Setup query builder for a model - used by tests and internal operations
      */
-    public function find(ModelBase $model, array $criteria = [], array $fields = [], array $parameters = []): array {
+    protected function setupQueryBuilder(string $modelClass): array {
+        $model = ServiceLocator::get($modelClass);
+        $tableName = $model->getTableName();
+        $mainAlias = $model->getAlias();
+        $modelFields = $model->getFields();
+
+        return [
+            'model' => $model,
+            'tableName' => $tableName,
+            'mainAlias' => $mainAlias,
+            'modelFields' => $modelFields
+        ];
+    }
+
+    /**
+     * Apply query parameters (alias for applyValidatedParameters for backward compatibility)
+     */
+    protected function applyQueryParameters(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        array $parameters,
+        string $mainAlias,
+        array $modelFields = []
+    ): void {
+        $this->applyValidatedParameters($queryBuilder, $parameters, $mainAlias, $modelFields);
+    }
+
+    /**
+     * Find records by criteria - accepts either ModelBase instance or string class name
+     */
+    public function find($model, array $criteria = [], array $fields = [], array $parameters = []): array {
         try {
+            // Handle both string class names and model instances
+            if (is_string($model)) {
+                $model = ServiceLocator::get($model);
+            }
+            
+            // Check if the model has the required methods (duck typing for tests)
+            if (!is_object($model) || !method_exists($model, 'getTableName') || !method_exists($model, 'getAlias') || !method_exists($model, 'getFields')) {
+                throw new GCException('Model must be either a string class name or an object with getTableName(), getAlias(), and getFields() methods');
+            }
+
             $conn = $this->getConnection();
             $queryBuilder = $conn->createQueryBuilder();
 
@@ -448,7 +505,7 @@ class DatabaseConnector {
 
         } catch (\Exception $e) {
             $this->logger->error('Failed to find models', [
-                'model_class' => get_class($model),
+                'model_class' => is_string($model) ? $model : get_class($model),
                 'criteria' => $criteria,
                 'error' => $e->getMessage()
             ]);
@@ -457,9 +514,9 @@ class DatabaseConnector {
     }
 
     /**
-     * Find a single record by ID using an existing model instance
+     * Find a single record by ID - accepts either ModelBase instance or string class name
      */
-    public function findById(ModelBase $model, $id): ?array {
+    public function findById($model, $id): ?array {
         $results = $this->find($model, ['id' => $id], [], ['limit' => 1]);
         return empty($results) ? null : $results[0];
     }

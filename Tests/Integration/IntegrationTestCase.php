@@ -56,8 +56,60 @@ abstract class IntegrationTestCase extends DatabaseTestCase
      */
     protected function cleanUpTestSchema(): void
     {
-        foreach ($this->testTables as $table) {
-            $this->connection->executeStatement("DROP TABLE IF EXISTS {$table}");
+        // Check if we're in a transaction and handle appropriately
+        $wasInTransaction = $this->connection->isTransactionActive();
+        
+        if ($wasInTransaction) {
+            // Commit current transaction to allow DDL operations
+            try {
+                $this->connection->commit();
+            } catch (\Exception $e) {
+                // Transaction might have been rolled back already, ignore
+            }
+        }
+        
+        // Drop tables in reverse order to respect foreign key constraints
+        $tablesToDrop = array_reverse($this->testTables);
+        
+        // Disable foreign key checks for cleanup in MySQL
+        $platform = $this->connection->getDatabasePlatform();
+        if ($platform->getName() === 'mysql') {
+            $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS = 0');
+        }
+        
+        foreach ($tablesToDrop as $table) {
+            try {
+                $this->connection->executeStatement("DROP TABLE IF EXISTS {$table}");
+            } catch (\Exception $e) {
+                // Table might not exist, continue with cleanup
+            }
+        }
+        
+        // Re-enable foreign key checks
+        if ($platform->getName() === 'mysql') {
+            $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS = 1');
+        }
+        
+        // Restart transaction for the parent tearDown method
+        if ($wasInTransaction) {
+            $this->connection->beginTransaction();
+            $this->inTransaction = true;
+        }
+    }
+
+    /**
+     * Get database-appropriate auto-increment syntax.
+     */
+    protected function getAutoIncrementSyntax(): string
+    {
+        $platform = $this->connection->getDatabasePlatform();
+        switch ($platform->getName()) {
+            case 'sqlite':
+                return 'INTEGER PRIMARY KEY AUTOINCREMENT';
+            case 'mysql':
+                return 'INT AUTO_INCREMENT PRIMARY KEY';
+            default:
+                return 'INT AUTO_INCREMENT PRIMARY KEY';
         }
     }
 
@@ -66,9 +118,10 @@ abstract class IntegrationTestCase extends DatabaseTestCase
      */
     protected function createTestUserTable(): void
     {
+        $autoIncrement = $this->getAutoIncrementSyntax();
         $sql = "
             CREATE TABLE IF NOT EXISTS test_users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {$autoIncrement},
                 username VARCHAR(50) UNIQUE NOT NULL,
                 email VARCHAR(100) UNIQUE NOT NULL,
                 password VARCHAR(255) NOT NULL,
@@ -88,9 +141,10 @@ abstract class IntegrationTestCase extends DatabaseTestCase
      */
     protected function createTestMovieTable(): void
     {
+        $autoIncrement = $this->getAutoIncrementSyntax();
         $sql = "
             CREATE TABLE IF NOT EXISTS test_movies (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {$autoIncrement},
                 title VARCHAR(255) NOT NULL,
                 director VARCHAR(100),
                 release_year INTEGER,
@@ -111,9 +165,10 @@ abstract class IntegrationTestCase extends DatabaseTestCase
      */
     protected function createTestMovieQuoteTable(): void
     {
+        $autoIncrement = $this->getAutoIncrementSyntax();
         $sql = "
             CREATE TABLE IF NOT EXISTS test_movie_quotes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id {$autoIncrement},
                 movie_id INTEGER NOT NULL,
                 character_name VARCHAR(100),
                 quote_text TEXT NOT NULL,

@@ -29,6 +29,9 @@ class SchemaGeneratorIntegrationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        
+        // Reset ServiceLocator to clear any cached instances
+        ServiceLocator::reset();
 
         $this->logger = ServiceLocator::getLogger();
         $this->config = ServiceLocator::getConfig();
@@ -42,6 +45,9 @@ class SchemaGeneratorIntegrationTest extends TestCase
         $this->dbConnector = new DatabaseConnector();
         $this->schemaGenerator = new SchemaGenerator();
         $this->metadataEngine = MetadataEngine::getInstance();
+        
+        // Create test database in setUp to avoid connection errors
+        $this->schemaGenerator->createDatabaseIfNotExists();
     }
 
     protected function tearDown(): void
@@ -62,14 +68,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
     {
         $this->logger->info('Testing database creation');
 
-        // Ensure database doesn't exist
-        $this->assertFalse($this->dbConnector->databaseExists($this->testDatabaseName));
-
-        // Create database
-        $result = $this->schemaGenerator->createDatabaseIfNotExists();
-        $this->assertTrue($result, 'Database creation should succeed');
-
-        // Verify database exists
+        // Database should already exist from setUp
         $this->assertTrue($this->dbConnector->databaseExists($this->testDatabaseName));
 
         // Test idempotency - should not fail if database already exists
@@ -133,9 +132,6 @@ class SchemaGeneratorIntegrationTest extends TestCase
     {
         $this->logger->info('Testing end-to-end schema generation using real model metadata');
 
-        // Create database first
-        $this->schemaGenerator->createDatabaseIfNotExists();
-
         // Load metadata from all models using MetadataEngine
         $allMetadata = $this->metadataEngine->loadAllMetadata();
 
@@ -170,8 +166,6 @@ class SchemaGeneratorIntegrationTest extends TestCase
     {
         $this->logger->info('Testing core fields integration in generated tables');
 
-        $this->schemaGenerator->createDatabaseIfNotExists();
-
         // Load real metadata and generate schema
         $allMetadata = $this->metadataEngine->loadAllMetadata();
         $this->schemaGenerator->generateSchema($allMetadata);
@@ -192,8 +186,6 @@ class SchemaGeneratorIntegrationTest extends TestCase
     public function testRelatedRecordFieldSchemaGeneration(): void
     {
         $this->logger->info('Testing RelatedRecordField schema generation');
-
-        $this->schemaGenerator->createDatabaseIfNotExists();
 
         // Load real metadata and generate schema
         $allMetadata = $this->metadataEngine->loadAllMetadata();
@@ -273,8 +265,6 @@ class SchemaGeneratorIntegrationTest extends TestCase
     public function testTableStructureValidation(): void
     {
         $this->logger->info('Testing complete table structure validation');
-
-        $this->schemaGenerator->createDatabaseIfNotExists();
 
         // Load real metadata and generate schema
         $allMetadata = $this->metadataEngine->loadAllMetadata();

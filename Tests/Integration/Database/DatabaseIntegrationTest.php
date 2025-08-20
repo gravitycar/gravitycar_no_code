@@ -113,8 +113,14 @@ class DatabaseIntegrationTest extends IntegrationTestCase
     {
         // For this test, we need to work with a separate transaction
         // First, commit the current transaction from setUp to clear the slate
-        if ($this->connection->isTransactionActive()) {
-            $this->connection->commit();
+        try {
+            if ($this->connection->isTransactionActive()) {
+                $this->connection->commit();
+                $this->inTransaction = false;
+            }
+        } catch (\Exception $e) {
+            // Transaction might have been already committed or rolled back
+            $this->inTransaction = false;
         }
 
         // Start a fresh transaction for this test
@@ -150,7 +156,10 @@ class DatabaseIntegrationTest extends IntegrationTestCase
             throw $e;
         } finally {
             // Restart transaction for tearDown
-            $this->connection->beginTransaction();
+            if (!$this->connection->isTransactionActive()) {
+                $this->connection->beginTransaction();
+                $this->inTransaction = true;
+            }
         }
     }
 

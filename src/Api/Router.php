@@ -544,8 +544,13 @@ class Router {
         $pathComponents = $this->parsePathComponents($actualPath);
         $routeComponents = $this->parsePathComponents($route['path']);
         
-        // Priority 1: If route has explicit parameter names and count makes sense, use them
+        // Priority 1: If route has explicit parameter names and count matches path components, use them
         if (!empty($route['parameterNames'])) {
+            // For static routes, parameter names should match all path components
+            if (count($route['parameterNames']) === count($pathComponents)) {
+                return $route['parameterNames'];
+            }
+            
             // For wildcard routes, the parameterNames should match dynamic components
             $dynamicComponentCount = 0;
             foreach ($routeComponents as $component) {
