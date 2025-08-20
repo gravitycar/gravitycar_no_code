@@ -18,17 +18,25 @@ abstract class DatabaseTestCase extends UnitTestCase
     {
         parent::setUp();
 
-        // Initialize database connection with SQLite for testing (no credentials needed)
+        // Initialize database connection with test database parameters
         $dbParams = [
-            'driver' => 'pdo_sqlite',
-            'path' => ':memory:', // In-memory SQLite database for tests
+            'driver' => 'pdo_mysql',
+            'host' => 'localhost',
+            'port' => 3306,
+            'dbname' => 'gravitycar_nc_test', // Use a separate test database
+            'user' => 'mike',
+            'password' => 'mike',
+            'charset' => 'utf8mb4',
         ];
 
         $this->db = new DatabaseConnector($this->logger, $dbParams);
         $this->connection = $this->db->getConnection();
 
-        // Enable foreign key constraints in SQLite
-        $this->connection->executeStatement('PRAGMA foreign_keys = ON');
+        // Enable foreign key constraints only for SQLite (not applicable to MySQL)
+        $platform = $this->connection->getDatabasePlatform();
+        if ($platform->getName() === 'sqlite') {
+            $this->connection->executeStatement('PRAGMA foreign_keys = ON');
+        }
 
         // Start transaction for test isolation
         $this->connection->beginTransaction();

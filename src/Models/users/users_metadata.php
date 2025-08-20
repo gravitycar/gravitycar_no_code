@@ -14,11 +14,11 @@ return [
         ],
         'username' => [
             'name' => 'username',
-            'type' => 'Email',
+            'type' => 'Text',
             'label' => 'Username',
             'required' => false, // Made optional for OAuth users
             'unique' => true,
-            'validationRules' => ['Email', 'Unique'],
+            'validationRules' => ['Unique'],
         ],
         'password' => [
             'name' => 'password',

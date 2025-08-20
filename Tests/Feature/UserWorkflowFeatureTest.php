@@ -219,9 +219,15 @@ class UserWorkflowFeatureTest extends IntegrationTestCase
     public function testErrorRecoveryWorkflow(): void
     {
         // For this test, we need to handle transactions differently
-        // First, commit the current transaction from setUp
-        if ($this->connection->isTransactionActive()) {
-            $this->connection->commit();
+        // First, commit the current transaction from setUp if it exists
+        try {
+            if ($this->connection->isTransactionActive()) {
+                $this->connection->commit();
+                $this->inTransaction = false;
+            }
+        } catch (\Exception $e) {
+            // Transaction might have been already committed or rolled back
+            $this->inTransaction = false;
         }
 
         // Step 1: Start a complex operation that might fail
@@ -247,7 +253,9 @@ class UserWorkflowFeatureTest extends IntegrationTestCase
 
         } catch (\Exception $e) {
             // Step 2: Handle error and rollback
-            $this->connection->rollBack();
+            if ($this->connection->isTransactionActive()) {
+                $this->connection->rollBack();
+            }
 
             // Step 3: Verify rollback worked - data should not exist
             $this->assertDatabaseMissing('test_movies', ['title' => 'Error Test Movie']);
@@ -264,10 +272,15 @@ class UserWorkflowFeatureTest extends IntegrationTestCase
             $this->assertDatabaseHas('test_movies', ['title' => 'Recovery Test Movie']);
 
             // Rollback the recovery transaction for cleanup
-            $this->connection->rollBack();
+            if ($this->connection->isTransactionActive()) {
+                $this->connection->rollBack();
+            }
         }
 
         // Restart transaction for tearDown
-        $this->connection->beginTransaction();
+        if (!$this->connection->isTransactionActive()) {
+            $this->connection->beginTransaction();
+            $this->inTransaction = true;
+        }
     }
 }

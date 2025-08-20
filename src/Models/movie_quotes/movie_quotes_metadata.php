@@ -1,7 +1,7 @@
 <?php
-// MovieQuotes model metadata for Gravitycar framework
+// Movie_Quotes model metadata for Gravitycar framework
 return [
-    'name' => 'MovieQuotes',
+    'name' => 'Movie_Quotes',
     'table' => 'movie_quotes',
     'fields' => [
         'id' => [
