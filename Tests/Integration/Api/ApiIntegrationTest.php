@@ -43,19 +43,18 @@ class ApiIntegrationTest extends IntegrationTestCase
     public function testApiRouteRegistration(): void
     {
         // Test that router can handle basic route resolution
-        // Since the actual router uses a registry system, we'll test the route method directly
+        // The framework auto-discovers routes from models, so we test with an invalid model name
 
         $_SERVER['REQUEST_METHOD'] = 'GET';
-        $_SERVER['REQUEST_URI'] = '/health';
+        $_SERVER['REQUEST_URI'] = '/invalid_model_name_123';
 
         try {
-            // This will likely throw an exception since no routes are registered
-            // but we can test that the router is properly instantiated and attempting to route
+            // This should throw an exception since 'invalid_model_name_123' is not a valid model
             $this->router->handleRequest();
-            $this->fail('Expected GCException for unregistered route');
+            $this->fail('Expected GCException for invalid model');
         } catch (\Gravitycar\Exceptions\GCException $e) {
-            // This is expected - no routes are registered in test environment
-            $this->assertStringContainsString('No routes registered', $e->getMessage());
+            // The framework now auto-discovers routes, so we expect model validation errors
+            $this->assertStringContainsString('Model not found or cannot be instantiated', $e->getMessage());
         }
     }
 
@@ -85,20 +84,43 @@ class ApiIntegrationTest extends IntegrationTestCase
     }
 
     /**
+     * Test that the router can successfully route to a valid model endpoint
+     */
+    public function testValidModelRouting(): void
+    {
+        // Test with a valid model that should exist (users)
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['REQUEST_URI'] = '/users';
+
+        try {
+            // This should successfully route to the users model API
+            // but may fail on database operations in test environment
+            $this->router->handleRequest();
+            // If we get here without exception, routing worked
+            $this->assertTrue(true, 'Router successfully routed to valid model endpoint');
+        } catch (\Gravitycar\Exceptions\GCException $e) {
+            // If there's a database error or other issue, that's still OK for this test
+            // We just want to verify that routing works (no "Model not found" error)
+            $this->assertStringNotContainsString('Model not found', $e->getMessage());
+            $this->assertStringNotContainsString('No matching route found', $e->getMessage());
+        }
+    }
+
+    /**
      * Test API error handling and validation responses.
      */
     public function testApiErrorHandling(): void
     {
-        // Test invalid route handling
+        // Test invalid route handling with a path that clearly won't match any model routes
         $_SERVER['REQUEST_METHOD'] = 'POST';
-        $_SERVER['REQUEST_URI'] = '/nonexistent/route';
+        $_SERVER['REQUEST_URI'] = '/completely/nonexistent/deeply/nested/route/that/wont/match';
 
         try {
             $this->router->handleRequest();
             $this->fail('Expected GCException for invalid route');
         } catch (\Gravitycar\Exceptions\GCException $e) {
-            // Verify proper error handling
-            $this->assertStringContainsString('No routes registered', $e->getMessage());
+            // Verify proper error handling - should be no matching route since path is too deep
+            $this->assertStringContainsString('No matching route found', $e->getMessage());
         }
     }
 
@@ -132,17 +154,17 @@ class ApiIntegrationTest extends IntegrationTestCase
      */
     public function testApiAuthenticationWorkflow(): void
     {
-        // Test request handling with authorization headers
+        // Test request handling with authorization headers using an invalid model
         $_SERVER['REQUEST_METHOD'] = 'GET';
-        $_SERVER['REQUEST_URI'] = '/admin/users';
+        $_SERVER['REQUEST_URI'] = '/invalid_model_for_auth_test';
         $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer test-token';
 
         // Verify router processes the request
         try {
             $this->router->handleRequest();
         } catch (\Gravitycar\Exceptions\GCException $e) {
-            // Expected since no routes are registered
-            $this->assertStringContainsString('No routes registered', $e->getMessage());
+            // Expected since this is not a valid model
+            $this->assertStringContainsString('Model not found or cannot be instantiated', $e->getMessage());
         }
 
         // Verify authorization header is available
