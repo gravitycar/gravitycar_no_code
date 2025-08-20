@@ -16,6 +16,7 @@ class BooleanField extends FieldBase {
     protected string $trueLabel = 'Yes';
     protected string $falseLabel = 'No';
     protected string $displayAs = 'checkbox';
+    protected string $reactComponent = 'Checkbox';
     
     /** @var array Simple operators for boolean fields */
     protected array $operators = ['equals', 'notEquals', 'isNull', 'isNotNull'];

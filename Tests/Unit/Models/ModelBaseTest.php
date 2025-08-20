@@ -848,7 +848,7 @@ class TestableModelBase extends ModelBase
     }
 
     // Override validation errors for testing
-    protected function getValidationErrors(): array
+    public function getValidationErrors(): array
     {
         return $this->mockValidationErrors;
     }

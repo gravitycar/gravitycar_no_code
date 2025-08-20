@@ -13,6 +13,7 @@ class DateField extends FieldBase {
     protected string $label = '';
     protected bool $required = false;
     protected int $maxLength = 10;
+    protected string $reactComponent = 'DatePicker';
     
     /** @var array Date comparison operators */
     protected array $operators = [

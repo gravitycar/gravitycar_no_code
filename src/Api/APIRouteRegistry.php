@@ -7,13 +7,14 @@ use Gravitycar\Core\ServiceLocator;
 use Psr\Log\LoggerInterface;
 
 /**
- * Enhanced APIRouteRegistry
+ * Enhanced APIRouteRegistry (Singleton)
  * 
  * Discovers, registers, and organizes routes by method and path length
  * for efficient scoring-based route matching.
  */
 class APIRouteRegistry
 {
+    private static ?APIRouteRegistry $instance = null;
     protected string $apiControllersDirPath;
     protected string $modelsDirPath;
     protected string $cacheFilePath;
@@ -21,7 +22,7 @@ class APIRouteRegistry
     protected array $routes = [];
     protected array $groupedRoutes = [];
 
-    public function __construct()
+    private function __construct()
     {
         $this->logger = ServiceLocator::getLogger();
         $this->apiControllersDirPath = 'src/models';
@@ -35,14 +36,37 @@ class APIRouteRegistry
     }
 
     /**
+     * Get the singleton instance
+     */
+    public static function getInstance(): APIRouteRegistry
+    {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    /**
+     * Prevent cloning of the singleton
+     */
+    private function __clone() {}
+
+    /**
+     * Prevent unserialization of the singleton
+     */
+    public function __wakeup() {}
+
+    /**
      * Force rebuild of routes cache (useful for development or when models change)
      */
     public function rebuildCache(): void
     {
-        $this->logger->info("Forcing cache rebuild for API routes");
+        $this->logger->info("***** Forcing cache rebuild for API routes *****");
         $this->routes = [];
         $this->groupedRoutes = [];
+        $this->logger->info("***** About to call discoverAndRegisterRoutes *****");
         $this->discoverAndRegisterRoutes();
+        $this->logger->info("***** Finished discoverAndRegisterRoutes. Routes count: " . count($this->routes) . " *****");
     }
 
     /**
@@ -71,31 +95,67 @@ class APIRouteRegistry
      */
     protected function registerCoreControllers(): void
     {
+        $this->logger->info("Starting registerCoreControllers()");
+        
         // Register AuthController
         try {
             $authController = new \Gravitycar\Api\AuthController();
             $this->register($authController, \Gravitycar\Api\AuthController::class);
+            $this->logger->info("Successfully registered AuthController");
         } catch (\Exception $e) {
             $this->logger->error("Failed to register AuthController: " . $e->getMessage());
         }
+        
+        // Register MetadataAPIController
+        try {
+            $this->logger->info("Attempting to register MetadataAPIController");
+            $metadataController = new \Gravitycar\Api\MetadataAPIController();
+            $this->logger->info("MetadataAPIController instantiated successfully");
+            $this->register($metadataController, \Gravitycar\Api\MetadataAPIController::class);
+            $this->logger->info("Successfully registered MetadataAPIController");
+        } catch (\Exception $e) {
+            $this->logger->error("Failed to register MetadataAPIController: " . $e->getMessage());
+            $this->logger->error("Stack trace: " . $e->getTraceAsString());
+        }
+        
+        // Register OpenAPIController
+        try {
+            $this->logger->info("Attempting to register OpenAPIController");
+            $openAPIController = new \Gravitycar\Api\OpenAPIController();
+            $this->logger->info("OpenAPIController instantiated successfully");
+            $this->register($openAPIController, \Gravitycar\Api\OpenAPIController::class);
+            $this->logger->info("Successfully registered OpenAPIController");
+        } catch (\Exception $e) {
+            $this->logger->error("Failed to register OpenAPIController: " . $e->getMessage());
+            $this->logger->error("Stack trace: " . $e->getTraceAsString());
+        }
+        
+        $this->logger->info("Finished registerCoreControllers(). Total routes: " . count($this->routes));
     }    /**
      * Discover traditional API controllers
      */
     protected function discoverAPIControllers(): void
     {
+        // First, register the global ModelBaseAPIController directly
+        $modelBaseAPIControllerClass = "Gravitycar\\Models\\Api\\Api\\ModelBaseAPIController";
+        if (class_exists($modelBaseAPIControllerClass)) {
+            try {
+                $controller = new $modelBaseAPIControllerClass();
+                $this->register($controller, $modelBaseAPIControllerClass);
+                $this->logger->info("Registered global ModelBaseAPIController");
+            } catch (\Exception $e) {
+                $this->logger->error("Failed to register ModelBaseAPIController: " . $e->getMessage());
+            }
+        } else {
+            $this->logger->warning("ModelBaseAPIController class not found: {$modelBaseAPIControllerClass}");
+        }
+
+        // Then discover model-specific API controllers from directory structure
         if (!is_dir($this->apiControllersDirPath)) {
             $this->logger->warning("API controllers directory not found: {$this->apiControllersDirPath}");
             return;
         }
 
-        // First, discover the global ModelBaseAPIController
-        $modelBaseAPIControllerClass = "Gravitycar\\Models\\Api\\Api\\ModelBaseAPIController";
-        if (class_exists($modelBaseAPIControllerClass)) {
-            $controller = new $modelBaseAPIControllerClass();
-            $this->register($controller, $modelBaseAPIControllerClass);
-        }
-
-        // Then discover model-specific API controllers
         $dirs = scandir($this->apiControllersDirPath);
         foreach ($dirs as $dir) {
             if ($dir === '.' || $dir === '..') continue;
@@ -121,10 +181,13 @@ class APIRouteRegistry
     }
 
     /**
-     * Discover ModelBase routes from metadata
+     * Discover ModelBase routes from metadata (for models with custom registerRoutes methods)
      */
     protected function discoverModelRoutes(): void
     {
+        // ModelBase routes are primarily handled through ModelBaseAPIController wildcards
+        // This method only registers custom routes from models that have registerRoutes methods
+        
         if (!is_dir($this->modelsDirPath)) {
             $this->logger->warning("Models directory not found: {$this->modelsDirPath}");
             return;
@@ -137,17 +200,19 @@ class APIRouteRegistry
             $modelDir = $this->modelsDirPath . DIRECTORY_SEPARATOR . $dir;
             if (!is_dir($modelDir)) continue;
 
-            // Look for ModelBase subclasses
+            // Look for ModelBase subclasses that have custom registerRoutes methods
             $files = scandir($modelDir);
             foreach ($files as $file) {
                 if (preg_match('/^(.*)\.php$/', $file, $matches) && $matches[1] !== 'api') {
-                    $modelName = $matches[1]; // This is the clean model name like "Users"
+                    $modelName = $matches[1];
                     $className = "Gravitycar\\Models\\{$dir}\\{$modelName}";
                     if (class_exists($className)) {
                         try {
-                            // Use ModelFactory for proper model instantiation with all dependencies
-                            $model = \Gravitycar\Factories\ModelFactory::new($modelName);
-                            $this->register($model, $className);
+                            // Only register if the model has a custom registerRoutes method
+                            if (method_exists($className, 'registerRoutes')) {
+                                $model = \Gravitycar\Factories\ModelFactory::new($modelName);
+                                $this->register($model, $className);
+                            }
                         } catch (\Exception $e) {
                             $this->logger->error("Failed to instantiate model {$modelName}: " . $e->getMessage());
                         }
@@ -241,10 +306,17 @@ class APIRouteRegistry
         // Validate parameter names if provided
         if (isset($route['parameterNames'])) {
             $pathComponents = $this->parsePathComponents($route['path']);
-            if (count($route['parameterNames']) !== count($pathComponents)) {
-                throw new GCException("Parameter names count must match path components count", [
+            
+            // Count dynamic path components (those with {} or wildcards like ?)
+            $dynamicComponents = array_filter($pathComponents, function($component) {
+                return (str_starts_with($component, '{') && str_ends_with($component, '}')) || $component === '?';
+            });
+            
+            if (count($route['parameterNames']) !== count($dynamicComponents)) {
+                throw new GCException("Parameter names count must match dynamic path components count", [
                     'parameterNames' => $route['parameterNames'],
                     'pathComponents' => $pathComponents,
+                    'dynamicComponents' => array_values($dynamicComponents),
                     'route' => $route
                 ]);
             }
@@ -356,6 +428,242 @@ class APIRouteRegistry
     public function getGroupedRoutes(): array
     {
         return $this->groupedRoutes;
+    }
+
+    /**
+     * Get all routes for a specific model (for documentation purposes)
+     * This generates implied static routes based on ModelBaseAPIController wildcards
+     */
+    public function getModelRoutes(string $modelName): array {
+        $modelRoutes = [];
+        
+        // First, find any explicitly registered routes for this model
+        foreach ($this->routes as $route) {
+            if ($this->isRouteForModel($route, $modelName)) {
+                $modelRoutes[] = $route;
+            }
+        }
+        
+        // Then generate implied routes from ModelBaseAPIController wildcards for documentation
+        $impliedRoutes = $this->generateImpliedModelRoutes($modelName);
+        $modelRoutes = array_merge($modelRoutes, $impliedRoutes);
+        
+        return $modelRoutes;
+    }
+    
+    /**
+     * Generate implied model routes from ModelBaseAPIController wildcards (for documentation)
+     */
+    private function generateImpliedModelRoutes(string $modelName): array {
+        $impliedRoutes = [];
+        
+        // Find ModelBaseAPIController wildcard routes
+        foreach ($this->routes as $route) {
+            if ($route['apiClass'] === 'Gravitycar\\Models\\Api\\Api\\ModelBaseAPIController' &&
+                str_contains($route['path'], '/?')) {
+                
+                // Convert wildcard to specific route for documentation
+                $impliedRoute = $this->convertWildcardToImpliedRoute($route, $modelName);
+                if ($impliedRoute) {
+                    $impliedRoutes[] = $impliedRoute;
+                }
+            }
+        }
+        
+        return $impliedRoutes;
+    }
+    
+    /**
+     * Convert a wildcard route to an implied static route (for documentation only)
+     */
+    private function convertWildcardToImpliedRoute(array $wildcardRoute, string $modelName): ?array {
+        $impliedRoute = $wildcardRoute;
+        
+        // Convert path: replace /? with /{modelName}
+        $path = $wildcardRoute['path'];
+        
+        if (str_starts_with($path, '/?')) {
+            // Replace first /? with /{modelName}
+            $path = '/' . $modelName . substr($path, 2);
+        }
+        
+        $impliedRoute['path'] = $path;
+        $impliedRoute['isImplied'] = true; // Mark as implied for documentation
+        
+        return $impliedRoute;
+    }
+    
+    /**
+     * Replace wildcard placeholders with actual model name in route path
+     */
+    private function replaceModelNameInPath(string $path, array $parameterNames, string $modelName): string {
+        // Split path into components
+        $pathComponents = explode('/', trim($path, '/'));
+        
+        // Find the position of 'modelName' in parameterNames and replace in path
+        $modelNameIndex = array_search('modelName', $parameterNames);
+        if ($modelNameIndex !== false && isset($pathComponents[$modelNameIndex])) {
+            $pathComponents[$modelNameIndex] = $modelName;
+        }
+        
+        return '/' . implode('/', $pathComponents);
+    }
+    
+    /**
+     * Get routes summary for API documentation
+     */
+    public function getRoutesSummary(): array {
+        $summary = [
+            'total_routes' => count($this->routes),
+            'routes_by_method' => [],
+            'routes_by_model' => []
+        ];
+        
+        // Group by HTTP method
+        foreach ($this->routes as $route) {
+            $method = $route['method'];
+            if (!isset($summary['routes_by_method'][$method])) {
+                $summary['routes_by_method'][$method] = 0;
+            }
+            $summary['routes_by_method'][$method]++;
+        }
+        
+        // Group by model
+        $routesByModel = $this->getRoutesByModel();
+        foreach ($routesByModel as $modelName => $routes) {
+            $summary['routes_by_model'][$modelName] = count($routes);
+        }
+        
+        return $summary;
+    }
+    
+    /**
+     * Get endpoint documentation for OpenAPI
+     */
+    public function getEndpointDocumentation(string $path, string $method): array {
+        foreach ($this->routes as $route) {
+            if ($route['path'] === $path && $route['method'] === $method) {
+                return [
+                    'path' => $route['path'],
+                    'method' => $route['method'],
+                    'apiClass' => $route['apiClass'],
+                    'apiMethod' => $route['apiMethod'],
+                    'parameterNames' => $route['parameterNames'] ?? [],
+                    'description' => $this->generateEndpointDescription($route)
+                ];
+            }
+        }
+        return [];
+    }
+    
+    /**
+     * Get all unique endpoint paths
+     */
+    public function getAllEndpointPaths(): array {
+        $paths = [];
+        foreach ($this->routes as $route) {
+            $paths[] = $route['path'];
+        }
+        return array_unique($paths);
+    }
+    
+    /**
+     * Get routes grouped by model
+     */
+    public function getRoutesByModel(): array {
+        $routesByModel = [];
+        
+        foreach ($this->routes as $route) {
+            $modelName = $this->extractModelFromRoute($route);
+            if ($modelName) {
+                if (!isset($routesByModel[$modelName])) {
+                    $routesByModel[$modelName] = [];
+                }
+                $routesByModel[$modelName][] = $route;
+            }
+        }
+        
+        return $routesByModel;
+    }
+    
+    /**
+     * Check if a route belongs to a specific model
+     */
+    private function isRouteForModel(array $route, string $modelName): bool {
+        // Method 1: Check if model name appears in path
+        if (stripos($route['path'], $modelName) !== false) {
+            return true;
+        }
+        
+        // Method 2: Use parameterNames to find modelName position and check path
+        $extractedModel = $this->extractModelFromRoute($route);
+        return $extractedModel === $modelName;
+    }
+    
+    /**
+     * Extract model name from route using parameterNames array for accurate positioning
+     */
+    private function extractModelFromRoute(array $route): ?string {
+        // Method 1: Extract from apiClass if it contains model name
+        if (isset($route['apiClass'])) {
+            if (preg_match('/Models\\\\([^\\\\]+)\\\\/', $route['apiClass'], $matches)) {
+                return $matches[1];
+            }
+        }
+        
+        // Method 2: Extract from path using parameterNames to find correct position
+        return $this->extractModelFromRoutePath($route['path'], $route['parameterNames'] ?? []);
+    }
+    
+    /**
+     * Extract model name from route path using parameterNames array to find modelName position
+     */
+    private function extractModelFromRoutePath(string $path, array $parameterNames): ?string {
+        // Find the index of 'modelName' in parameterNames
+        $modelNameIndex = array_search('modelName', $parameterNames);
+        if ($modelNameIndex === false) {
+            // Try to extract from first path component as fallback
+            $pathComponents = explode('/', trim($path, '/'));
+            if (!empty($pathComponents) && !str_contains($pathComponents[0], '{')) {
+                return $pathComponents[0];
+            }
+            return null; // This is a wildcard route template, no specific model name
+        }
+        
+        // Split path and get component at modelName index
+        $pathComponents = explode('/', trim($path, '/'));
+        if (isset($pathComponents[$modelNameIndex]) && !str_contains($pathComponents[$modelNameIndex], '{')) {
+            return $pathComponents[$modelNameIndex];
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Generate endpoint description for documentation
+     */
+    private function generateEndpointDescription(array $route): string {
+        $method = $route['method'];
+        $modelName = $this->extractModelFromRoute($route);
+        
+        if ($modelName) {
+            switch ($method) {
+                case 'GET':
+                    if (str_contains($route['path'], '{')) {
+                        return "Get a specific {$modelName} record";
+                    }
+                    return "List all {$modelName} records";
+                case 'POST':
+                    return "Create a new {$modelName} record";
+                case 'PUT':
+                case 'PATCH':
+                    return "Update a {$modelName} record";
+                case 'DELETE':
+                    return "Delete a {$modelName} record";
+            }
+        }
+        
+        return "{$method} {$route['path']}";
     }
 
     /**

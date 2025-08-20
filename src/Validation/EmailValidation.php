@@ -5,6 +5,9 @@ namespace Gravitycar\Validation;
  * EmailValidation: Ensures a value is a valid email address.
  */
 class EmailValidation extends ValidationRuleBase {
+    /** @var string Human-readable description */
+    protected static string $description = 'Validates that the value is a properly formatted email address';
+
     public function __construct() {
         parent::__construct('Email', 'Invalid email address.');
     }

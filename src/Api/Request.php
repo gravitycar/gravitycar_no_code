@@ -31,10 +31,10 @@ class Request
      * Create a new Request instance
      * 
      * @param string $url The request URL path
-     * @param array $parameterNames Array of parameter names for each path component
+     * @param array $parameterNames Array of parameter names corresponding to path components
      * @param string $httpMethod The HTTP method (GET, POST, etc.)
      * @param array $requestData All request data (query params, POST data, JSON body)
-     * @throws GCException If parameter names count doesn't match path components count
+     * @throws GCException If parameter validation fails
      */
     public function __construct(string $url, array $parameterNames, string $httpMethod, array $requestData = [])
     {
@@ -44,6 +44,8 @@ class Request
         
         $pathComponents = $this->parsePathComponents($url);
         
+        // For proper parameter extraction, parameterNames should match pathComponents count
+        // This ensures static routes like /Users can extract modelName = "Users"
         if (count($parameterNames) !== count($pathComponents)) {
             throw new GCException("Parameter names count must match path components count", [
                 'parameterNames' => $parameterNames,

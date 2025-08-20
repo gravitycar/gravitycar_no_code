@@ -14,6 +14,7 @@ class IDField extends FieldBase {
     protected bool $required = true;
     protected bool $unique = true;
     protected bool $readOnly = true;
+    protected string $reactComponent = 'HiddenInput';
     
     /** @var array ID fields have limited operators for security and performance */
     protected array $operators = ['equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull'];

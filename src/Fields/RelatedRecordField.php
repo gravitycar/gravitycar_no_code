@@ -27,6 +27,9 @@ class RelatedRecordField extends FieldBase {
     /** @var string */
     protected string $displayFieldName;
     
+    /** @var string React component name for this field type */
+    protected string $reactComponent = 'RelatedRecordSelect';
+    
     /** @var array Related record operators for foreign key filtering */
     protected array $operators = [
         'equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull'

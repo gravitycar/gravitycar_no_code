@@ -13,6 +13,7 @@ class TextField extends FieldBase {
     protected string $label = '';
     protected bool $required = false;
     protected int $maxLength = 255;
+    protected string $reactComponent = 'TextInput';
     
     /** @var array Text field specific operators */
     protected array $operators = [
@@ -23,5 +24,28 @@ class TextField extends FieldBase {
     public function __construct(array $metadata) {
         parent::__construct($metadata);
         // ingestMetadata() in parent constructor now handles all property assignments
+    }
+
+    /**
+     * Generate OpenAPI schema for text field
+     */
+    public function generateOpenAPISchema(): array {
+        $schema = [
+            'type' => 'string'
+        ];
+        
+        if (isset($this->metadata['maxLength'])) {
+            $schema['maxLength'] = $this->metadata['maxLength'];
+        }
+        
+        if (isset($this->metadata['description'])) {
+            $schema['description'] = $this->metadata['description'];
+        }
+        
+        if (isset($this->metadata['example'])) {
+            $schema['example'] = $this->metadata['example'];
+        }
+        
+        return $schema;
     }
 }

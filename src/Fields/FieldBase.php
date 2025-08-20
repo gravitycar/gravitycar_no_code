@@ -30,6 +30,9 @@ abstract class FieldBase {
     
     /** @var array Supported filter operators for this field type */
     protected array $operators = ['equals', 'notEquals', 'isNull', 'isNotNull'];
+    
+    /** @var string React component name for rendering this field type */
+    protected string $reactComponent = 'TextInput';
 
     public function __construct(array $metadata) {
         if (empty($metadata['name'])) {
@@ -112,6 +115,13 @@ abstract class FieldBase {
      */
     public function getTableName(): string {
         return $this->tableName;
+    }
+
+    /**
+     * Get the React component name for this field type
+     */
+    public function getReactComponent(): string {
+        return $this->reactComponent;
     }
 
     /**
@@ -488,5 +498,34 @@ abstract class FieldBase {
             $result[$operator] = $descriptions[$operator] ?? 'Custom operator';
         }
         return $result;
+    }
+
+    /**
+     * Generate OpenAPI schema for this field type
+     * Subclasses can override this for field-specific schema generation
+     */
+    public function generateOpenAPISchema(): array {
+        $schema = ['type' => 'string']; // Default to string
+        
+        // Add description if available
+        if (isset($this->metadata['description'])) {
+            $schema['description'] = $this->metadata['description'];
+        }
+        
+        // Add validation constraints
+        if (isset($this->metadata['maxLength'])) {
+            $schema['maxLength'] = $this->metadata['maxLength'];
+        }
+        
+        if (isset($this->metadata['required']) && $this->metadata['required']) {
+            // Required is handled at the parent schema level, not field level
+        }
+        
+        // Add example if available
+        if (isset($this->metadata['example'])) {
+            $schema['example'] = $this->metadata['example'];
+        }
+        
+        return $schema;
     }
 }

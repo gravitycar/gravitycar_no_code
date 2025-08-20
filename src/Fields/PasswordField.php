@@ -17,6 +17,7 @@ class PasswordField extends FieldBase {
     protected bool $showButton = true;
     protected string $placeholder = 'Enter password';
     protected bool $hashOnSave = true;
+    protected string $reactComponent = 'PasswordInput';
     
     /** @var array Very limited operators for security - no search/contains operations */
     protected array $operators = ['isNull', 'isNotNull'];

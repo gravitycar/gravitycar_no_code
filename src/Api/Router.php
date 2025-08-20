@@ -32,7 +32,7 @@ class Router {
             $this->logger = ServiceLocator::getLogger();
         }
         
-        $this->routeRegistry = new APIRouteRegistry($this->logger);
+        $this->routeRegistry = APIRouteRegistry::getInstance();
         $this->pathScorer = new APIPathScorer($this->logger);
     }
 
@@ -67,7 +67,9 @@ class Router {
         }
         
         // 4. Create enhanced Request object with request data
-        $request = new Request($path, $bestRoute['parameterNames'], $method, $requestData);
+        // For wildcard routes matching static paths, generate appropriate parameter names
+        $parameterNames = $this->generateParameterNamesForRequest($bestRoute, $path);
+        $request = new Request($path, $parameterNames, $method, $requestData);
         
         // 5. Attach request helpers and perform validation
         $this->attachRequestHelpers($request);
@@ -532,5 +534,78 @@ class Router {
         // Remove leading and trailing slashes, then split
         $path = trim($path, '/');
         return explode('/', $path);
+    }
+
+    /**
+     * Generate appropriate parameter names for Request constructor
+     * Handles wildcard routes that match static paths
+     */
+    protected function generateParameterNamesForRequest(array $route, string $actualPath): array {
+        $pathComponents = $this->parsePathComponents($actualPath);
+        $routeComponents = $this->parsePathComponents($route['path']);
+        
+        // Priority 1: If route has explicit parameter names and count makes sense, use them
+        if (!empty($route['parameterNames'])) {
+            // For wildcard routes, the parameterNames should match dynamic components
+            $dynamicComponentCount = 0;
+            foreach ($routeComponents as $component) {
+                if ($component === '?' || (str_starts_with($component, '{') && str_ends_with($component, '}'))) {
+                    $dynamicComponentCount++;
+                }
+            }
+            
+            if (count($route['parameterNames']) === $dynamicComponentCount) {
+                // Generate parameter names for all path components, using route's names for dynamic ones
+                $parameterNames = [];
+                $dynamicIndex = 0;
+                
+                for ($i = 0; $i < count($pathComponents); $i++) {
+                    if ($i < count($routeComponents)) {
+                        $routeComponent = $routeComponents[$i];
+                        
+                        if ($routeComponent === '?' || (str_starts_with($routeComponent, '{') && str_ends_with($routeComponent, '}'))) {
+                            // Use the explicit parameter name
+                            $parameterNames[] = $route['parameterNames'][$dynamicIndex];
+                            $dynamicIndex++;
+                        } else {
+                            // Static component
+                            $parameterNames[] = 'component' . ($i + 1);
+                        }
+                    } else {
+                        $parameterNames[] = 'component' . ($i + 1);
+                    }
+                }
+                
+                return $parameterNames;
+            }
+        }
+        
+        // Priority 2: Extract parameter names from {paramName} patterns
+        $parameterNames = [];
+        for ($i = 0; $i < count($pathComponents); $i++) {
+            if ($i < count($routeComponents)) {
+                $routeComponent = $routeComponents[$i];
+                
+                if (str_starts_with($routeComponent, '{') && str_ends_with($routeComponent, '}')) {
+                    // Extract parameter name from {paramName} pattern
+                    $parameterNames[] = trim($routeComponent, '{}');
+                } elseif ($routeComponent === '?') {
+                    // This is a wildcard position, determine parameter name
+                    if ($i === 0) {
+                        $parameterNames[] = 'modelName'; // First component is usually model name
+                    } else {
+                        $parameterNames[] = 'param' . ($i + 1); // Generic parameter name
+                    }
+                } else {
+                    // Static component, but we still need a parameter name for extraction
+                    $parameterNames[] = 'component' . ($i + 1);
+                }
+            } else {
+                // More path components than route components
+                $parameterNames[] = 'component' . ($i + 1);
+            }
+        }
+        
+        return $parameterNames;
     }
 }

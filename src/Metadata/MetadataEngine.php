@@ -19,6 +19,8 @@ class MetadataEngine {
     /** @var string */
     protected string $relationshipsDirPath = 'src/Relationships';
     /** @var string */
+    protected string $fieldsDirPath = 'src/Fields';
+    /** @var string */
     protected string $cacheDirPath = 'cache/';
     /** @var Logger|null */
     protected ?Logger $logger = null;
@@ -37,6 +39,7 @@ class MetadataEngine {
         // Services will be injected later when needed
         $this->modelsDirPath = 'src/Models';
         $this->relationshipsDirPath = 'src/Relationships';
+        $this->fieldsDirPath = 'src/Fields';
         $this->cacheDirPath = 'cache/';
         $this->coreFieldsMetadata = new CoreFieldsMetadata();
         $this->metadataCache = $this->getCachedMetadata();
@@ -51,6 +54,7 @@ class MetadataEngine {
             $config = ServiceLocator::getConfig();
             $this->modelsDirPath = $config->get('metadata.models_dir_path', 'src/Models');
             $this->relationshipsDirPath = $config->get('metadata.relationships_dir_path', 'src/Relationships');
+            $this->fieldsDirPath = $config->get('metadata.fields_dir_path', 'src/Fields');
             $this->cacheDirPath = $config->get('metadata.cache_dir_path', 'cache/');
         }
     }
@@ -206,9 +210,11 @@ class MetadataEngine {
         $this->logger->info("Rebuilding metadata cache from files");
         $models = $this->scanAndLoadMetadata($this->modelsDirPath);
         $relationships = $this->scanAndLoadMetadata($this->relationshipsDirPath);
+        $fieldTypes = $this->scanAndLoadFieldTypes();
         $metadata = [
             'models' => $models,
             'relationships' => $relationships,
+            'field_types' => $fieldTypes,
         ];
         $this->validateMetadata($metadata);
         $this->cacheMetadata($metadata);
@@ -293,5 +299,328 @@ class MetadataEngine {
             }
         }
         return [];
+    }
+
+    /**
+     * Get all available model names from cache
+     */
+    public function getAvailableModels(): array {
+        $cachedMetadata = $this->getCachedMetadata();
+        return array_keys($cachedMetadata['models'] ?? []);
+    }
+    
+    /**
+     * Get model summary information for API discovery
+     */
+    public function getModelSummaries(): array {
+        $cachedMetadata = $this->getCachedMetadata();
+        $summaries = [];
+        
+        foreach ($cachedMetadata['models'] ?? [] as $modelName => $modelData) {
+            $summaries[$modelName] = [
+                'name' => $modelName,
+                'table' => $modelData['table'] ?? strtolower($modelName),
+                'description' => $modelData['description'] ?? "Model for {$modelName}",
+                'fieldCount' => count($modelData['fields'] ?? []),
+                'relationshipCount' => count($modelData['relationships'] ?? [])
+            ];
+        }
+        
+        return $summaries;
+    }
+    
+    /**
+     * Get all relationships across all models
+     */
+    public function getAllRelationships(): array {
+        $cachedMetadata = $this->getCachedMetadata();
+        $allRelationships = [];
+        
+        // Collect relationships from models
+        foreach ($cachedMetadata['models'] ?? [] as $modelName => $modelData) {
+            if (isset($modelData['relationships'])) {
+                foreach ($modelData['relationships'] as $relationshipName => $relationshipData) {
+                    // Ensure relationship data is an array
+                    if (!is_array($relationshipData)) {
+                        continue;
+                    }
+                    
+                    $allRelationships["{$modelName}.{$relationshipName}"] = array_merge(
+                        $relationshipData,
+                        ['source_model' => $modelName]
+                    );
+                }
+            }
+        }
+        
+        // Add standalone relationships
+        foreach ($cachedMetadata['relationships'] ?? [] as $relationshipName => $relationshipData) {
+            $allRelationships[$relationshipName] = $relationshipData;
+        }
+        
+        return $allRelationships;
+    }
+    
+    /**
+     * Get field type definitions from cache (dynamically discovered)
+     */
+    public function getFieldTypeDefinitions(): array {
+        $cachedMetadata = $this->getCachedMetadata();
+        return $cachedMetadata['field_types'] ?? [];
+    }
+    
+    /**
+     * Check if model exists in cache
+     */
+    public function modelExists(string $modelName): bool {
+        $cachedMetadata = $this->getCachedMetadata();
+        return isset($cachedMetadata['models'][$modelName]);
+    }
+
+    /**
+     * Scan and discover all FieldBase subclasses dynamically with React metadata
+     */
+    protected function scanAndLoadFieldTypes(): array {
+        $fieldTypes = [];
+        
+        if (!is_dir($this->fieldsDirPath)) {
+            $this->logger->warning("Fields directory not found: {$this->fieldsDirPath}");
+            return $fieldTypes;
+        }
+        
+        $files = glob($this->fieldsDirPath . '/*.php');
+        foreach ($files as $filePath) {
+            $fileName = basename($filePath, '.php');
+            
+            // Skip base classes and interfaces
+            if (in_array($fileName, ['FieldBase', 'FieldInterface'])) {
+                continue;
+            }
+            
+            try {
+                $className = "Gravitycar\\Fields\\{$fileName}";
+                
+                if (!class_exists($className)) {
+                    continue;
+                }
+                
+                $reflection = new \ReflectionClass($className);
+                
+                // Skip abstract classes and interfaces
+                if ($reflection->isAbstract() || $reflection->isInterface()) {
+                    continue;
+                }
+                
+                // Check if it's a FieldBase subclass
+                if (!$reflection->isSubclassOf('Gravitycar\\Fields\\FieldBase')) {
+                    continue;
+                }
+                
+                $fieldType = $this->extractFieldTypeFromClassName($fileName);
+                
+                $fieldTypeData = [
+                    'type' => $fieldType,
+                    'class' => $className,
+                    'description' => $this->getStaticProperty($reflection, 'description', 
+                        $this->generateDescriptionFromClassName($fileName)),
+                    'react_component' => $this->getReactComponentForFieldType($fieldType),
+                    'validation_rules' => $this->getSupportedValidationRulesForFieldType($fieldType),
+                    'operators' => $this->getFieldOperators($reflection, $className)
+                ];
+                
+                $fieldTypes[$fieldType] = $fieldTypeData;
+                
+            } catch (\Exception $e) {
+                $this->logger->warning("Error processing field type {$fileName}: " . $e->getMessage());
+            }
+        }
+        
+        return $fieldTypes;
+    }
+
+    /**
+     * Extract field type from class name for FieldFactory
+     */
+    private function extractFieldTypeFromClassName(string $className): string {
+        // Convert "TextField" to "Text", "EmailField" to "Email", etc.
+        return str_replace('Field', '', $className);
+    }
+
+    /**
+     * Safely get static property value with fallback
+     */
+    private function getStaticProperty(\ReflectionClass $reflection, string $propertyName, $fallback) {
+        if ($reflection->hasProperty($propertyName) && $reflection->getProperty($propertyName)->isStatic()) {
+            $property = $reflection->getProperty($propertyName);
+            $property->setAccessible(true);
+            return $property->getValue();
+        }
+        return $fallback;
+    }
+
+    /**
+     * Generate fallback description from class name
+     */
+    private function generateDescriptionFromClassName(string $className): string {
+        // Convert "TextField" to "Text field"
+        $words = preg_split('/(?=[A-Z])/', $className, -1, PREG_SPLIT_NO_EMPTY);
+        return implode(' ', array_map('strtolower', $words));
+    }
+
+    /**
+     * Get React component mapping for field type using FieldFactory pattern
+     */
+    private function getReactComponentForFieldType(string $fieldType): string {
+        try {
+            // Build field class name from field type
+            $fieldClassName = "Gravitycar\\Fields\\{$fieldType}Field";
+            
+            // Create field instance using ServiceLocator
+            $fieldInstance = ServiceLocator::createField($fieldClassName, []);
+            
+            // Get React component from field instance
+            return $fieldInstance->getReactComponent();
+            
+        } catch (\Exception $e) {
+            // Fallback to TextInput if field creation fails
+            if ($this->logger) {
+                $this->logger->warning("Failed to get React component for field type '{$fieldType}': " . $e->getMessage());
+            }
+            return 'TextInput';
+        }
+    }
+
+    /**
+     * Get supported validation rules for a field type (what it CAN support, not what's configured)
+     */
+    private function getSupportedValidationRulesForFieldType(string $fieldType): array {
+        // Get all available validation rules from validation directory
+        $supportedRules = [];
+        $validationDir = 'src/Validation';
+        
+        if (!is_dir($validationDir)) {
+            return $supportedRules;
+        }
+        
+        $files = glob($validationDir . '/*Validation.php');
+        foreach ($files as $filePath) {
+            $fileName = basename($filePath, '.php');
+            $className = "Gravitycar\\Validation\\{$fileName}";
+            
+            if (class_exists($className)) {
+                try {
+                    $reflection = new \ReflectionClass($className);
+                    if (!$reflection->isAbstract() && 
+                        $reflection->isSubclassOf('Gravitycar\\Validation\\ValidationRuleBase')) {
+                        
+                        $ruleName = $this->extractRuleNameFromClass($fileName);
+                        $ruleInstance = new $className();
+                        
+                        $supportedRules[] = [
+                            'name' => $ruleName,
+                            'class' => $className,
+                            'description' => $this->getValidationRuleDescription($ruleInstance),
+                            'javascript_validation' => $this->getJavaScriptValidation($ruleInstance)
+                        ];
+                    }
+                } catch (\Exception $e) {
+                    $this->logger->warning("Error processing validation rule {$fileName}: " . $e->getMessage());
+                }
+            }
+        }
+        
+        return $supportedRules;
+    }
+
+    /**
+     * Extract rule name from validation rule class name
+     */
+    private function extractRuleNameFromClass(string $className): string {
+        // Extract the class name without namespace and "Validation" suffix
+        $shortClassName = str_replace('Validation', '', $className);
+        return $shortClassName;
+    }
+
+    /**
+     * Get human-readable description from validation rule instance
+     */
+    private function getValidationRuleDescription(\Gravitycar\Validation\ValidationRuleBase $ruleInstance): string {
+        $reflection = new \ReflectionClass($ruleInstance);
+        
+        // Try to get static description property
+        $description = $this->getStaticProperty($reflection, 'description', '');
+        
+        if (empty($description)) {
+            // Fallback to error message or generate from class name
+            $description = $ruleInstance->getErrorMessage();
+            if (empty($description)) {
+                $className = $reflection->getShortName();
+                $description = $this->generateDescriptionFromClassName($className);
+            }
+        }
+        
+        return $description;
+    }
+
+    /**
+     * Get JavaScript validation from rule instance
+     */
+    private function getJavaScriptValidation(\Gravitycar\Validation\ValidationRuleBase $ruleInstance): string {
+        if (method_exists($ruleInstance, 'getJavascriptValidation')) {
+            return $ruleInstance->getJavascriptValidation();
+        }
+        return '';
+    }
+
+    /**
+     * Get field operators from reflection or default
+     */
+    private function getFieldOperators(\ReflectionClass $reflection, string $className): array {
+        $defaultOperators = ['equals', 'notEquals', 'isNull', 'isNotNull'];
+        
+        try {
+            if ($reflection->hasProperty('operators')) {
+                $property = $reflection->getProperty('operators');
+                $property->setAccessible(true);
+                
+                // Create temporary instance to get operators
+                $instance = $reflection->newInstanceWithoutConstructor();
+                return $property->getValue($instance) ?? $defaultOperators;
+            }
+        } catch (\Exception $e) {
+            $this->logger->debug("Could not get operators for {$className}: " . $e->getMessage());
+        }
+        
+        return $defaultOperators;
+    }
+
+    /**
+     * Extract validation rules that a specific field instance actually has configured
+     */
+    private function getFieldValidationRules($fieldInstance): array {
+        $rules = [];
+        
+        try {
+            // Introspect the field instance's actual validation rules
+            $reflection = new \ReflectionClass($fieldInstance);
+            $validationRulesProperty = $reflection->getProperty('validationRules');
+            $validationRulesProperty->setAccessible(true);
+            $validationRules = $validationRulesProperty->getValue($fieldInstance);
+            
+            foreach ($validationRules as $ruleInstance) {
+                if ($ruleInstance instanceof \Gravitycar\Validation\ValidationRuleBase) {
+                    $rules[] = [
+                        'name' => $this->extractRuleNameFromClass(get_class($ruleInstance)),
+                        'class' => get_class($ruleInstance),
+                        'description' => $this->getValidationRuleDescription($ruleInstance),
+                        'javascript_validation' => $this->getJavaScriptValidation($ruleInstance)
+                    ];
+                }
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning("Error extracting validation rules from field instance: " . $e->getMessage());
+        }
+        
+        return $rules;
     }
 }

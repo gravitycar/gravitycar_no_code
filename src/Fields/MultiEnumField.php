@@ -18,6 +18,7 @@ class MultiEnumField extends FieldBase {
     protected int $maxSelections = 0;
     protected int $minSelections = 0;
     protected array $options = [];
+    protected string $reactComponent = 'MultiSelect';
     
     /** @var array Array-specific operators for multi-value fields */
     protected array $operators = [

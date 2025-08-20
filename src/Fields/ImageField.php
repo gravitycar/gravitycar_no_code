@@ -19,6 +19,7 @@ class ImageField extends FieldBase {
     protected bool $allowLocal = true;
     protected bool $allowRemote = true;
     protected string $placeholder = 'Enter image path or URL';
+    protected string $reactComponent = 'ImageUpload';
     
     /** @var array Image fields have very limited filtering capabilities */
     protected array $operators = ['equals', 'notEquals', 'isNull', 'isNotNull'];

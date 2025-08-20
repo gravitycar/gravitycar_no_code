@@ -210,6 +210,13 @@ class ServiceLocator {
     }
 
     /**
+     * Get the APIRouteRegistry singleton instance
+     */
+    public static function getAPIRouteRegistry(): \Gravitycar\Api\APIRouteRegistry {
+        return \Gravitycar\Api\APIRouteRegistry::getInstance();
+    }
+
+    /**
      * Get the current user - enhanced for authentication system
      */
     public static function getCurrentUser(): ?\Gravitycar\Models\ModelBase {

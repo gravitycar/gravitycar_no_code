@@ -16,6 +16,7 @@ class EnumField extends FieldBase {
     protected string $className = '';
     protected string $methodName = '';
     protected array $options = [];
+    protected string $reactComponent = 'Select';
     
     /** @var array Enum-specific operators for single value selection */
     protected array $operators = ['equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull'];

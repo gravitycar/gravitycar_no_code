@@ -19,6 +19,7 @@ class RadioButtonSetField extends FieldBase {
     protected bool $allowClear = false;
     protected string $clearLabel = 'None';
     protected array $options = [];
+    protected string $reactComponent = 'RadioGroup';
     
     /** @var array Same as EnumField since radio buttons represent single selection */
     protected array $operators = ['equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull'];

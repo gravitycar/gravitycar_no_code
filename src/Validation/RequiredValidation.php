@@ -5,6 +5,9 @@ namespace Gravitycar\Validation;
  * RequiredValidation: Ensures a value is present and not empty.
  */
 class RequiredValidation extends ValidationRuleBase {
+    /** @var string Human-readable description */
+    protected static string $description = 'Ensures a value is present and not empty';
+
     public function __construct() {
         parent::__construct('Required', 'This field is required.');
     }

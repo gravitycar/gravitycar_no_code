@@ -21,6 +21,7 @@ class FloatField extends FieldBase {
     protected string $placeholder = 'Enter a decimal number';
     protected bool $showSpinners = true;
     protected bool $formatDisplay = false;
+    protected string $reactComponent = 'NumberInput';
     
     /** @var array Numeric operators for float fields */
     protected array $operators = [

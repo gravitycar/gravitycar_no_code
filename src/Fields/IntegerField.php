@@ -19,6 +19,7 @@ class IntegerField extends FieldBase {
     protected int $step = 1;
     protected string $placeholder = 'Enter a number';
     protected bool $showSpinners = true;
+    protected string $reactComponent = 'NumberInput';
     
     /** @var array Numeric operators for integer fields */
     protected array $operators = [
@@ -30,5 +31,32 @@ class IntegerField extends FieldBase {
     public function __construct(array $metadata) {
         parent::__construct($metadata);
         // ingestMetadata() in parent constructor now handles all property assignments
+    }
+
+    /**
+     * Generate OpenAPI schema for integer field
+     */
+    public function generateOpenAPISchema(): array {
+        $schema = [
+            'type' => 'integer'
+        ];
+        
+        if (isset($this->metadata['minValue'])) {
+            $schema['minimum'] = $this->metadata['minValue'];
+        }
+        
+        if (isset($this->metadata['maxValue'])) {
+            $schema['maximum'] = $this->metadata['maxValue'];
+        }
+        
+        if (isset($this->metadata['description'])) {
+            $schema['description'] = $this->metadata['description'];
+        }
+        
+        if (isset($this->metadata['example'])) {
+            $schema['example'] = $this->metadata['example'];
+        }
+        
+        return $schema;
     }
 }
