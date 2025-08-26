@@ -77,6 +77,72 @@
                 "-dxdebug.start_with_request=yes"
             ],
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug PHPUnit ModelBaseTest",
+            "type": "php",
+            "request": "launch",
+            "program": "${workspaceFolder}/vendor/bin/phpunit",
+            "args": [
+                "Tests/Unit/Models/ModelBaseTest.php"
+            ],
+            "cwd": "${workspaceFolder}",
+            "runtimeArgs": [
+                "-dxdebug.mode=debug",
+                "-dxdebug.start_with_request=yes",
+                "-dxdebug.client_port=9003"
+            ],
+            "env": {
+                "XDEBUG_CONFIG": "idekey=VSCODE"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug Current Unit Test File",
+            "type": "php",
+            "request": "launch",
+            "program": "${workspaceFolder}/vendor/bin/phpunit",
+            "args": [
+                "${file}"
+            ],
+            "cwd": "${workspaceFolder}",
+            "runtimeArgs": [
+                "-dxdebug.mode=debug",
+                "-dxdebug.start_with_request=yes",
+                "-dxdebug.client_port=9003"
+            ],
+            "env": {
+                "XDEBUG_CONFIG": "idekey=VSCODE"
+            },
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Debug Single PHPUnit Test",
+            "type": "php",
+            "request": "launch",
+            "program": "${workspaceFolder}/vendor/bin/phpunit",
+            "args": [
+                "Tests/Unit/Models/ModelBaseTest.php",
+                "--filter=${input:testFilter}"
+            ],
+            "cwd": "${workspaceFolder}",
+            "runtimeArgs": [
+                "-dxdebug.mode=debug",
+                "-dxdebug.start_with_request=yes",
+                "-dxdebug.client_port=9003"
+            ],
+            "env": {
+                "XDEBUG_CONFIG": "idekey=VSCODE"
+            },
+            "console": "integratedTerminal"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "testFilter",
+            "description": "Test method name to filter",
+            "default": "testConstructorTriggersMetadataLoading",
+            "type": "promptString"
         }
     ]
 }

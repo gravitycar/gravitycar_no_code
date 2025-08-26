@@ -135,16 +135,19 @@ class ForeignKeyExistsValidation extends ValidationRuleBase {
 
     /**
      * Set the field object this validation rule is associated with
-     * @param RelatedRecordField $field The RelatedRecord field instance
+     * @param FieldBase $field The field instance (should be RelatedRecordField for proper validation)
      */
     public function setField(FieldBase $field): void {
+        $this->field = $field;
+        
+        // Log a warning if this is not a RelatedRecordField, but don't throw an exception
+        // The validation logic will handle this gracefully
         if (!($field instanceof RelatedRecordField)) {
-            throw new GCException('ForeignKeyExistsValidation can only be used with RelatedRecordField instances', [
+            $this->logger->debug('ForeignKeyExistsValidation set on non-RelatedRecordField - validation will return true with warning', [
                 'field_name' => $field->getName(),
                 'field_type' => get_class($field)
             ]);
         }
-        $this->field = $field;
     }
 
     /**

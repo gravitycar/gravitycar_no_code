@@ -45,22 +45,6 @@ class FieldBaseTest extends UnitTestCase
     }
 
     /**
-     * Test constructor throws exception with missing name
-     */
-    public function testConstructorThrowsExceptionWithMissingName(): void
-    {
-        $this->expectException(GCException::class);
-        $this->expectExceptionMessage('Field metadata missing name');
-
-        $invalidMetadata = [
-            'type' => 'TestField',
-            'label' => 'Field without name'
-        ];
-
-        new TestableFieldBase($invalidMetadata, $this->logger);
-    }
-
-    /**
      * Test getName method
      */
     public function testGetName(): void

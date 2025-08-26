@@ -10,9 +10,17 @@ use Gravitycar\Api\RestApiHandler;
 class RestApiEntryPointTest extends TestCase {
     
     private $handler;
+    private array $originalServerState = [];
+    private array $originalGetState = [];
+    private array $originalPostState = [];
     
     protected function setUp(): void {
         parent::setUp();
+        
+        // Save original global state
+        $this->originalServerState = $_SERVER;
+        $this->originalGetState = $_GET ?? [];
+        $this->originalPostState = $_POST ?? [];
         
         // Set up test environment
         $GLOBALS['GRAVITYCAR_TEST_MODE'] = true;
@@ -21,6 +29,15 @@ class RestApiEntryPointTest extends TestCase {
         require_once __DIR__ . '/../../rest_api.php';
         
         $this->handler = new RestApiHandler();
+    }
+    
+    protected function tearDown(): void {
+        // Restore original global state
+        $_SERVER = $this->originalServerState;
+        $_GET = $this->originalGetState;
+        $_POST = $this->originalPostState;
+        
+        parent::tearDown();
     }
     
     /**

@@ -20,7 +20,7 @@ class ValidationRuleBaseTest extends UnitTestCase
         parent::setUp();
 
         // Create a testable concrete implementation of ValidationRuleBase
-        $this->validator = new TestableValidationRule($this->logger, 'TestRule', 'Test error message');
+        $this->validator = new TestableValidationRule('TestRule', 'Test error message');
     }
 
     /**
@@ -28,12 +28,12 @@ class ValidationRuleBaseTest extends UnitTestCase
      */
     public function testConstructor(): void
     {
-        $validator = new TestableValidationRule($this->logger, 'CustomName', 'Custom error');
+        $validator = new TestableValidationRule('CustomName', 'Custom error');
 
         $this->assertEquals('Custom error', $validator->getErrorMessage());
 
         // Test default constructor
-        $defaultValidator = new TestableValidationRule($this->logger);
+        $defaultValidator = new TestableValidationRule();
         $this->assertIsString($defaultValidator->getErrorMessage());
     }
 
@@ -81,7 +81,7 @@ class ValidationRuleBaseTest extends UnitTestCase
     public function testGetFormatErrorMessage(): void
     {
         // Test with field placeholder
-        $validator = new TestableValidationRule($this->logger, 'Test', 'Field {fieldName} is invalid');
+        $validator = new TestableValidationRule('Test', 'Field {fieldName} is invalid');
 
         $field = $this->createMock(FieldBase::class);
         $field->method('getName')->willReturn('username');
@@ -96,7 +96,7 @@ class ValidationRuleBaseTest extends UnitTestCase
      */
     public function testGetFormatErrorMessageWithValue(): void
     {
-        $validator = new TestableValidationRule($this->logger, 'Test', 'Value {value} is not allowed');
+        $validator = new TestableValidationRule('Test', 'Value {value} is not allowed');
         $validator->setValue('badvalue');
 
         $formatted = $validator->getFormatErrorMessage();
@@ -108,7 +108,7 @@ class ValidationRuleBaseTest extends UnitTestCase
      */
     public function testGetFormatErrorMessageWithFieldAndValue(): void
     {
-        $validator = new TestableValidationRule($this->logger, 'Test', 'Field {fieldName} cannot have value {value}');
+        $validator = new TestableValidationRule('Test', 'Field {fieldName} cannot have value {value}');
 
         $field = $this->createMock(FieldBase::class);
         $field->method('getName')->willReturn('status');
@@ -139,7 +139,7 @@ class ValidationRuleBaseTest extends UnitTestCase
      */
     public function testShouldValidateValueWithSkipIfEmpty(): void
     {
-        $validator = new TestableValidationRule($this->logger);
+        $validator = new TestableValidationRule();
         $validator->setSkipIfEmpty(true);
 
         // Should skip validation for empty values
@@ -174,7 +174,7 @@ class ValidationRuleBaseTest extends UnitTestCase
     public function testIsApplicableWithSkipIfEmpty(): void
     {
         $field = $this->createMock(FieldBase::class);
-        $validator = new TestableValidationRule($this->logger);
+        $validator = new TestableValidationRule();
         $validator->setSkipIfEmpty(true);
 
         // Should not be applicable for empty values when skipIfEmpty is true

@@ -74,5 +74,12 @@ return [
         'fallback_on_cache_corruption' => true,
         'detailed_error_responses' => true, // Include context in error responses
         'log_documentation_errors' => true
+    ],
+    
+    // Google OAuth Configuration for testing
+    'google' => [
+        'client_id' => 'test-client-id',
+        'client_secret' => 'test-client-secret',
+        'redirect_uri' => 'http://localhost:8081/auth/google/callback'
     ]
 ];

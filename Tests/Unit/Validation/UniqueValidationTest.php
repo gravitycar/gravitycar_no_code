@@ -7,6 +7,8 @@ use Gravitycar\Validation\UniqueValidation;
 use Gravitycar\Fields\FieldBase;
 use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Core\ServiceLocator;
+use Aura\Di\Container;
+use Aura\Di\ContainerBuilder;
 
 /**
  * Test suite for the UniqueValidation class.
@@ -22,7 +24,13 @@ class UniqueValidationTest extends UnitTestCase
     {
         parent::setUp();
 
-        $this->validator = new UniqueValidation($this->logger);
+        // Set up ServiceLocator with test logger
+        $builder = new ContainerBuilder();
+        $testContainer = $builder->newInstance();
+        $testContainer->set('logger', $this->logger);
+        ServiceLocator::setContainer($testContainer);
+
+        $this->validator = new UniqueValidation();
 
         // Create mock field
         $this->mockField = $this->createMock(FieldBase::class);
@@ -30,6 +38,13 @@ class UniqueValidationTest extends UnitTestCase
 
         // Create mock database connector
         $this->mockDatabaseConnector = $this->createMock(DatabaseConnector::class);
+    }
+
+    protected function tearDown(): void
+    {
+        // Reset ServiceLocator to avoid affecting other tests
+        ServiceLocator::reset();
+        parent::tearDown();
     }
 
     /**
@@ -206,7 +221,7 @@ class UniqueValidationTest extends UnitTestCase
 
         // Test without field context (should log error)
         $this->validator->validate('test_value');
-        $this->assertLoggedMessage('error', 'UniqueValidation requires field context');
+        $this->assertLoggedMessage('error', 'UniqueValidation requires field context but field is not set');
 
         // Clear logs and test with field context
         $this->clearLogRecords();

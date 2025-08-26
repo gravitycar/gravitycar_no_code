@@ -13,6 +13,7 @@ use Gravitycar\Exceptions\GCException;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Factories\FieldFactory;
 use Gravitycar\Database\DatabaseConnector;
+use Gravitycar\Metadata\MetadataEngine;
 use Monolog\Logger;
 
 /**
@@ -39,7 +40,37 @@ class ModelBaseTest extends UnitTestCase
                 'deleted_at' => ['type' => 'DateTime'],
                 'created_by' => ['type' => 'Text'],
                 'updated_by' => ['type' => 'Text'],
-                'deleted_by' => ['type' => 'Text']
+                'deleted_by' => ['type' => 'Text'],
+                'created_by_name' => [
+                    'name' => 'created_by_name',
+                    'type' => 'Text',
+                    'label' => 'Created By Name',
+                    'description' => 'Display name of the user who created this record',
+                    'required' => false,
+                    'readOnly' => true,
+                    'isDBField' => false,
+                    'nullable' => true
+                ],
+                'updated_by_name' => [
+                    'name' => 'updated_by_name',
+                    'type' => 'Text',
+                    'label' => 'Updated By Name',
+                    'description' => 'Display name of the user who last updated this record',
+                    'required' => false,
+                    'readOnly' => true,
+                    'isDBField' => false,
+                    'nullable' => true
+                ],
+                'deleted_by_name' => [
+                    'name' => 'deleted_by_name',
+                    'type' => 'Text',
+                    'label' => 'Deleted By Name',
+                    'description' => 'Display name of the user who deleted this record',
+                    'required' => false,
+                    'readOnly' => true,
+                    'isDBField' => false,
+                    'nullable' => true
+                ]
             ],
             'displayColumns' => ['name', 'email'],
             'table' => 'test_models',
@@ -299,7 +330,7 @@ class ModelBaseTest extends UnitTestCase
         $mockFieldFactory = $this->createMock(FieldFactory::class);
         $mockField = $this->createMock(FieldBase::class);
 
-        $mockFieldFactory->expects($this->exactly(9)) // 9 fields in sample metadata
+        $mockFieldFactory->expects($this->exactly(12)) // 12 fields in sample metadata (9 original + 3 core display fields)
             ->method('createField')
             ->willReturn($mockField);
 
@@ -307,7 +338,7 @@ class ModelBaseTest extends UnitTestCase
         $this->model->testInitializeFields();
 
         $fields = $this->model->getFields();
-        $this->assertCount(9, $fields);
+        $this->assertCount(12, $fields);
         $this->assertArrayHasKey('id', $fields);
         $this->assertArrayHasKey('name', $fields);
     }
@@ -655,8 +686,29 @@ class ModelBaseTest extends UnitTestCase
             $this->fail('Fields not initialized properly. Debug info: ' . json_encode($debug));
         }
 
+        // Verify we have the expected fields
+        $this->assertTrue($this->model->hasField('name'), 'Model should have name field');
+        $this->assertTrue($this->model->hasField('email'), 'Model should have email field');
+
+        // Test direct field access to see if the field itself works
+        $nameField = $this->model->getField('name');
+        $this->assertNotNull($nameField, 'Name field should not be null');
+        
+        // Test field value storage directly
+        $nameField->setValue('Direct Test');
+        $this->assertEquals('Direct Test', $nameField->getValue(), 'Field should store value directly');
+
+        // Now test via model get/set
         $this->model->set('name', 'Test Name');
-        $this->assertEquals('Test Name', $this->model->get('name'));
+        
+        // Get the field again and check its value
+        $nameFieldAfterSet = $this->model->getField('name');
+        $fieldValue = $nameFieldAfterSet->getValue();
+        $this->assertEquals('Test Name', $fieldValue, 'Field value should be set correctly');
+        
+        // Finally test the model get method
+        $modelValue = $this->model->get('name');
+        $this->assertEquals('Test Name', $modelValue, 'Model get should return field value');
 
         $this->model->set('email', 'test@example.com');
         $this->assertEquals('test@example.com', $this->model->get('email'));
@@ -774,6 +826,10 @@ class TestableModelBase extends ModelBase
     {
         // Initialize basic properties first
         $this->logger = $logger;
+        
+        // Create a mock MetadataEngine to avoid dependency issues
+        $this->metadataEngine = $this->createMockMetadataEngine();
+        
         $this->metadata = [];
         $this->fields = [];
         $this->relationships = [];
@@ -781,6 +837,9 @@ class TestableModelBase extends ModelBase
         $this->deleted = false;
         $this->deletedAt = null;
         $this->deletedBy = null;
+        $this->metadataLoaded = false;
+        $this->fieldsInitialized = false;
+        $this->relationshipsInitialized = false;
 
         // Only call full initialization if we have mock metadata content set
         // This allows the test for missing metadata to work properly
@@ -789,12 +848,48 @@ class TestableModelBase extends ModelBase
         }
     }
 
+    /**
+     * Create a mock MetadataEngine for testing
+     */
+    private function createMockMetadataEngine(): MetadataEngine
+    {
+        $mock = new class extends MetadataEngine {
+            public function __construct() {
+                // Skip parent constructor to avoid dependencies
+            }
+            
+            public function resolveModelName(string $className): string {
+                return basename(str_replace('\\', '/', $className));
+            }
+            
+            public function getModelMetadata(string $modelName): array {
+                // Return empty metadata by default - tests will override with setMockMetadataContent
+                return [];
+            }
+            
+            public function buildModelMetadataPath(string $modelName): string {
+                return "src/Models/{$modelName}/" . strtolower($modelName) . "_metadata.php";
+            }
+        };
+        
+        return $mock;
+    }
+
     // Override metadata loading for testing
     protected function loadMetadataFromFiles(array $filePaths): array
     {
-        // If mock metadata file paths are set, use the parent implementation
+        // If mock metadata file paths are set, read from actual files
         if (!empty($this->mockMetadataFilePaths)) {
-            return parent::loadMetadataFromFiles($this->mockMetadataFilePaths);
+            $mergedMetadata = [];
+            foreach ($this->mockMetadataFilePaths as $filePath) {
+                if (file_exists($filePath)) {
+                    $metadata = include $filePath;
+                    if (is_array($metadata)) {
+                        $mergedMetadata = $this->mergeMetadataArrays($mergedMetadata, $metadata);
+                    }
+                }
+            }
+            return $mergedMetadata;
         }
 
         // If mock metadata content is set, return it
@@ -802,8 +897,56 @@ class TestableModelBase extends ModelBase
             return $this->mockMetadataContent;
         }
 
-        // Default to parent implementation for real file testing
-        return parent::loadMetadataFromFiles($filePaths);
+        // For actual file testing, read the files directly
+        $mergedMetadata = [];
+        foreach ($filePaths as $filePath) {
+            if (file_exists($filePath)) {
+                $metadata = include $filePath;
+                if (is_array($metadata)) {
+                    $mergedMetadata = $this->mergeMetadataArrays($mergedMetadata, $metadata);
+                }
+            }
+        }
+        return $mergedMetadata;
+    }
+
+    // Override loadMetadata to call ingestMetadata (for test mocking)
+    protected function loadMetadata(): void {
+        $this->ingestMetadata();
+    }
+
+    // Override ingestMetadata to use mock data instead of MetadataEngine
+    protected function ingestMetadata(): void {
+        if (!empty($this->mockMetadataContent)) {
+            $this->metadata = $this->mockMetadataContent;
+            $this->validateMetadata($this->metadata);
+            $this->metadataLoaded = true;
+        } else if (!empty($this->mockMetadataFilePaths)) {
+            // Load metadata from mock file paths
+            $this->metadata = $this->loadMetadataFromFiles($this->mockMetadataFilePaths);
+            $this->validateMetadata($this->metadata);
+            $this->metadataLoaded = true;
+        } else {
+            // Provide minimal metadata for testing field initialization errors
+            $this->metadata = [
+                'fields' => [
+                    'id' => ['type' => 'ID', 'required' => true]
+                ]
+            ];
+            $this->validateMetadata($this->metadata);
+            $this->metadataLoaded = true;
+        }
+    }
+    protected function mergeMetadataArrays(array $existing, array $new): array
+    {
+        foreach ($new as $key => $value) {
+            if ($key === 'fields' && isset($existing['fields']) && is_array($value)) {
+                $existing['fields'] = array_merge($existing['fields'], $value);
+            } else {
+                $existing[$key] = $value;
+            }
+        }
+        return $existing;
     }
 
     // Override field initialization for testing
@@ -903,6 +1046,7 @@ class TestableModelBase extends ModelBase
     {
         if (!empty($this->metadata['fields']) && empty($this->fields) && $this->mockFieldFactory) {
             $this->initializeFields();
+            $this->fieldsInitialized = true; // Set this flag to prevent ModelBase::getField() from reinitializing fields
         }
     }
 

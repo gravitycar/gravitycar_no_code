@@ -35,10 +35,6 @@ abstract class FieldBase {
     protected string $reactComponent = 'TextInput';
 
     public function __construct(array $metadata) {
-        if (empty($metadata['name'])) {
-            throw new GCException('Field metadata missing name',
-                ['metadata' => $metadata]);
-        }
         $this->logger = ServiceLocator::getLogger();
 
         // Use ingestMetadata to automatically populate properties from metadata

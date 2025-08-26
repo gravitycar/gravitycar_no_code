@@ -37,17 +37,22 @@ class RelatedRecordField extends FieldBase {
 
     public function __construct(array $metadata) {
         parent::__construct($metadata);
-        $this->validateRelatedRecordMetadata();
+        $this->validateRelatedRecordMetadata(empty($metadata));
     }
 
     /**
      * Validate that required metadata for RelatedRecord field is present
      */
-    protected function validateRelatedRecordMetadata(): void {
+    protected function validateRelatedRecordMetadata(bool $emptyMetadata = false): void {
+        // Skip validation if we're instantiating with empty metadata (used for field type discovery)
+        if ($emptyMetadata) {
+            return;
+        }
+        
         foreach ($this->requiredMetadataFields as $field) {
             if (!isset($this->metadata[$field]) || empty($this->metadata[$field])) {
                 throw new GCException("RelatedRecord field missing required metadata: {$field}", [
-                    'field_name' => $this->name,
+                    'field_name' => $this->name ?? 'unknown',
                     'metadata' => $this->metadata,
                     'required_fields' => $this->requiredMetadataFields
                 ]);

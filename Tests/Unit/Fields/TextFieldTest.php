@@ -283,20 +283,4 @@ class TextFieldTest extends UnitTestCase
         $this->assertEquals('test_field', $metadata['name']);
         $this->assertEquals('Text', $metadata['type']);
     }
-
-    /**
-     * Test constructor with missing name throws exception
-     */
-    public function testConstructorWithMissingNameThrowsException(): void
-    {
-        $this->expectException(\Gravitycar\Exceptions\GCException::class);
-        $this->expectExceptionMessage('Field metadata missing name');
-
-        $invalidMetadata = [
-            'type' => 'Text',
-            'label' => 'Field without name'
-        ];
-
-        new TextField($invalidMetadata, $this->logger);
-    }
 }

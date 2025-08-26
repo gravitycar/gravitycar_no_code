@@ -18,7 +18,7 @@ class OptionsValidationTest extends UnitTestCase
         parent::setUp();
 
         // Create validator with default options
-        $this->validator = new OptionsValidation($this->logger, [
+        $this->validator = new OptionsValidation([
             'option1' => 'First Option',
             'option2' => 'Second Option',
             'option3' => 'Third Option'
@@ -33,7 +33,7 @@ class OptionsValidationTest extends UnitTestCase
         $this->assertEquals('Value is not in the allowed options.', $this->validator->getErrorMessage());
 
         // Test constructor with empty options
-        $emptyValidator = new OptionsValidation($this->logger, []);
+        $emptyValidator = new OptionsValidation([]);
         $this->assertEquals('Value is not in the allowed options.', $emptyValidator->getErrorMessage());
     }
 
@@ -70,7 +70,7 @@ class OptionsValidationTest extends UnitTestCase
     public function testDifferentDataTypes(): void
     {
         // Create validator with mixed data type keys
-        $mixedValidator = new OptionsValidation($this->logger, [
+        $mixedValidator = new OptionsValidation([
             '1' => 'String One',
             1 => 'Integer One',
             '0' => 'String Zero',
@@ -119,7 +119,7 @@ class OptionsValidationTest extends UnitTestCase
      */
     public function testEmptyOptionsArray(): void
     {
-        $emptyValidator = new OptionsValidation($this->logger, []);
+        $emptyValidator = new OptionsValidation([]);
 
         // When no options are defined, any value should be valid
         $this->assertTrue($emptyValidator->validate('anything'));
@@ -134,7 +134,7 @@ class OptionsValidationTest extends UnitTestCase
      */
     public function testSpecialCharacterOptions(): void
     {
-        $specialValidator = new OptionsValidation($this->logger, [
+        $specialValidator = new OptionsValidation([
             'option-with-dash' => 'Dash Option',
             'option_with_underscore' => 'Underscore Option',
             'option.with.dots' => 'Dots Option',
@@ -161,7 +161,7 @@ class OptionsValidationTest extends UnitTestCase
      */
     public function testNumericOptions(): void
     {
-        $numericValidator = new OptionsValidation($this->logger, [
+        $numericValidator = new OptionsValidation([
             0 => 'Zero',
             1 => 'One',
             2 => 'Two',
@@ -187,7 +187,7 @@ class OptionsValidationTest extends UnitTestCase
     public function testEdgeCases(): void
     {
         // Test with null, boolean, and array keys
-        $edgeValidator = new OptionsValidation($this->logger, [
+        $edgeValidator = new OptionsValidation([
             '' => 'Empty String',
             '0' => 'String Zero',
             'false' => 'String False',
@@ -228,7 +228,7 @@ class OptionsValidationTest extends UnitTestCase
      */
     public function testComplexOptionStructures(): void
     {
-        $complexValidator = new OptionsValidation($this->logger, [
+        $complexValidator = new OptionsValidation([
             'status_active' => 'Active Status',
             'status_inactive' => 'Inactive Status',
             'status_pending' => 'Pending Status',
@@ -269,7 +269,7 @@ class OptionsValidationTest extends UnitTestCase
             $this->validator->validate(false);
 
             // Test with empty options validator
-            $emptyValidator = new OptionsValidation($this->logger, []);
+            $emptyValidator = new OptionsValidation([]);
             $emptyValidator->validate('anything');
 
             $this->assertTrue(true); // If we get here, no exceptions were thrown

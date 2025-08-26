@@ -32,10 +32,16 @@ class RouterTest extends TestCase
     private MockObject $metadataEngine;
     private MockObject $routeRegistry;
     private MockObject $pathScorer;
+    private array $originalServerState = [];
+    private array $originalGetState = [];
 
     protected function setUp(): void
     {
         parent::setUp();
+        
+        // Save original global state
+        $this->originalServerState = $_SERVER;
+        $this->originalGetState = $_GET ?? [];
         
         // Create mocks
         $this->serviceLocator = $this->createMock(ServiceLocator::class);
@@ -58,6 +64,15 @@ class RouterTest extends TestCase
         $this->setPrivateProperty($this->router, 'routeRegistry', $this->routeRegistry);
         $this->setPrivateProperty($this->router, 'pathScorer', $this->pathScorer);
         $this->setPrivateProperty($this->router, 'logger', $this->logger);
+    }
+
+    protected function tearDown(): void
+    {
+        // Restore original global state
+        $_SERVER = $this->originalServerState;
+        $_GET = $this->originalGetState;
+        
+        parent::tearDown();
     }
 
     public function testConstructorWithServiceLocator(): void

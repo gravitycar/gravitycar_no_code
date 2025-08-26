@@ -12,12 +12,24 @@ use Gravitycar\Exceptions\InternalServerErrorException;
 /**
  * Integration tests for RestApiHandler error handling with new API exceptions
  */
+/**
+ * Integration tests for RestApiHandler error handling.
+ * 
+ * Note: These tests may show "risky" warnings due to output buffer management
+ * that occurs during full request/response cycle testing. This is expected
+ * behavior for integration tests that test the complete API error flow.
+ */
 class RestApiHandlerErrorTest extends TestCase {
 
     private RestApiHandler $handler;
+    private array $originalServerState = [];
 
     protected function setUp(): void {
         parent::setUp();
+        
+        // Save original global state
+        $this->originalServerState = $_SERVER;
+        
         $this->handler = new RestApiHandler();
         
         // Clear any previous output
@@ -27,14 +39,20 @@ class RestApiHandlerErrorTest extends TestCase {
     }
 
     protected function tearDown(): void {
+        // Restore original global state
+        $_SERVER = $this->originalServerState;
+        
         parent::tearDown();
         
-        // Clear any output from tests
-        if (ob_get_level()) {
+        // Ensure we're back to a clean buffer state for next test
+        while (ob_get_level() > 0) {
             ob_end_clean();
         }
     }
 
+    /**
+     * Test that NotFoundException returns proper 404 response.
+     */
     public function testNotFoundExceptionReturns404(): void {
         // Set up a request that will trigger NotFoundException
         $_SERVER['REQUEST_METHOD'] = 'GET';
@@ -42,10 +60,19 @@ class RestApiHandlerErrorTest extends TestCase {
         $_SERVER['ORIGINAL_PATH'] = '/NonexistentModel/123';
         $_GET = [];
 
-        // Capture output
+        // Capture output with defensive buffer management
+        $initialLevel = ob_get_level();
         ob_start();
-        $this->handler->handleRequest();
-        $output = ob_get_clean();
+        
+        try {
+            $this->handler->handleRequest();
+            $output = ob_get_contents();
+        } finally {
+            // Clean up to original buffer level
+            while (ob_get_level() > $initialLevel) {
+                ob_end_clean();
+            }
+        }
 
         // Parse JSON response
         $response = json_decode($output, true);
@@ -60,6 +87,9 @@ class RestApiHandlerErrorTest extends TestCase {
         $this->assertArrayHasKey('timestamp', $response);
     }
 
+    /**
+     * Test that BadRequestException returns proper 400 response.
+     */
     public function testBadRequestExceptionReturns400(): void {
         // Set up a request with missing required parameters
         $_SERVER['REQUEST_METHOD'] = 'GET';
@@ -67,10 +97,19 @@ class RestApiHandlerErrorTest extends TestCase {
         $_SERVER['ORIGINAL_PATH'] = '/';
         $_GET = [];
 
-        // Capture output
+        // Capture output with defensive buffer management
+        $initialLevel = ob_get_level();
         ob_start();
-        $this->handler->handleRequest();
-        $output = ob_get_clean();
+        
+        try {
+            $this->handler->handleRequest();
+            $output = ob_get_contents();
+        } finally {
+            // Clean up to original buffer level
+            while (ob_get_level() > $initialLevel) {
+                ob_end_clean();
+            }
+        }
 
         // Parse JSON response
         $response = json_decode($output, true);
@@ -88,6 +127,9 @@ class RestApiHandlerErrorTest extends TestCase {
         $this->markTestSkipped('Requires model with validation to test validation error aggregation');
     }
 
+    /**
+     * Test error response format consistency.
+     */
     public function testErrorResponseFormat(): void {
         // Set up a request that will trigger an error
         $_SERVER['REQUEST_METHOD'] = 'GET';
@@ -95,10 +137,19 @@ class RestApiHandlerErrorTest extends TestCase {
         $_SERVER['ORIGINAL_PATH'] = '/InvalidModel';
         $_GET = [];
 
-        // Capture output
+        // Capture output with defensive buffer management
+        $initialLevel = ob_get_level();
         ob_start();
-        $this->handler->handleRequest();
-        $output = ob_get_clean();
+        
+        try {
+            $this->handler->handleRequest();
+            $output = ob_get_contents();
+        } finally {
+            // Clean up to original buffer level
+            while (ob_get_level() > $initialLevel) {
+                ob_end_clean();
+            }
+        }
 
         // Parse JSON response
         $response = json_decode($output, true);
@@ -120,6 +171,9 @@ class RestApiHandlerErrorTest extends TestCase {
         $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $response['timestamp']);
     }
 
+    /**
+     * Test CORS headers in error responses.
+     */
     public function testCORSHeadersInErrorResponse(): void {
         // Set up a request that will trigger an error
         $_SERVER['REQUEST_METHOD'] = 'GET';
@@ -127,13 +181,20 @@ class RestApiHandlerErrorTest extends TestCase {
         $_SERVER['ORIGINAL_PATH'] = '/InvalidModel';
         $_GET = [];
 
-        // Start output buffering to capture headers
+        // Capture output with defensive buffer management
+        $initialLevel = ob_get_level();
         ob_start();
         
-        // We can't easily test headers in PHPUnit, but we can verify the method runs
-        $this->handler->handleRequest();
-        
-        $output = ob_get_clean();
+        try {
+            // We can't easily test headers in PHPUnit, but we can verify the method runs
+            $this->handler->handleRequest();
+            $output = ob_get_contents();
+        } finally {
+            // Clean up to original buffer level
+            while (ob_get_level() > $initialLevel) {
+                ob_end_clean();
+            }
+        }
         
         // Verify we get valid JSON output (headers are set correctly if JSON is valid)
         $response = json_decode($output, true);

@@ -4,11 +4,24 @@ namespace Tests\Unit\Models\Api\Api;
 use PHPUnit\Framework\TestCase;
 use Gravitycar\Models\Api\Api\ModelBaseAPIController;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Api\Request;
 use Monolog\Logger;
 
 /**
  * Unit tests for ModelBaseAPIController
- * Tests the generic API controller that provides CRUD operations for all ModelBase classes
+ * Tests     public function testCreate    public function testUpdate_InvalidModelName(): void {
+        $this->expectException(GCException::class);
+        $this->expectExceptionMessage('Model name is required');
+        
+        $request = $this->createInvalidModelNameRequest('PUT');
+        $this->controller->update($request);
+    }dModelName(): void {
+        $this->expectException(GCException::class);
+        $this->expectExceptionMessage('Model name is required');
+        
+        $request = $this->createInvalidModelNameRequest('POST');
+        $this->controller->create($request);
+    }eric API controller that provides CRUD operations for all ModelBase classes
  */
 class ModelBaseAPIControllerTest extends TestCase {
     
@@ -26,6 +39,23 @@ class ModelBaseAPIControllerTest extends TestCase {
         
         // Create controller instance
         $this->controller = new ModelBaseAPIController($this->logger);
+    }
+
+    /**
+     * Helper method to create a Request object for testing
+     */
+    private function createRequest(string $url, array $parameterNames, string $method = 'GET', array $requestData = []): Request
+    {
+        return new Request($url, $parameterNames, $method, $requestData);
+    }
+
+    /**
+     * Helper method to create a Request with invalid/missing modelName
+     */
+    private function createInvalidModelNameRequest(string $method = 'GET', array $requestData = []): Request
+    {
+        // Create a request where modelName will be null/empty
+        return new Request('/', [], $method, $requestData);
     }
 
     public function testRegisterRoutes(): void {
@@ -214,71 +244,81 @@ class ModelBaseAPIControllerTest extends TestCase {
 
     public function testList_InvalidModelName(): void {
         $this->expectException(GCException::class);
-        $this->expectExceptionMessage('Model name is required');
+        $this->expectExceptionMessage('Missing required parameter: modelName');
         
-        $this->controller->list(null, []);
+        $request = $this->createInvalidModelNameRequest();
+        $this->controller->list($request);
     }
 
     public function testRetrieve_InvalidModelName(): void {
         $this->expectException(GCException::class);
-        $this->expectExceptionMessage('Model name is required');
+        $this->expectExceptionMessage('Missing required parameter: modelName');
         
-        $this->controller->retrieve(null, ['id' => '123']);
+        $request = $this->createInvalidModelNameRequest();
+        $this->controller->retrieve($request);
     }
 
     public function testCreate_InvalidModelName(): void {
         $this->expectException(GCException::class);
         $this->expectExceptionMessage('Model name is required');
         
-        $this->controller->create(['name' => 'test'], []);
+        $request = $this->createInvalidModelNameRequest('POST', ['name' => 'test']);
+        $this->controller->create($request);
     }
 
     public function testUpdate_InvalidModelName(): void {
         $this->expectException(GCException::class);
         $this->expectExceptionMessage('Model name is required');
         
-        $this->controller->update(['name' => 'test'], ['id' => '123']);
+        $request = $this->createInvalidModelNameRequest('PUT', ['name' => 'test']);
+        $this->controller->update($request);
     }
 
     public function testDelete_InvalidModelName(): void {
         $this->expectException(GCException::class);
         $this->expectExceptionMessage('Model name is required');
         
-        $this->controller->delete(null, ['id' => '123']);
+        $request = $this->createInvalidModelNameRequest('DELETE');
+        $this->controller->delete($request);
     }
 
     public function testRestore_InvalidModelName(): void {
         $this->expectException(GCException::class);
         $this->expectExceptionMessage('Model name is required');
         
-        $this->controller->restore(null, ['id' => '123']);
+        $request = $this->createInvalidModelNameRequest('POST');
+        $this->controller->restore($request);
     }
 
     public function testListRelated_InvalidModelName(): void {
         $this->expectException(GCException::class);
         $this->expectExceptionMessage('Model name is required');
         
-        $this->controller->listRelated(null, ['id' => '123', 'relationshipName' => 'test']);
+        $request = $this->createInvalidModelNameRequest('GET');
+        $this->controller->listRelated($request);
     }
 
     public function testLink_InvalidModelName(): void {
         $this->expectException(GCException::class);
         $this->expectExceptionMessage('Model name is required');
         
-        $this->controller->link(null, ['id' => '123', 'relationshipName' => 'test', 'idToLink' => '456']);
+        $request = $this->createInvalidModelNameRequest('POST');
+        $this->controller->link($request);
     }
 
     public function testUnlink_InvalidModelName(): void {
         $this->expectException(GCException::class);
         $this->expectExceptionMessage('Model name is required');
         
-        $this->controller->unlink(null, ['id' => '123', 'relationshipName' => 'test', 'idToLink' => '456']);
+        $request = $this->createInvalidModelNameRequest('POST');
+        $this->controller->unlink($request);
     }
 
     public function testCreateAndLink_InvalidModelName(): void {
         $this->expectException(GCException::class);
         $this->expectExceptionMessage('Model name is required');
         
-        $this->controller->createAndLink(['name' => 'test'], ['id' => '123', 'relationshipName' => 'test']);
+        $request = $this->createInvalidModelNameRequest('POST');
+        $this->controller->createAndLink($request);
     }
 }

@@ -128,12 +128,25 @@ class ApiControllerBaseTest extends TestCase
     {
         $data = ['test' => 'data'];
         
-        // Call protected method using reflection
-        $method = $this->getPrivateMethod($this->controller, 'jsonResponse');
-        $method->invoke($this->controller, $data);
+        // Use output buffering to capture JSON output
+        ob_start();
         
-        // Check if Content-Type header would be set (can't easily test in unit tests)
-        $this->assertTrue(true); // Placeholder assertion for header setting
+        try {
+            // Call protected method using reflection
+            $method = $this->getPrivateMethod($this->controller, 'jsonResponse');
+            $method->invoke($this->controller, $data);
+            
+            // Verify the output is valid JSON
+            $output = ob_get_contents();
+            $this->assertJson($output);
+            
+            // Verify the data structure
+            $decoded = json_decode($output, true);
+            $this->assertEquals($data, $decoded);
+            
+        } finally {
+            ob_end_clean();
+        }
     }
 
     public function testConcreteImplementationCanCallAbstractMethods(): void
