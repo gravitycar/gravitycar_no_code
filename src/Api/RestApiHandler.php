@@ -46,6 +46,16 @@ class RestApiHandler {
      */
     public function handleRequest(): void {
         try {
+            // Handle CORS preflight requests early, before routing
+            if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
+                header('Access-Control-Allow-Origin: *');
+                header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS');
+                header('Access-Control-Allow-Headers: Content-Type, Authorization');
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(200);
+                exit;
+            }
+
             // 1. Bootstrap the Gravitycar application
             $this->bootstrapApplication();
 

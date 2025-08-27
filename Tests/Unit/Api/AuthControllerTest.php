@@ -86,6 +86,7 @@ class AuthControllerTest extends UnitTestCase
 
         $authResult = [
             'user' => $this->createMockUser(['id' => 123, 'email' => 'test@gmail.com']),
+            'user_data' => ['id' => 123, 'email' => 'test@gmail.com', 'username' => null, 'first_name' => null, 'last_name' => null, 'auth_provider' => 'google', 'last_login_method' => 'google', 'profile_picture_url' => null, 'is_active' => true],
             'access_token' => 'jwt-access-token',
             'refresh_token' => 'jwt-refresh-token',
             'expires_in' => 3600
@@ -137,7 +138,7 @@ class AuthControllerTest extends UnitTestCase
         ];
 
         $authResult = [
-            'user' => $this->createMockUser(['id' => 456, 'email' => 'test@example.com']),
+            'user' => ['id' => 456, 'email' => 'test@example.com', 'username' => 'testuser', 'first_name' => null, 'last_name' => null, 'auth_provider' => 'local', 'last_login_method' => 'traditional', 'profile_picture_url' => null, 'is_active' => true],
             'access_token' => 'jwt-access-token',
             'refresh_token' => 'jwt-refresh-token',
             'expires_in' => 3600
@@ -201,7 +202,7 @@ class AuthControllerTest extends UnitTestCase
         $this->assertFalse($result['success']);
         $this->assertEquals(401, $result['status']);
         $this->assertArrayHasKey('error', $result);
-        $this->assertEquals('Username and password are required', $result['error']['message']);
+        $this->assertEquals('Username/email and password are required', $result['error']['message']);
     }
 
     public function testRegisterWithValidData(): void

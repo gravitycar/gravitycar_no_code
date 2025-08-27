@@ -79,32 +79,35 @@ class GoogleOAuthService
     
     /**
      * Get user profile from Google token
+     * This method handles Google Identity Services JWT credentials
      */
     public function getUserProfile(string $googleToken): ?array
     {
         $logger = ServiceLocator::getLogger();
         
         try {
-            // Create access token object
-            $accessToken = new AccessToken(['access_token' => $googleToken]);
+            // The token from Google Identity Services is a JWT credential (ID token)
+            // We need to validate it and extract user information
+            $tokenInfo = $this->validateIdToken($googleToken);
             
-            // Get user profile
-            $resourceOwner = $this->provider->getResourceOwner($accessToken);
-            $profile = $resourceOwner->toArray();
+            if (!$tokenInfo) {
+                $logger->warning('Google token validation failed');
+                return null;
+            }
             
-            // Normalize profile data
+            // Normalize profile data from JWT payload
             $normalizedProfile = [
-                'id' => $profile['sub'] ?? $profile['id'] ?? null,
-                'email' => $profile['email'] ?? null,
-                'first_name' => $profile['given_name'] ?? null,
-                'last_name' => $profile['family_name'] ?? null,
-                'full_name' => $profile['name'] ?? null,
-                'picture' => $profile['picture'] ?? null,
-                'email_verified' => $profile['email_verified'] ?? false,
-                'locale' => $profile['locale'] ?? null,
+                'id' => $tokenInfo['sub'] ?? null,
+                'email' => $tokenInfo['email'] ?? null,
+                'first_name' => $tokenInfo['given_name'] ?? null,
+                'last_name' => $tokenInfo['family_name'] ?? null,
+                'full_name' => $tokenInfo['name'] ?? null,
+                'picture' => $tokenInfo['picture'] ?? null,
+                'email_verified' => ($tokenInfo['email_verified'] ?? false) === true || ($tokenInfo['email_verified'] ?? '') === 'true',
+                'locale' => $tokenInfo['locale'] ?? null,
             ];
             
-            $logger->debug('Google user profile retrieved', [
+            $logger->debug('Google user profile retrieved from JWT', [
                 'google_id' => $normalizedProfile['id'],
                 'email' => $normalizedProfile['email'],
                 'email_verified' => $normalizedProfile['email_verified']
@@ -159,24 +162,7 @@ class GoogleOAuthService
         $logger = ServiceLocator::getLogger();
         
         try {
-            // Use Google's discovery document to get public keys
-            $discoveryUrl = 'https://accounts.google.com/.well-known/openid_configuration';
-            $discovery = json_decode(file_get_contents($discoveryUrl), true);
-            
-            if (!$discovery || !isset($discovery['jwks_uri'])) {
-                throw new GCException('Failed to get Google discovery document');
-            }
-            
-            // Get public keys
-            $jwksUrl = $discovery['jwks_uri'];
-            $jwks = json_decode(file_get_contents($jwksUrl), true);
-            
-            if (!$jwks || !isset($jwks['keys'])) {
-                throw new GCException('Failed to get Google public keys');
-            }
-            
-            // TODO: Implement full JWT verification with Google's public keys
-            // For now, we'll use a simpler approach via Google's tokeninfo endpoint
+            // Use Google's tokeninfo endpoint directly - more reliable than discovery
             return $this->verifyTokenViaGoogleAPI($idToken);
             
         } catch (\Exception $e) {

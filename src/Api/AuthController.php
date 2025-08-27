@@ -3,10 +3,16 @@
 namespace Gravitycar\Api;
 
 use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Core\Config;
 use Gravitycar\Services\AuthenticationService;
 use Gravitycar\Services\GoogleOAuthService;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Exceptions\BadRequestException;
+use Gravitycar\Exceptions\UnauthorizedException;
+use Gravitycar\Exceptions\InternalServerErrorException;
+use Gravitycar\Factories\ModelFactory;
 use Monolog\Logger;
+use Exception;
 
 /**
  * Authentication Controller
@@ -15,12 +21,14 @@ use Monolog\Logger;
 class AuthController
 {
     private Logger $logger;
+    private Config $config;
     private AuthenticationService $authService;
     private GoogleOAuthService $googleOAuthService;
 
     public function __construct()
     {
         $this->logger = ServiceLocator::getLogger();
+        $this->config = ServiceLocator::get(Config::class);
         $this->authService = ServiceLocator::get(AuthenticationService::class);
         $this->googleOAuthService = ServiceLocator::get(GoogleOAuthService::class);
     }
@@ -70,6 +78,14 @@ class AuthController
                 'apiMethod' => 'logout',
                 'parameterNames' => [],
                 'allowedRoles' => ['user'] // Requires authentication
+            ],
+            [
+                'method' => 'GET',
+                'path' => '/auth/me',
+                'apiClass' => self::class,
+                'apiMethod' => 'getCurrentUser',
+                'parameterNames' => [],
+                'allowedRoles' => ['all'] // JWT authentication only, no specific roles required
             ],
             [
                 'method' => 'POST',
@@ -133,7 +149,7 @@ class AuthController
             $requestData = $this->getRequestData();
 
             if (empty($requestData['google_token'])) {
-                throw new GCException('Google token is required');
+                throw new BadRequestException('Google token is required');
             }
 
             $googleToken = $requestData['google_token'];
@@ -142,29 +158,26 @@ class AuthController
             // Authenticate with Google OAuth
             $authResult = $this->authService->authenticateWithGoogle($googleToken);
 
+            if (!$authResult || !isset($authResult['user']) || !$authResult['user']) {
+                throw new UnauthorizedException('Google authentication failed');
+            }
+
+            $user = $authResult['user'];
+
             $this->logger->info('Google OAuth authentication successful', [
-                'user_id' => $authResult['user']->get('id'),
-                'email' => $authResult['user']->get('email')
+                'user_id' => $user->get('id'),
+                'email' => $user->get('email')
             ]);
 
             // Determine if this is a new user
-            $isNewUser = $authResult['user']->get('created_at') === $authResult['user']->get('updated_at');
+            $isNewUser = $user->get('created_at') === $user->get('updated_at');
             $statusCode = $isNewUser ? 201 : 200;
 
             $response = [
                 'success' => true,
                 'status' => $statusCode,
                 'data' => [
-                    'user' => [
-                        'id' => $authResult['user']->get('id'),
-                        'email' => $authResult['user']->get('email'),
-                        'first_name' => $authResult['user']->get('first_name'),
-                        'last_name' => $authResult['user']->get('last_name'),
-                        'auth_provider' => $authResult['user']->get('auth_provider'),
-                        'google_id' => $authResult['user']->get('google_id'),
-                        'profile_picture_url' => $authResult['user']->get('profile_picture_url'),
-                        'is_active' => $authResult['user']->get('is_active')
-                    ],
+                    'user' => $authResult['user_data'],
                     'access_token' => $authResult['access_token'],
                     'refresh_token' => $authResult['refresh_token'],
                     'expires_in' => $authResult['expires_in'],
@@ -213,12 +226,13 @@ class AuthController
         try {
             $requestData = $this->getRequestData();
 
-            if (empty($requestData['username']) || empty($requestData['password'])) {
-                throw new GCException('Username and password are required');
-            }
+            // Accept either 'username' or 'email' as the username field
+            $username = $requestData['username'] ?? $requestData['email'] ?? '';
+            $password = $requestData['password'] ?? '';
 
-            $username = $requestData['username'];
-            $password = $requestData['password'];
+            if (empty($username) || empty($password)) {
+                throw new GCException('Username/email and password are required');
+            }
 
             // Authenticate with username/password
             $authResult = $this->authService->authenticateTraditional($username, $password);
@@ -236,7 +250,7 @@ class AuthController
             }
 
             $this->logger->info('Traditional authentication successful', [
-                'user_id' => $authResult['user']->get('id'),
+                'user_id' => $authResult['user']['id'],
                 'username' => $username
             ]);
 
@@ -244,15 +258,7 @@ class AuthController
                 'success' => true,
                 'status' => 200,
                 'data' => [
-                    'user' => [
-                        'id' => $authResult['user']->get('id'),
-                        'username' => $authResult['user']->get('username'),
-                        'email' => $authResult['user']->get('email'),
-                        'first_name' => $authResult['user']->get('first_name'),
-                        'last_name' => $authResult['user']->get('last_name'),
-                        'auth_provider' => $authResult['user']->get('auth_provider'),
-                        'is_active' => $authResult['user']->get('is_active')
-                    ],
+                    'user' => $authResult['user'],
                     'access_token' => $authResult['access_token'],
                     'refresh_token' => $authResult['refresh_token'],
                     'expires_in' => $authResult['expires_in'],
@@ -465,6 +471,90 @@ class AuthController
 
     /**
      * Get request data from POST body or input stream
+     */
+    /**
+     * Get current authenticated user information
+     * 
+     * @param Request $request
+     * @return array
+     * @throws GCException
+     */
+    public function getCurrentUser(Request $request): array
+    {
+        try {
+            // Get the JWT token from the Authorization header
+            // Check multiple possible sources for the Authorization header
+            $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? 
+                         $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? 
+                         $this->config->getEnv('HTTP_AUTHORIZATION', '') ?? 
+                         (function_exists('getallheaders') ? (getallheaders()['Authorization'] ?? '') : '') ?? 
+                         '';
+            
+            if (empty($authHeader) || !str_starts_with($authHeader, 'Bearer ')) {
+                throw new UnauthorizedException('No authorization token provided', [
+                    'code' => 'NO_TOKEN',
+                    'auth_header_present' => !empty($authHeader),
+                    'has_bearer_prefix' => !empty($authHeader) && str_starts_with($authHeader, 'Bearer ')
+                ]);
+            }
+            
+            $token = substr($authHeader, 7); // Remove "Bearer " prefix
+            
+            // Validate and decode the JWT token
+            $user = $this->authService->validateJwtToken($token);
+            
+            if (!$user) {
+                throw new UnauthorizedException('Invalid or expired token', [
+                    'code' => 'INVALID_TOKEN',
+                    'token_length' => strlen($token)
+                ]);
+            }
+            
+            // Format user data (same format as login response)
+            $userData = [
+                'id' => $user->get('id'),
+                'email' => $user->get('email'),
+                'username' => $user->get('username'),
+                'first_name' => $user->get('first_name'),
+                'last_name' => $user->get('last_name'),
+                'auth_provider' => $user->get('auth_provider'),
+                'last_login_method' => $user->get('last_login_method'),
+                'profile_picture_url' => $user->get('profile_picture_url'),
+                'is_active' => $user->get('is_active')
+            ];
+            
+            return $userData;
+            
+        } catch (UnauthorizedException $e) {
+            // Re-throw UnauthorizedException as-is
+            throw $e;
+        } catch (GCException $e) {
+            $this->logger->warning('Get current user failed', [
+                'error' => $e->getMessage()
+            ]);
+
+            throw new InternalServerErrorException('Authentication service error', [
+                'code' => 'AUTH_SERVICE_ERROR',
+                'original_error' => $e->getMessage()
+            ], $e);
+        } catch (Exception $e) {
+            $this->logger->error('Unexpected error in getCurrentUser', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            throw new InternalServerErrorException('Unexpected error during authentication', [
+                'code' => 'INTERNAL_ERROR',
+                'original_error' => $e->getMessage()
+            ], $e);
+        }
+    }
+
+    /**
+     * Get request data from JSON or form input
+     * 
+     * @return array
+     * @throws GCException
      */
     private function getRequestData(): array
     {

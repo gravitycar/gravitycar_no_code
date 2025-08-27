@@ -18,6 +18,8 @@ if (!defined('GRAVITYCAR_REST_API')) {
     define('GRAVITYCAR_REST_API', true);
 }
 
+// Note: .env loading is now handled by the Config class automatically
+
 // Include Composer autoloader
 require_once __DIR__ . '/vendor/autoload.php';
 

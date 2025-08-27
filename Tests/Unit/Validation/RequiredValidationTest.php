@@ -69,8 +69,8 @@ class RequiredValidationTest extends UnitTestCase
         // Null
         $this->assertFalse($this->validator->validate(null));
 
-        // Boolean false
-        $this->assertFalse($this->validator->validate(false));
+        // Boolean false is now considered valid (intentional change for fields like is_revoked)
+        $this->assertTrue($this->validator->validate(false));
 
         // Empty array
         $this->assertFalse($this->validator->validate([]));
@@ -129,7 +129,7 @@ class RequiredValidationTest extends UnitTestCase
 
         // Boolean types
         $this->assertTrue($this->validator->validate(true));
-        $this->assertFalse($this->validator->validate(false));
+        $this->assertTrue($this->validator->validate(false)); // Boolean false is now considered valid
 
         // Array types
         $this->assertTrue($this->validator->validate([1, 2, 3]));

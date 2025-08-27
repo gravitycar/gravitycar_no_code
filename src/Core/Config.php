@@ -10,11 +10,59 @@ use Gravitycar\Exceptions\GCException;
 class Config {
     /** @var array */
     protected array $config = [];
+    /** @var array */
+    protected array $env = [];
     /** @var string */
     protected string $configFilePath = 'config.php';
+    /** @var string */
+    protected string $envFilePath = '.env';
 
     public function __construct() {
+        $this->loadEnv();
         $this->loadConfig();
+    }
+
+    /**
+     * Load environment variables from .env file
+     */
+    protected function loadEnv(): void {
+        if (!file_exists($this->envFilePath)) {
+            // .env file is optional
+            return;
+        }
+        
+        $lines = file($this->envFilePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines === false) {
+            throw new GCException('Failed to read .env file', [
+                'env_file_path' => $this->envFilePath
+            ]);
+        }
+        
+        foreach ($lines as $line) {
+            $line = trim($line);
+            
+            // Skip comments and empty lines
+            if (empty($line) || strpos($line, '#') === 0) {
+                continue;
+            }
+            
+            // Parse KEY=VALUE format
+            if (strpos($line, '=') !== false) {
+                list($key, $value) = explode('=', $line, 2);
+                $key = trim($key);
+                $value = trim($value);
+                
+                // Remove quotes if present
+                if ((substr($value, 0, 1) === '"' && substr($value, -1) === '"') ||
+                    (substr($value, 0, 1) === "'" && substr($value, -1) === "'")) {
+                    $value = substr($value, 1, -1);
+                }
+                
+                $this->env[$key] = $value;
+                // Also populate $_ENV for backward compatibility during transition
+                $_ENV[$key] = $value;
+            }
+        }
     }
 
     /**
@@ -80,6 +128,28 @@ class Config {
      */
     public function configFileExists(): bool {
         return file_exists($this->configFilePath) && is_writable($this->configFilePath);
+    }
+
+    /**
+     * Get an environment variable by key
+     */
+    public function getEnv(string $key, $default = null) {
+        return $this->env[$key] ?? $default;
+    }
+
+    /**
+     * Set an environment variable
+     */
+    public function setEnv(string $key, $value): void {
+        $this->env[$key] = $value;
+        $_ENV[$key] = $value; // Maintain backward compatibility
+    }
+
+    /**
+     * Get all environment variables
+     */
+    public function getAllEnv(): array {
+        return $this->env;
     }
 
     /**

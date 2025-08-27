@@ -3,6 +3,7 @@
 namespace Gravitycar\Services;
 
 use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Core\Config;
 use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Exceptions\GCException;
@@ -19,21 +20,23 @@ class AuthenticationService
 {
     private DatabaseConnector $database;
     private Logger $logger;
+    private Config $config;
     private string $jwtSecret;
     private string $refreshSecret;
     private int $accessTokenLifetime;
     private int $refreshTokenLifetime;
     
-    public function __construct(DatabaseConnector $database, Logger $logger)
+    public function __construct(DatabaseConnector $database, Logger $logger, Config $config)
     {
         $this->database = $database;
         $this->logger = $logger;
+        $this->config = $config;
         
         // Get JWT configuration from environment
-        $this->jwtSecret = $_ENV['JWT_SECRET_KEY'] ?? 'default-secret-change-in-production';
-        $this->refreshSecret = $_ENV['JWT_REFRESH_SECRET'] ?? 'default-refresh-secret-change-in-production';
-        $this->accessTokenLifetime = (int)($_ENV['JWT_ACCESS_TOKEN_LIFETIME'] ?? 3600); // 1 hour
-        $this->refreshTokenLifetime = (int)($_ENV['JWT_REFRESH_TOKEN_LIFETIME'] ?? 2592000); // 30 days
+        $this->jwtSecret = $this->config->getEnv('JWT_SECRET_KEY', 'default-secret-change-in-production');
+        $this->refreshSecret = $this->config->getEnv('JWT_REFRESH_SECRET', 'default-refresh-secret-change-in-production');
+        $this->accessTokenLifetime = (int)($this->config->getEnv('JWT_ACCESS_TOKEN_LIFETIME', '3600')); // 1 hour
+        $this->refreshTokenLifetime = (int)($this->config->getEnv('JWT_REFRESH_TOKEN_LIFETIME', '2592000')); // 30 days
     }
     
     /**
@@ -76,7 +79,8 @@ class AuthenticationService
             ]);
             
             return [
-                'user' => $this->formatUserData($user),
+                'user' => $user,  // Raw ModelBase object for controller logic
+                'user_data' => $this->formatUserData($user),  // Formatted data for response
                 'access_token' => $accessToken,
                 'refresh_token' => $refreshToken,
                 'expires_in' => $this->accessTokenLifetime,
@@ -109,7 +113,7 @@ class AuthenticationService
             }
             
             // Verify password
-            $passwordHash = $user->get('password_hash');
+            $passwordHash = $user->get('password');
             if (!$passwordHash || !password_verify($password, $passwordHash)) {
                 $this->logger->warning('Password verification failed', ['username' => $username]);
                 return null;
@@ -154,8 +158,8 @@ class AuthenticationService
     public function generateJwtToken(ModelBase $user): string
     {
         $payload = [
-            'iss' => $_ENV['APP_URL'] ?? 'gravitycar',
-            'aud' => $_ENV['APP_URL'] ?? 'gravitycar',
+            'iss' => $this->config->getEnv('APP_URL', 'gravitycar'),
+            'aud' => $this->config->getEnv('APP_URL', 'gravitycar'),
             'iat' => time(),
             'exp' => time() + $this->accessTokenLifetime,
             'user_id' => $user->get('id'),
@@ -172,8 +176,8 @@ class AuthenticationService
     public function generateRefreshToken(ModelBase $user): string
     {
         $payload = [
-            'iss' => $_ENV['APP_URL'] ?? 'gravitycar',
-            'aud' => $_ENV['APP_URL'] ?? 'gravitycar',
+            'iss' => $this->config->getEnv('APP_URL', 'gravitycar'),
+            'aud' => $this->config->getEnv('APP_URL', 'gravitycar'),
             'iat' => time(),
             'exp' => time() + $this->refreshTokenLifetime,
             'user_id' => $user->get('id'),
@@ -198,7 +202,13 @@ class AuthenticationService
             // Load and return user
             $user = ModelFactory::retrieve('Users', $decoded->user_id);
             
-            if (!$user || !$user->get('is_active')) {
+            if (!$user) {
+                return null;
+            }
+            
+            // Check if user is explicitly deactivated (only fail if is_active is explicitly set to false/0)
+            $isActive = $user->get('is_active');
+            if ($isActive !== null && $isActive !== '' && !$isActive && $isActive !== '1') {
                 return null;
             }
             
@@ -314,17 +324,38 @@ class AuthenticationService
     private function createUserFromGoogleProfile(array $userProfile): ?ModelBase
     {
         try {
+            $config = ServiceLocator::getConfig();
+            
+            // Check if auto-creation is enabled
+            if (!$config->get('oauth.auto_create_users', true)) {
+                $this->logger->warning('User auto-creation disabled for OAuth', [
+                    'email' => $userProfile['email']
+                ]);
+                return null;
+            }
+            
             $user = ModelFactory::new('Users');
             
+            // Map Google profile fields to user fields correctly
             $user->set('google_id', $userProfile['id']);
             $user->set('email', $userProfile['email']);
-            $user->set('first_name', $userProfile['given_name'] ?? '');
-            $user->set('last_name', $userProfile['family_name'] ?? '');
+            $user->set('username', $userProfile['email']); // Use email as username
+            $user->set('first_name', $userProfile['first_name'] ?? '');
+            $user->set('last_name', $userProfile['last_name'] ?? '');
             $user->set('auth_provider', 'google');
-            $user->set('email_verified_at', date('Y-m-d H:i:s'));
-            $user->set('is_active', true);
             $user->set('last_login_method', 'google');
+            $user->set('is_active', true);
             $user->set('last_google_sync', date('Y-m-d H:i:s'));
+            
+            // Generate a secure random password for OAuth users
+            // They won't use it, but database requires it
+            $randomPassword = $this->generateSecurePassword();
+            $user->set('password', password_hash($randomPassword, PASSWORD_DEFAULT));
+            
+            // Set email verification if verified by Google
+            if ($userProfile['email_verified']) {
+                $user->set('email_verified_at', date('Y-m-d H:i:s'));
+            }
             
             if (isset($userProfile['picture'])) {
                 $user->set('profile_picture_url', $userProfile['picture']);
@@ -337,7 +368,8 @@ class AuthenticationService
             
             $this->logger->info('Created new user from Google profile', [
                 'user_id' => $user->get('id'),
-                'email' => $userProfile['email']
+                'email' => $userProfile['email'],
+                'google_id' => $userProfile['id']
             ]);
             
             return $user;
@@ -357,12 +389,20 @@ class AuthenticationService
     private function syncGoogleProfile(ModelBase $user, array $userProfile): void
     {
         try {
+            $config = ServiceLocator::getConfig();
+            
+            // Check if profile sync is enabled
+            if (!$config->get('oauth.sync_profile_on_login', true)) {
+                $this->logger->debug('OAuth profile sync disabled');
+                return;
+            }
+            
             $updated = false;
             
             // Update profile fields if they've changed
             $fieldsToSync = [
-                'first_name' => $userProfile['given_name'] ?? '',
-                'last_name' => $userProfile['family_name'] ?? '',
+                'first_name' => $userProfile['first_name'] ?? '',
+                'last_name' => $userProfile['last_name'] ?? '',
                 'profile_picture_url' => $userProfile['picture'] ?? ''
             ];
             
@@ -380,6 +420,10 @@ class AuthenticationService
             
             if ($updated) {
                 $user->update();
+                $this->logger->debug('Google profile synchronized', [
+                    'user_id' => $user->get('id'),
+                    'updated_fields' => array_keys(array_filter($fieldsToSync))
+                ]);
             }
             
         } catch (\Exception $e) {
@@ -492,29 +536,49 @@ class AuthenticationService
     private function assignDefaultOAuthRole(ModelBase $user): void
     {
         try {
-            // Find default OAuth role
+            $config = ServiceLocator::getConfig();
+            $defaultRoleName = $config->get('oauth.default_role', 'user');
+            
+            // Find the role by name from configuration
             $role = ModelFactory::new('Roles');
-            $defaultRoles = $role->find(['is_oauth_default' => true]);
+            $roles = $role->find(['name' => $defaultRoleName]);
             
-            if (empty($defaultRoles)) {
-                $this->logger->warning('No default OAuth role found');
-                return;
+            if (empty($roles)) {
+                // Fallback: Find any default OAuth role
+                $defaultRoles = $role->find(['is_oauth_default' => true]);
+                
+                if (empty($defaultRoles)) {
+                    $this->logger->warning('No OAuth role found', [
+                        'requested_role' => $defaultRoleName,
+                        'user_id' => $user->get('id')
+                    ]);
+                    return;
+                }
+                
+                $defaultRole = $defaultRoles[0];
+                $this->logger->info('Using fallback OAuth role', [
+                    'requested_role' => $defaultRoleName,
+                    'actual_role' => $defaultRole->get('name'),
+                    'user_id' => $user->get('id')
+                ]);
+            } else {
+                $defaultRole = $roles[0];
             }
-            
-            $defaultRole = $defaultRoles[0];
             
             // Use ModelBase relationship method to add the role to the user
             $success = $user->addRelation('roles', $defaultRole, ['assigned_at' => date('Y-m-d H:i:s')]);
             
             if ($success) {
-                $this->logger->info('Assigned default OAuth role to user', [
+                $this->logger->info('Assigned OAuth role to user', [
                     'user_id' => $user->get('id'),
-                    'role_id' => $defaultRole->get('id')
+                    'role_id' => $defaultRole->get('id'),
+                    'role_name' => $defaultRole->get('name')
                 ]);
             } else {
-                $this->logger->error('Failed to assign default OAuth role via relationship', [
+                $this->logger->error('Failed to assign OAuth role via relationship', [
                     'user_id' => $user->get('id'),
-                    'role_id' => $defaultRole->get('id')
+                    'role_id' => $defaultRole->get('id'),
+                    'role_name' => $defaultRole->get('name')
                 ]);
             }
             
@@ -694,5 +758,24 @@ class AuthenticationService
                 'error' => $e->getMessage()
             ]);
         }
+    }
+    
+    /**
+     * Generate a secure random password for OAuth users
+     * 
+     * @return string A cryptographically secure random password
+     */
+    private function generateSecurePassword(int $length = 32): string
+    {
+        // Use cryptographically secure random bytes
+        $bytes = random_bytes($length);
+        
+        // Convert to base64 and clean up for password use
+        $password = base64_encode($bytes);
+        
+        // Remove characters that might cause issues and ensure it's the right length
+        $password = str_replace(['+', '/', '='], ['A', 'B', 'C'], $password);
+        
+        return substr($password, 0, $length);
     }
 }

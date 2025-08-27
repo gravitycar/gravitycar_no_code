@@ -5,6 +5,7 @@ namespace Gravitycar\Tests\Unit\Services;
 use PHPUnit\Framework\MockObject\MockObject;
 use Gravitycar\Services\AuthenticationService;
 use Gravitycar\Database\DatabaseConnector;
+use Gravitycar\Core\Config;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Factories\ModelFactory;
 use Monolog\Logger;
@@ -17,6 +18,7 @@ class AuthenticationServiceTest extends UnitTestCase
     private AuthenticationService $authService;
     private DatabaseConnector|MockObject $mockDatabase;
     private Logger|MockObject $mockLogger;
+    private Config|MockObject $mockConfig;
     private ModelBase|MockObject $mockUser;
 
     protected function setUp(): void
@@ -25,15 +27,28 @@ class AuthenticationServiceTest extends UnitTestCase
         
         $this->mockDatabase = $this->createMock(DatabaseConnector::class);
         $this->mockLogger = $this->createMock(Logger::class);
+        $this->mockConfig = $this->createMock(Config::class);
         $this->mockUser = $this->createMock(ModelBase::class);
         
-        // Set up test environment variables
+        // Set up mock config to return test values
+        $this->mockConfig->method('getEnv')->willReturnCallback(function($key, $default = null) {
+            $envValues = [
+                'JWT_SECRET_KEY' => 'test-secret-key-for-testing-only',
+                'JWT_REFRESH_SECRET' => 'test-refresh-secret-for-testing-only',
+                'JWT_ACCESS_TOKEN_LIFETIME' => '3600',
+                'JWT_REFRESH_TOKEN_LIFETIME' => '86400',
+                'APP_URL' => 'http://test.local'
+            ];
+            return $envValues[$key] ?? $default;
+        });
+        
+        // Set up test environment variables (for backward compatibility)
         $_ENV['JWT_SECRET_KEY'] = 'test-secret-key-for-testing-only';
         $_ENV['JWT_REFRESH_SECRET'] = 'test-refresh-secret-for-testing-only';
         $_ENV['JWT_ACCESS_TOKEN_LIFETIME'] = '3600';
         $_ENV['JWT_REFRESH_TOKEN_LIFETIME'] = '86400';
         
-        $this->authService = new AuthenticationService($this->mockDatabase, $this->mockLogger);
+        $this->authService = new AuthenticationService($this->mockDatabase, $this->mockLogger, $this->mockConfig);
     }
 
     /**

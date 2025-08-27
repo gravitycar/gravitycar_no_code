@@ -76,10 +76,10 @@ return [
         'log_documentation_errors' => true
     ],
     
-    // Google OAuth Configuration for testing
+    // Google OAuth Configuration
     'google' => [
-        'client_id' => 'test-client-id',
-        'client_secret' => 'test-client-secret',
-        'redirect_uri' => 'http://localhost:8081/auth/google/callback'
+        'client_id' => $_ENV['GOOGLE_CLIENT_ID'] ?? 'test-client-id',
+        'client_secret' => $_ENV['GOOGLE_CLIENT_SECRET'] ?? 'test-client-secret',
+        'redirect_uri' => $_ENV['GOOGLE_REDIRECT_URI'] ?? 'http://localhost:8081/auth/google/callback'
     ]
 ];

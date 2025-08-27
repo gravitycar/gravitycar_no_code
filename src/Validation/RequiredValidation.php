@@ -23,18 +23,14 @@ class RequiredValidation extends ValidationRuleBase {
             return false;
         }
 
-        // Handle boolean false
-        if ($value === false) {
-            return false;
-        }
-
         // Handle empty arrays
         if (is_array($value) && empty($value)) {
             return false;
         }
 
-        // Special cases: string '0' and number 0 should be valid
-        if ($value === '0' || $value === 0 || $value === 0.0) {
+        // Special cases: string '0', number 0, and boolean false should be valid
+        // Boolean false is a legitimate value for boolean fields
+        if ($value === '0' || $value === 0 || $value === 0.0 || $value === false) {
             return true;
         }
 
@@ -48,20 +44,37 @@ class RequiredValidation extends ValidationRuleBase {
     public function getJavascriptValidation(): string {
         return "
         function validateRequired(value, fieldName) {
-            // Same logic as PHP validate() method
-            if (value !== null && value !== undefined && value !== '' && value !== false && value !== []) {
+            // Handle null and undefined
+            if (value === null || value === undefined) {
+                return { 
+                    valid: false, 
+                    message: 'This field is required.' 
+                };
+            }
+            
+            // Handle empty string
+            if (value === '') {
+                return { 
+                    valid: false, 
+                    message: 'This field is required.' 
+                };
+            }
+            
+            // Handle empty arrays
+            if (Array.isArray(value) && value.length === 0) {
+                return { 
+                    valid: false, 
+                    message: 'This field is required.' 
+                };
+            }
+            
+            // Handle string '0', number 0, and boolean false as valid (same as PHP)
+            if (value === '0' || value === 0 || value === false) {
                 return { valid: true };
             }
             
-            // Handle string '0' and number 0 as valid (same as PHP)
-            if (value === '0' || value === 0) {
-                return { valid: true };
-            }
-            
-            return { 
-                valid: false, 
-                message: 'This field is required.' 
-            };
+            // Everything else is valid
+            return { valid: true };
         }";
     }
 }

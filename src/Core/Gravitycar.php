@@ -148,7 +148,9 @@ class Gravitycar {
      * Detect current environment
      */
     private function detectEnvironment(): void {
-        $this->environment = $_ENV['GRAVITYCAR_ENV'] 
+        // Try Config first if available, then $_ENV (populated by Config), then configOptions
+        $this->environment = ($this->config ? $this->config->getEnv('GRAVITYCAR_ENV') : null)
+            ?? $_ENV['GRAVITYCAR_ENV']
             ?? $this->configOptions['environment'] 
             ?? 'production';
     }

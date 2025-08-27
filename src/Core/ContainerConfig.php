@@ -239,7 +239,8 @@ class ContainerConfig {
         // Authentication services
         $di->set('authentication_service', $di->lazyNew(\Gravitycar\Services\AuthenticationService::class, [
             'database' => $di->lazyGet('database'),
-            'logger' => $di->lazyGet('logger')
+            'logger' => $di->lazyGet('logger'),
+            'config' => $di->lazyGet('config')
         ]));
 
         $di->set('authorization_service', $di->lazyNew(\Gravitycar\Services\AuthorizationService::class, [

@@ -40,6 +40,14 @@ return [
             'label' => 'Created At',
             'readOnly' => true,
         ],
+        'is_revoked' => [
+            'name' => 'is_revoked',
+            'type' => 'Boolean',
+            'label' => 'Is Revoked',
+            'required' => true,
+            'defaultValue' => false,
+            'validationRules' => ['Required'],
+        ],
         'revoked_at' => [
             'name' => 'revoked_at',
             'type' => 'DateTime',

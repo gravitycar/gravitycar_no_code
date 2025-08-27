@@ -59,3 +59,5 @@
 - [] Is the database service the same as the database_connector service?
 - [] Change the wildcards in API Routes from ? to {paramName}, like ['{modelName}', '{id}', '', '{relatinshipName}']. Then we can get rid of the parameterNames and just parse the param names out of the wildcards.
 - [] The /metadata/modules/<model_name> endpoint should fail, but the APIPathScorer doesn't see it that way. It did pick a very close match, which is good, I guess. But the 'modules' part should have produced a 404 error.
+- [] Boolean fields are represented in the database as varchar(255) fields. That's not right. 
+- [] Update the APIRouteScorer class to disqualify any routes where any component doesn't have an exact match or a wildcard match.

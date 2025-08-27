@@ -18,6 +18,11 @@ RewriteRule ^ - [L]
 RewriteCond %{REQUEST_URI} ^/([A-Za-z][A-Za-z0-9_]*)(/.+)?/?$ [NC]
 RewriteRule ^([A-Za-z][A-Za-z0-9_]*)(/.+)?/?$ rest_api.php [E=ORIGINAL_PATH:%{REQUEST_URI},E=MODEL_NAME:$1,E=PATH_INFO:$2,QSA,L]
 
+# Ensure Authorization header is passed through to PHP
+# This is required for JWT authentication to work properly
+RewriteCond %{HTTP:Authorization} ^(.*)
+RewriteRule .* - [e=HTTP_AUTHORIZATION:%1]
+
 # Alternative fallback for exact model name matches
 # This ensures clean URLs work for common REST patterns
 RewriteCond %{REQUEST_FILENAME} !-f

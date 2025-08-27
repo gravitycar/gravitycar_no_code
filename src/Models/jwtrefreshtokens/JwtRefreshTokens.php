@@ -1,6 +1,6 @@
 <?php
 
-namespace Gravitycar\Models\jwt_refresh_tokens;
+namespace Gravitycar\Models\jwtrefreshtokens;
 
 use Gravitycar\Models\ModelBase;
 
