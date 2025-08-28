@@ -13,6 +13,13 @@
             "command": "node",
             "args": [".vscode/tools/gravitycar-api.js"],
             "input": "json"
+        },
+        "react-server": {
+            "name": "React Dev Server",
+            "description": "Manage the React development server on port 3000. Commands: start, stop, restart, status. Automatically detaches from terminal and manages background processes.",
+            "command": "bash",
+            "args": [".vscode/tools/react-server.sh"],
+            "input": "json"
         }
     }
 }
