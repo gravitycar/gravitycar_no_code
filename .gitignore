@@ -6,3 +6,4 @@
 /cache
 .env
 /tmp
+.vscode/gravitycar-token.json
