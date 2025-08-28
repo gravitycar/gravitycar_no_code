@@ -49,8 +49,8 @@ class SearchEngine
         // Validate and filter search fields
         $requestedFields = $searchParams['fields'] ?? [];
         if (empty($requestedFields)) {
-            // If no fields specified, get default searchable fields
-            $requestedFields = $this->getDefaultSearchableFields($model);
+            // Use ModelBase's getSearchableFieldsList() method which respects displayColumns
+            $requestedFields = $model->getSearchableFieldsList();
         }
         
         $validatedFields = [];

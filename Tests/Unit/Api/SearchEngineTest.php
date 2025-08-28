@@ -280,6 +280,17 @@ class SearchEngineTest extends TestCase
     {
         $model = $this->createMock(ModelBase::class);
         $model->method('getFields')->willReturn($fields);
+        
+        // Mock getSearchableFieldsList to return field names for searchable fields
+        $searchableFields = [];
+        foreach ($fields as $fieldName => $field) {
+            // Include text and email fields as searchable (mimicking ModelBase logic)
+            if ($field instanceof TextField || $field instanceof EmailField) {
+                $searchableFields[] = $fieldName;
+            }
+        }
+        $model->method('getSearchableFieldsList')->willReturn($searchableFields);
+        
         return $model;
     }
 }

@@ -1042,7 +1042,25 @@ abstract class ModelBase {
             return $this->metadata['searchableFields'];
         }
         
-        // Auto-detect searchable fields based on field types
+        // If no explicit searchableFields, try to use displayColumns as they're most relevant for user search
+        $displayColumns = $this->getDisplayColumns();
+        if (!empty($displayColumns)) {
+            $searchableFields = [];
+            $this->initializeModel(); // Ensure fields are loaded
+            
+            foreach ($displayColumns as $fieldName) {
+                if (isset($this->fields[$fieldName]) && $this->isFieldSearchable($this->fields[$fieldName])) {
+                    $searchableFields[] = $fieldName;
+                }
+            }
+            
+            // If we found searchable display columns, use them
+            if (!empty($searchableFields)) {
+                return $searchableFields;
+            }
+        }
+        
+        // Fallback: Auto-detect searchable fields based on field types
         $searchableFields = [];
         $this->initializeModel(); // Ensure fields are loaded
         

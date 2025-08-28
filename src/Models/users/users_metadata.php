@@ -3,15 +3,8 @@
 return [
     'name' => 'Users',
     'table' => 'users',
+    'displayColumns' => ['first_name', 'last_name', 'username'],
     'fields' => [
-        'id' => [
-            'name' => 'id',
-            'type' => 'ID',
-            'label' => 'User ID',
-            'required' => true,
-            'readOnly' => true,
-            'unique' => true,
-        ],
         'username' => [
             'name' => 'username',
             'type' => 'Text',
@@ -86,7 +79,7 @@ return [
             'type' => 'DateTime',
             'label' => 'Email Verified At',
             'required' => false,
-            'readOnly' => true,
+            'readOnly' => false,
             'validationRules' => ['DateTime'],
         ],
         'profile_picture_url' => [
@@ -145,43 +138,7 @@ return [
             'optionsMethod' => 'getTimezones',
             'validationRules' => ['Required', 'Options'],
         ],
-        // Core fields
-        'created_at' => [
-            'name' => 'created_at',
-            'type' => 'DateTime',
-            'label' => 'Created At',
-            'readOnly' => true,
-        ],
-        'updated_at' => [
-            'name' => 'updated_at',
-            'type' => 'DateTime',
-            'label' => 'Updated At',
-            'readOnly' => true,
-        ],
-        'deleted_at' => [
-            'name' => 'deleted_at',
-            'type' => 'DateTime',
-            'label' => 'Deleted At',
-            'readOnly' => true,
-        ],
-        'created_by' => [
-            'name' => 'created_by',
-            'type' => 'ID',
-            'label' => 'Created By',
-            'readOnly' => true,
-        ],
-        'updated_by' => [
-            'name' => 'updated_by',
-            'type' => 'ID',
-            'label' => 'Updated By',
-            'readOnly' => true,
-        ],
-        'deleted_by' => [
-            'name' => 'deleted_by',
-            'type' => 'ID',
-            'label' => 'Deleted By',
-            'readOnly' => true,
-        ],
+        // End of model-specific fields
     ],
     'validationRules' => [],
     'relationships' => [

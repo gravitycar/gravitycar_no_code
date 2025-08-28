@@ -231,6 +231,9 @@ class MetadataEngine {
             return $metadata;
         }
 
+        // Get core fields once and reuse for all entities
+        $coreFields = $this->getCoreFieldsMetadata();
+
         $dirs = scandir($dirPath);
         foreach ($dirs as $dir) {
             if ($dir === '.' || $dir === '..') continue;
@@ -246,7 +249,24 @@ class MetadataEngine {
                     if (is_array($data)) {
                         // Use the actual class name from metadata instead of filename
                         $className = $data['name'] ?? $matches[1];
+                        
+                        // Merge core fields with entity-specific fields
+                        // Entity-specific fields override core fields
+                        if (isset($data['fields']) && is_array($data['fields'])) {
+                            $data['fields'] = array_merge($coreFields, $data['fields']);
+                        } else {
+                            // If no entity-specific fields, use only core fields
+                            $data['fields'] = $coreFields;
+                        }
+                        
                         $metadata[$className] = $data;
+                        
+                        $this->logger->debug("Merged core fields with entity metadata", [
+                            'entity' => $className,
+                            'core_fields_count' => count($coreFields),
+                            'entity_fields_count' => count($data['fields']) - count($coreFields),
+                            'total_fields_count' => count($data['fields'])
+                        ]);
                     } else {
                         $this->logger->warning("Invalid metadata format in file: $filePath");
                     }

@@ -4,14 +4,6 @@ return [
     'name' => 'Permissions',
     'table' => 'permissions',
     'fields' => [
-        'id' => [
-            'name' => 'id',
-            'type' => 'ID',
-            'label' => 'Permission ID',
-            'required' => true,
-            'readOnly' => true,
-            'unique' => true,
-        ],
         'action' => [
             'name' => 'action',
             'type' => 'Text',
@@ -56,18 +48,7 @@ return [
             'required' => false,
             'validationRules' => [],
         ],
-        'created_at' => [
-            'name' => 'created_at',
-            'type' => 'DateTime',
-            'label' => 'Created At',
-            'readOnly' => true,
-        ],
-        'updated_at' => [
-            'name' => 'updated_at',
-            'type' => 'DateTime',
-            'label' => 'Updated At',
-            'readOnly' => true,
-        ],
+        // End of model-specific fields
     ],
     'validationRules' => [],
     'relationships' => [

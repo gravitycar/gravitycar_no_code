@@ -4,14 +4,6 @@ return [
     'name' => 'Roles',
     'table' => 'roles',
     'fields' => [
-        'id' => [
-            'name' => 'id',
-            'type' => 'ID',
-            'label' => 'Role ID',
-            'required' => true,
-            'readOnly' => true,
-            'unique' => true,
-        ],
         'name' => [
             'name' => 'name',
             'type' => 'Text',
@@ -43,18 +35,7 @@ return [
             'defaultValue' => false,
             'validationRules' => ['Required'],
         ],
-        'created_at' => [
-            'name' => 'created_at',
-            'type' => 'DateTime',
-            'label' => 'Created At',
-            'readOnly' => true,
-        ],
-        'updated_at' => [
-            'name' => 'updated_at',
-            'type' => 'DateTime',
-            'label' => 'Updated At',
-            'readOnly' => true,
-        ],
+        // End of model-specific fields  
     ],
     'validationRules' => [],
     'relationships' => [

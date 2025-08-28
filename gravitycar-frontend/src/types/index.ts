@@ -94,3 +94,115 @@ export interface NavItem {
   icon?: string;
   requiresAuth?: boolean;
 }
+
+// Metadata-Driven Architecture Types
+export interface ModelMetadata {
+  name: string;
+  table: string;
+  description: string;
+  fields: Record<string, FieldMetadata>;
+  relationships: RelationshipMetadata[];
+  react_form_schema: FormSchema;
+  api_endpoints: ApiEndpoint[];
+}
+
+export interface FieldMetadata {
+  name: string;
+  type: string; // FieldBase subclass name (TextField, EmailField, etc.)
+  react_component: string; // React component name (TextInput, EmailInput, etc.)
+  label: string;
+  required: boolean;
+  validation_rules?: ValidationRule[];
+  validationRules?: string[]; // Backend format
+  default_value?: any;
+  defaultValue?: any; // Backend format
+  placeholder?: string;
+  help_text?: string;
+  max_length?: number;
+  min_length?: number;
+  readOnly?: boolean;
+  unique?: boolean;
+  // Field-specific properties
+  options?: Record<string, string> | EnumOption[]; // Backend uses objects, frontend uses arrays
+  related_model?: string; // For RelatedRecordField
+  display_field?: string; // For RelatedRecordField
+  searchable?: boolean;
+  sortable?: boolean;
+  filterable?: boolean;
+  // Component props from backend
+  component_props?: any;
+  react_validation?: any;
+}
+
+export interface ValidationRule {
+  type: string;
+  message: string;
+  parameters?: Record<string, any>;
+}
+
+export interface EnumOption {
+  value: string | number;
+  label: string;
+  description?: string;
+}
+
+export interface RelationshipMetadata {
+  name: string;
+  type: 'hasOne' | 'hasMany' | 'belongsTo' | 'belongsToMany';
+  related_model: string;
+  foreign_key?: string;
+  local_key?: string;
+  pivot_table?: string;
+}
+
+export interface FormSchema {
+  model: string;
+  layout: 'vertical' | 'horizontal' | 'grid';
+  sections?: FormSection[];
+  fields: Record<string, FormFieldSchema>;
+}
+
+export interface FormSection {
+  title: string;
+  description?: string;
+  fields: string[];
+  collapsible?: boolean;
+}
+
+export interface FormFieldSchema {
+  component: string;
+  props: Record<string, any>;
+  validation: ValidationRule[];
+  label: string;
+  required: boolean;
+  section?: string;
+  order?: number;
+}
+
+export interface ApiEndpoint {
+  method: string;
+  path: string;
+  description: string;
+  parameters?: string[];
+}
+
+// Field Component Props Interface
+export interface FieldComponentProps {
+  value: any;
+  onChange: (value: any) => void;
+  error?: string;
+  disabled?: boolean;
+  readOnly?: boolean;
+  required?: boolean;
+  fieldMetadata: FieldMetadata;
+  placeholder?: string;
+  label?: string;
+}
+
+// Specialized component props
+export interface RelatedRecordSelectProps extends FieldComponentProps {
+  relatedModel: string;
+  displayField: string;
+  searchable?: boolean;
+  createNew?: boolean;
+}

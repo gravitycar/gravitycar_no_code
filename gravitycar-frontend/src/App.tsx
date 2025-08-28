@@ -3,6 +3,8 @@ import { AuthProvider, useAuth } from './hooks/useAuth';
 import Layout from './components/layout/Layout';
 import Login from './components/auth/Login';
 import Dashboard from './pages/Dashboard';
+import MetadataTestPage from './pages/MetadataTestPage';
+import TestRelatedRecord from './pages/TestRelatedRecord';
 import './App.css';
 
 // Protected Route Component
@@ -56,6 +58,28 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <Layout>
               <Dashboard />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/metadata-test"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <MetadataTestPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/test-related-record"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <TestRelatedRecord />
             </Layout>
           </ProtectedRoute>
         }

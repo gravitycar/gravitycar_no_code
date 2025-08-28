@@ -4,14 +4,6 @@ return [
     'name' => 'JwtRefreshTokens',
     'table' => 'jwt_refresh_tokens',
     'fields' => [
-        'id' => [
-            'name' => 'id',
-            'type' => 'ID',
-            'label' => 'Token ID',
-            'required' => true,
-            'readOnly' => true,
-            'unique' => true,
-        ],
         'user_id' => [
             'name' => 'user_id',
             'type' => 'ID',
@@ -33,12 +25,6 @@ return [
             'label' => 'Expires At',
             'required' => true,
             'validationRules' => ['Required', 'DateTime'],
-        ],
-        'created_at' => [
-            'name' => 'created_at',
-            'type' => 'DateTime',
-            'label' => 'Created At',
-            'readOnly' => true,
         ],
         'is_revoked' => [
             'name' => 'is_revoked',

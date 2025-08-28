@@ -31,7 +31,7 @@ echo "🏗️  Step 2: Starting React development server..."
 echo "⏳ This may take a moment..."
 
 # Start the development server
-npm run dev
+npm run dev &
 
 echo ""
 echo "🎉 React development server startup complete!"

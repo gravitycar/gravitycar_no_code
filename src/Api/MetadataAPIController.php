@@ -204,6 +204,7 @@ class MetadataAPIController {
                     'name' => $modelName,
                     'table' => $modelData['table'] ?? strtolower($modelName),
                     'description' => $modelData['description'] ?? "Model for {$modelName}",
+                    'displayColumns' => $modelData['displayColumns'] ?? null,
                     'fields' => $enhancedFields,
                     'relationships' => $modelData['relationships'] ?? [],
                     'api_endpoints' => $this->formatApiEndpoints($routes),

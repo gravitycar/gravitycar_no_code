@@ -291,6 +291,97 @@ const ModelForm = ({ modelName, recordId, onSuccess }) => {
 };
 ```
 
+### 6.4 Metadata-Driven Architecture (NEW)
+```typescript
+// Metadata Hook Implementation
+const useModelMetadata = (modelName: string) => {
+  const [metadata, setMetadata] = useState<ModelMetadata | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      try {
+        // Check cache first
+        const cached = metadataCache.get(modelName);
+        if (cached) {
+          setMetadata(cached);
+          setLoading(false);
+          return;
+        }
+
+        // Fetch from API
+        const response = await apiService.get(`/metadata/models/${modelName}`);
+        const modelData = response.data.data;
+        
+        // Cache the result
+        metadataCache.set(modelName, modelData);
+        setMetadata(modelData);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMetadata();
+  }, [modelName]);
+
+  return { metadata, loading, error };
+};
+
+// Dynamic Field Component Renderer
+const FieldComponent = ({ field, value, onChange, error }) => {
+  const componentMap = {
+    'TextInput': TextInput,
+    'EmailInput': EmailInput,
+    'PasswordInput': PasswordInput,
+    'Checkbox': Checkbox,
+    'Select': Select,
+    'DatePicker': DatePicker,
+    'RelatedRecordSelect': RelatedRecordSelect,
+    // ... all FieldBase reactComponent mappings
+  };
+
+  const Component = componentMap[field.react_component] || TextInput;
+  
+  return (
+    <Component
+      value={value}
+      onChange={onChange}
+      error={error}
+      fieldMetadata={field}
+      required={field.required}
+      placeholder={field.placeholder}
+      label={field.label}
+    />
+  );
+};
+
+// Model Metadata Interface
+interface ModelMetadata {
+  name: string;
+  table: string;
+  description: string;
+  fields: Record<string, FieldMetadata>;
+  relationships: RelationshipMetadata[];
+  react_form_schema: FormSchema;
+}
+
+interface FieldMetadata {
+  name: string;
+  type: string; // FieldBase subclass name
+  react_component: string; // React component name
+  label: string;
+  required: boolean;
+  validation_rules: ValidationRule[];
+  default_value: any;
+  options?: EnumOption[]; // For EnumField
+  related_model?: string; // For RelatedRecordField
+  // ... other field-specific metadata
+}
+```
+
 ## 7. Learning Milestones & Checkpoints
 
 ### 7.1 Week 1 Checkpoint: React Fundamentals
@@ -427,27 +518,195 @@ const ModelForm = ({ modelName, recordId, onSuccess }) => {
    - ✅ Built Dashboard page with data fetching and statistics display
    - ✅ Application running successfully at http://localhost:5174/
 
-### Next Steps ⏳
-4. **🔄 Backend Integration**: Test API endpoints and authentication ← STARTING NOW
-   - Test connection to Gravitycar backend APIs
-   - Verify JWT authentication flow
-   - Test CRUD operations with real data
-   - Handle CORS configuration if needed
+### Next Steps ⏳ - PHASE 2: METADATA-DRIVEN CRUD OPERATIONS
 
-5. **Continue Phase 1**: Complete authentication and basic layout
-   - Add error handling and loading states
-   - Implement user feedback (toasts/notifications)
-   - Add form validation
-   - Create additional placeholder pages
+#### 4. **🎯 Create Metadata-Driven Form Components**
+**Goal**: Build React components that dynamically generate forms from Gravitycar model metadata
+
+**Implementation Steps**:
+1. **Metadata Hook Development**
+   - Create `useModelMetadata(modelName)` hook to fetch model metadata from `/metadata/models/{modelName}`
+   - Implement caching strategy for metadata to avoid repeated API calls
+   - Handle loading states and error scenarios for metadata fetching
+   - Add TypeScript interfaces for metadata response structure
+
+2. **Dynamic Form Generator Component**
+   - Build `<ModelForm>` component that accepts `modelName` and `recordId` (for edit mode)
+   - Automatically render form fields based on metadata field definitions
+   - Handle form state management with React Hook Form or similar
+   - Implement form submission with proper validation and error handling
+
+3. **Field Metadata Processing**
+   - Parse field metadata to extract React component type, validation rules, and props
+   - Map FieldBase metadata properties to React component properties
+   - Handle field-specific configurations (options for EnumField, foreign key lookups for RelatedRecordField)
+   - Process validation rules from metadata into React form validation
+
+**Deliverables**:
+- `useModelMetadata` custom hook with caching
+- `<ModelForm>` component for dynamic form generation
+- Metadata processing utilities for field configuration
+- TypeScript interfaces for metadata structure
+
+#### 5. **🧩 Implement Field Component Library**
+**Goal**: Create React components matching FieldBase subclass `reactComponent` names
+
+**Component Requirements**:
+1. **Basic Input Components**
+   - `<TextInput>` - Standard text input with validation
+   - `<EmailInput>` - Email input with email validation
+   - `<PasswordInput>` - Password input with visibility toggle
+   - `<NumberInput>` - Numeric input for IntegerField and FloatField
+   - `<TextArea>` - Multi-line text input for BigTextField
+
+2. **Selection Components**
+   - `<Checkbox>` - Boolean field component with proper styling
+   - `<Select>` - Single selection dropdown for EnumField
+   - `<MultiSelect>` - Multiple selection for MultiEnumField
+   - `<RadioGroup>` - Radio button group for RadioButtonSetField
+
+3. **Date/Time Components**
+   - `<DatePicker>` - Date selection for DateField
+   - `<DateTimePicker>` - Date and time selection for DateTimeField
+
+4. **Advanced Components**
+   - `<RelatedRecordSelect>` - Foreign key selection with search/autocomplete
+   - `<ImageUpload>` - Image upload and preview for ImageField
+   - `<HiddenInput>` - Hidden field for IDField
+
+5. **Component Features**
+   - Each component accepts standard props: `value`, `onChange`, `error`, `disabled`, `required`
+   - Built-in validation display and error states
+   - Consistent styling with Tailwind CSS
+   - Accessibility compliance (ARIA labels, keyboard navigation)
+   - Loading states for components that fetch data (RelatedRecordSelect)
+
+**Implementation Details**:
+```typescript
+// Example component interface
+interface FieldComponentProps {
+  value: any;
+  onChange: (value: any) => void;
+  error?: string;
+  disabled?: boolean;
+  required?: boolean;
+  fieldMetadata: FieldMetadata;
+  placeholder?: string;
+  label?: string;
+}
+
+// RelatedRecordSelect specific props
+interface RelatedRecordSelectProps extends FieldComponentProps {
+  relatedModel: string;
+  displayField: string;
+  searchable?: boolean;
+  createNew?: boolean;
+}
+```
+
+**Deliverables**:
+- Complete field component library (16 components matching FieldBase subclasses)
+- Shared component interfaces and prop types
+- Component documentation and usage examples
+- Storybook stories for component testing and documentation
+
+#### 6. **🔄 Test with Real Models and Data**
+**Goal**: Validate metadata-driven CRUD operations with actual Gravitycar models
+
+**Testing Strategy**:
+1. **Model Coverage Testing**
+   - Test with Users model (complex with relationships and validation)
+   - Test with Movies model (IMDB integration and media fields)
+   - Test with MovieQuotes model (foreign key relationships)
+   - Test with Roles/Permissions models (enum fields and relationships)
+
+2. **CRUD Operation Testing**
+   - **Create Operations**: Test form generation and data submission for new records
+   - **Read Operations**: Test data display and field rendering from existing records
+   - **Update Operations**: Test form pre-population and update submissions
+   - **Delete Operations**: Test confirmation dialogs and delete operations
+
+3. **Field Type Coverage**
+   - Test all FieldBase subclasses with real data
+   - Validate field-specific features (enum options, date validation, email format)
+   - Test relationship fields with actual foreign key data
+   - Verify validation rules are properly applied
+
+4. **Integration Testing**
+   - Test metadata API endpoints under load
+   - Verify caching mechanisms work correctly
+   - Test error handling for invalid field configurations
+   - Validate TypeScript type safety throughout the flow
+
+**Test Scenarios**:
+```typescript
+// Example test cases
+describe('Metadata-Driven CRUD Operations', () => {
+  it('should generate User creation form from metadata', async () => {
+    // Test dynamic form generation for Users model
+  });
+  
+  it('should handle RelatedRecordField for MovieQuotes->Movies', async () => {
+    // Test foreign key field rendering and selection
+  });
+  
+  it('should validate EmailField properly', async () => {
+    // Test email validation from metadata
+  });
+});
+```
+
+**Deliverables**:
+- Comprehensive test suite for metadata-driven components
+- Integration tests with real backend data
+- Performance benchmarks for metadata fetching and form rendering
+- Documentation of field type behaviors and edge cases
+
+#### 7. **🔄 Backend Integration Verification**
+**Goal**: Ensure seamless communication between React frontend and Gravitycar backend
+
+**Integration Points**:
+1. **API Endpoint Testing**
+   - Verify `/metadata/models/{modelName}` returns correct field information
+   - Test CRUD endpoints with dynamically generated forms
+   - Validate error responses and proper error handling
+   - Test authentication integration with protected metadata endpoints
+
+2. **Data Flow Validation**
+   - Confirm field metadata correctly maps to React components
+   - Verify form submissions properly format data for backend consumption
+   - Test relationship field data loading and selection
+   - Validate pagination and filtering work with generated components
+
+**Performance Considerations**:
+- Metadata caching strategy to minimize API calls
+- Lazy loading of relationship field options
+- Debounced search for RelatedRecordSelect components
+- Optimistic updates for better user experience
+
+**Deliverables**:
+- Full integration test suite
+- Performance optimization recommendations
+- Error handling and user feedback mechanisms
+- Documentation of API integration patterns
 
 ### Current Status 🎯
-**Major Milestone Achieved**: Complete React frontend foundation is now established!
-- Full TypeScript project with modern tooling (Vite, Tailwind CSS)
-- Authentication system with protected routes
-- API service layer ready for backend integration
-- Responsive UI components with professional styling
-- Project structure following React best practices
+**PHASE 1 COMPLETE - MOVING TO PHASE 2**: React frontend foundation established and ready for metadata-driven CRUD operations!
 
-The foundation is solid and ready for backend integration and feature development.
+**Phase 1 Achievements**:
+- ✅ Full TypeScript project with modern tooling (Vite, Tailwind CSS)
+- ✅ Authentication system with protected routes working (traditional + Google OAuth)
+- ✅ API service layer ready for backend integration
+- ✅ Responsive UI components with professional styling
+- ✅ Project structure following React best practices
+
+**Phase 2 Focus - Metadata-Driven CRUD Operations**:
+- 🎯 **Ready for Implementation**: All backend infrastructure confirmed available
+  - ✅ 16 FieldBase subclasses with React component mappings
+  - ✅ MetadataAPIController with `/metadata/models/{modelName}` endpoint
+  - ✅ ReactComponentMapper service for form schema generation
+  - ✅ Enhanced field metadata with React-specific information
+
+**Next Milestone**: Complete metadata-driven form system that automatically adapts to backend model definitions without manual React component updates.
 
 This plan provides a structured approach to building a comprehensive React frontend while accommodating your learning needs and leveraging the robust Gravitycar backend you've already built.

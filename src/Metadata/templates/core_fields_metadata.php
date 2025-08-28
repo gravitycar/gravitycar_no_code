@@ -13,7 +13,7 @@
 return [
     'id' => [
         'name' => 'id',
-        'type' => 'IDField',
+        'type' => 'ID',
         'label' => 'ID',
         'description' => 'Unique identifier for the record',
         'required' => true,
@@ -26,7 +26,7 @@ return [
     ],
     'created_at' => [
         'name' => 'created_at',
-        'type' => 'DateTimeField',
+        'type' => 'DateTime',
         'label' => 'Created At',
         'description' => 'When the record was created',
         'required' => false,
@@ -38,7 +38,7 @@ return [
     ],
     'updated_at' => [
         'name' => 'updated_at',
-        'type' => 'DateTimeField',
+        'type' => 'DateTime',
         'label' => 'Updated At',
         'description' => 'When the record was last updated',
         'required' => false,
@@ -50,7 +50,7 @@ return [
     ],
     'deleted_at' => [
         'name' => 'deleted_at',
-        'type' => 'DateTimeField',
+        'type' => 'DateTime',
         'label' => 'Deleted At',
         'description' => 'When the record was soft deleted (null if not deleted)',
         'required' => false,
@@ -63,7 +63,7 @@ return [
     ],
     'created_by' => [
         'name' => 'created_by',
-        'type' => 'RelatedRecordField',
+        'type' => 'RelatedRecord',
         'label' => 'Created By',
         'description' => 'User who created this record',
         'required' => false,
@@ -90,7 +90,7 @@ return [
     ],
     'updated_by' => [
         'name' => 'updated_by',
-        'type' => 'RelatedRecordField',
+        'type' => 'RelatedRecord',
         'label' => 'Updated By',
         'description' => 'User who last updated this record',
         'required' => false,
@@ -117,7 +117,7 @@ return [
     ],
     'deleted_by' => [
         'name' => 'deleted_by',
-        'type' => 'RelatedRecordField',
+        'type' => 'RelatedRecord',
         'label' => 'Deleted By',
         'description' => 'User who soft deleted this record',
         'required' => false,

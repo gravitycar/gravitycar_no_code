@@ -53,6 +53,12 @@ const Layout = ({ children }: LayoutProps) => {
                 Dashboard
               </a>
               <a
+                href="/metadata-test"
+                className="text-blue-600 hover:text-blue-900 px-3 py-2 rounded-md text-sm font-medium font-semibold"
+              >
+                🧪 Metadata Test
+              </a>
+              <a
                 href="/users"
                 className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
               >

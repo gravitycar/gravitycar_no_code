@@ -4,14 +4,6 @@ return [
     'name' => 'GoogleOauthTokens',
     'table' => 'google_oauth_tokens',
     'fields' => [
-        'id' => [
-            'name' => 'id',
-            'type' => 'ID',
-            'label' => 'Token ID',
-            'required' => true,
-            'readOnly' => true,
-            'unique' => true,
-        ],
         'user_id' => [
             'name' => 'user_id',
             'type' => 'ID',
@@ -47,18 +39,6 @@ return [
             'required' => true,
             'validationRules' => ['Required'],
         ],
-        'created_at' => [
-            'name' => 'created_at',
-            'type' => 'DateTime',
-            'label' => 'Created At',
-            'readOnly' => true,
-        ],
-        'updated_at' => [
-            'name' => 'updated_at',
-            'type' => 'DateTime',
-            'label' => 'Updated At',
-            'readOnly' => true,
-        ],
         'revoked_at' => [
             'name' => 'revoked_at',
             'type' => 'DateTime',
@@ -66,6 +46,7 @@ return [
             'required' => false,
             'validationRules' => ['DateTime'],
         ],
+        // End of model-specific fields
     ],
     'validationRules' => [],
     'relationships' => [
