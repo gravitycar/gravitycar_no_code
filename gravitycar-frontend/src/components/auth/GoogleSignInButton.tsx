@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useGoogleOAuth, decodeGoogleJWT } from '../../hooks/useGoogleOAuth';
 import type { CredentialResponse } from '../../types/google';
@@ -10,7 +10,7 @@ const GoogleSignInButton = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string>('Initializing...');
 
-  const handleGoogleSuccess = async (credentialResponse: CredentialResponse) => {
+  const handleGoogleSuccess = useCallback(async (credentialResponse: CredentialResponse) => {
     console.log('✅ Google sign-in successful:', credentialResponse);
     setIsLoading(true);
     setError('');
@@ -36,12 +36,12 @@ const GoogleSignInButton = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [loginWithGoogle]);
 
-  const handleGoogleError = (error: any) => {
+  const handleGoogleError = useCallback((error: any) => {
     console.error('❌ Google OAuth error:', error);
     setError('Google OAuth configuration error. Please try again.');
-  };
+  }, []);
 
   const { renderButton, isGoogleLoaded } = useGoogleOAuth({
     onSuccess: handleGoogleSuccess,
@@ -54,10 +54,16 @@ const GoogleSignInButton = () => {
     
     if (isGoogleLoaded && buttonRef.current) {
       console.log('🔄 Google loaded, attempting to render button...');
-      // Clear any existing content
-      buttonRef.current.innerHTML = '';
-      // Render the Google sign-in button
-      renderButton('google-signin-button');
+      // Don't clear existing content if button is already rendered
+      const existingButton = document.getElementById('google-signin-button');
+      if (!existingButton?.hasChildNodes()) {
+        // Only clear if there's no button rendered yet
+        if (buttonRef.current) {
+          buttonRef.current.innerHTML = '';
+        }
+        // Render the Google sign-in button
+        renderButton('google-signin-button');
+      }
     }
   }, [isGoogleLoaded, renderButton]);
 

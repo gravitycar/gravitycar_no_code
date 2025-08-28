@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import type { GoogleIdConfiguration, CredentialResponse } from '../types/google';
 
 // Google Client ID from our environment configuration
@@ -10,12 +10,28 @@ interface UseGoogleOAuthProps {
 }
 
 export const useGoogleOAuth = ({ onSuccess, onError }: UseGoogleOAuthProps) => {
+  const isInitializedRef = useRef(false);
+  const onSuccessRef = useRef(onSuccess);
+  const onErrorRef = useRef(onError);
+  
+  // Update refs when props change
+  useEffect(() => {
+    onSuccessRef.current = onSuccess;
+    onErrorRef.current = onError;
+  }, [onSuccess, onError]);
+  
   const initializeGoogle = useCallback(() => {
     console.log('🔄 Attempting to initialize Google OAuth...');
     console.log('🔑 Client ID:', GOOGLE_CLIENT_ID);
 
     if (!window.google) {
       console.warn('❌ Google Identity Services not loaded');
+      return;
+    }
+
+    // Prevent multiple initializations
+    if (isInitializedRef.current) {
+      console.log('✅ Google OAuth already initialized, skipping...');
       return;
     }
 
@@ -27,10 +43,10 @@ export const useGoogleOAuth = ({ onSuccess, onError }: UseGoogleOAuthProps) => {
       callback: (response: CredentialResponse) => {
         try {
           console.log('✅ Google OAuth callback received:', response);
-          onSuccess(response);
+          onSuccessRef.current(response);
         } catch (error) {
           console.error('❌ Google OAuth callback error:', error);
-          onError?.(error);
+          onErrorRef.current?.(error);
         }
       },
       auto_select: false,
@@ -42,12 +58,13 @@ export const useGoogleOAuth = ({ onSuccess, onError }: UseGoogleOAuthProps) => {
     try {
       console.log('🔄 Initializing Google OAuth with config:', config);
       window.google.accounts.id.initialize(config);
+      isInitializedRef.current = true;
       console.log('✅ Google OAuth initialized successfully');
     } catch (error) {
       console.error('❌ Failed to initialize Google OAuth:', error);
-      onError?.(error);
+      onErrorRef.current?.(error);
     }
-  }, [onSuccess, onError]);
+  }, []); // No dependencies since we use refs
 
   const renderButton = useCallback((elementId: string) => {
     console.log('🔄 Attempting to render Google button for element:', elementId);
@@ -60,6 +77,12 @@ export const useGoogleOAuth = ({ onSuccess, onError }: UseGoogleOAuthProps) => {
     const buttonElement = document.getElementById(elementId);
     if (!buttonElement) {
       console.warn(`❌ Element with id "${elementId}" not found`);
+      return;
+    }
+
+    // Check if button is already rendered
+    if (buttonElement.hasChildNodes()) {
+      console.log('✅ Google button already rendered, skipping...');
       return;
     }
 
@@ -77,9 +100,9 @@ export const useGoogleOAuth = ({ onSuccess, onError }: UseGoogleOAuthProps) => {
       console.log('✅ Google button rendered successfully');
     } catch (error) {
       console.error('❌ Failed to render Google sign-in button:', error);
-      onError?.(error);
+      onErrorRef.current?.(error);
     }
-  }, [onError]);
+  }, []); // No dependencies since we use refs
 
   const promptOneTap = useCallback(() => {
     if (!window.google) {
@@ -95,9 +118,9 @@ export const useGoogleOAuth = ({ onSuccess, onError }: UseGoogleOAuthProps) => {
       });
     } catch (error) {
       console.error('Failed to prompt One Tap:', error);
-      onError?.(error);
+      onErrorRef.current?.(error);
     }
-  }, [onError]);
+  }, []); // No dependencies since we use refs
 
   useEffect(() => {
     // Load Google Identity Services script dynamically
@@ -129,7 +152,13 @@ export const useGoogleOAuth = ({ onSuccess, onError }: UseGoogleOAuthProps) => {
     };
 
     loadGoogleScript();
-  }, [initializeGoogle]);
+    
+    // Cleanup function to prevent memory leaks
+    return () => {
+      // Reset initialization flag when component unmounts
+      isInitializedRef.current = false;
+    };
+  }, []); // Empty dependency array - only run once
 
   return {
     renderButton,
