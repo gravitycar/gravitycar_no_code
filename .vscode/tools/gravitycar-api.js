@@ -329,6 +329,16 @@ function getExamples() {
                 "method": "GET",
                 "endpoint": "/metadata/models"
             },
+            "Health Check (Ping)": {
+                "method": "GET",
+                "endpoint": "/ping",
+                "useAuth": false
+            },
+            "Health Status (Detailed)": {
+                "method": "GET",
+                "endpoint": "/health",
+                "useAuth": false
+            },
             "Clear Token": {
                 "method": "CLEAR_TOKEN"
             }

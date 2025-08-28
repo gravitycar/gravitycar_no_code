@@ -18,16 +18,15 @@ use Exception;
  * Authentication Controller
  * Handles Google OAuth and traditional authentication endpoints
  */
-class AuthController
+class AuthController extends ApiControllerBase
 {
-    private Logger $logger;
     private Config $config;
     private AuthenticationService $authService;
     private GoogleOAuthService $googleOAuthService;
 
     public function __construct()
     {
-        $this->logger = ServiceLocator::getLogger();
+        parent::__construct();
         $this->config = ServiceLocator::get(Config::class);
         $this->authService = ServiceLocator::get(AuthenticationService::class);
         $this->googleOAuthService = ServiceLocator::get(GoogleOAuthService::class);

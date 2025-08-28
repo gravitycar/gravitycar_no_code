@@ -8,13 +8,12 @@ use Psr\Log\LoggerInterface;
 /**
  * OpenAPIController: Provides OpenAPI specification endpoint
  */
-class OpenAPIController {
+class OpenAPIController extends ApiControllerBase {
     private OpenAPIGenerator $openAPIGenerator;
-    private LoggerInterface $logger;
     
     public function __construct() {
+        parent::__construct();
         $this->openAPIGenerator = new OpenAPIGenerator();
-        $this->logger = ServiceLocator::getLogger();
     }
     
     /**

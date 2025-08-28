@@ -74,10 +74,7 @@ class APIRouteRegistry
      */
     protected function discoverAndRegisterRoutes(): void
     {
-        // Register core authentication controller
-        $this->registerCoreControllers();
-        
-        // Traditional API controller discovery
+        // Discover all ApiControllerBase subclasses automatically
         $this->discoverAPIControllers();
         
         // Auto-discover ModelBase routes from metadata
@@ -91,52 +88,13 @@ class APIRouteRegistry
     }
 
     /**
-     * Register core framework controllers
-     */
-    protected function registerCoreControllers(): void
-    {
-        $this->logger->info("Starting registerCoreControllers()");
-        
-        // Register AuthController
-        try {
-            $authController = new \Gravitycar\Api\AuthController();
-            $this->register($authController, \Gravitycar\Api\AuthController::class);
-            $this->logger->info("Successfully registered AuthController");
-        } catch (\Exception $e) {
-            $this->logger->error("Failed to register AuthController: " . $e->getMessage());
-        }
-        
-        // Register MetadataAPIController
-        try {
-            $this->logger->info("Attempting to register MetadataAPIController");
-            $metadataController = new \Gravitycar\Api\MetadataAPIController();
-            $this->logger->info("MetadataAPIController instantiated successfully");
-            $this->register($metadataController, \Gravitycar\Api\MetadataAPIController::class);
-            $this->logger->info("Successfully registered MetadataAPIController");
-        } catch (\Exception $e) {
-            $this->logger->error("Failed to register MetadataAPIController: " . $e->getMessage());
-            $this->logger->error("Stack trace: " . $e->getTraceAsString());
-        }
-        
-        // Register OpenAPIController
-        try {
-            $this->logger->info("Attempting to register OpenAPIController");
-            $openAPIController = new \Gravitycar\Api\OpenAPIController();
-            $this->logger->info("OpenAPIController instantiated successfully");
-            $this->register($openAPIController, \Gravitycar\Api\OpenAPIController::class);
-            $this->logger->info("Successfully registered OpenAPIController");
-        } catch (\Exception $e) {
-            $this->logger->error("Failed to register OpenAPIController: " . $e->getMessage());
-            $this->logger->error("Stack trace: " . $e->getTraceAsString());
-        }
-        
-        $this->logger->info("Finished registerCoreControllers(). Total routes: " . count($this->routes));
-    }    /**
-     * Discover traditional API controllers
+     * Discover all API controllers that extend ApiControllerBase
      */
     protected function discoverAPIControllers(): void
     {
-        // First, register the global ModelBaseAPIController directly
+        $this->logger->info("Starting automatic discovery of ApiControllerBase subclasses");
+        
+        // First, register the global ModelBaseAPIController if it exists
         $modelBaseAPIControllerClass = "Gravitycar\\Models\\Api\\Api\\ModelBaseAPIController";
         if (class_exists($modelBaseAPIControllerClass)) {
             try {
@@ -146,38 +104,89 @@ class APIRouteRegistry
             } catch (\Exception $e) {
                 $this->logger->error("Failed to register ModelBaseAPIController: " . $e->getMessage());
             }
-        } else {
-            $this->logger->warning("ModelBaseAPIController class not found: {$modelBaseAPIControllerClass}");
         }
-
-        // Then discover model-specific API controllers from directory structure
-        if (!is_dir($this->apiControllersDirPath)) {
-            $this->logger->warning("API controllers directory not found: {$this->apiControllersDirPath}");
+        
+        // Discover all classes in src/Api directory that extend ApiControllerBase
+        $apiDir = 'src/Api';
+        if (!is_dir($apiDir)) {
+            $this->logger->warning("API directory not found: {$apiDir}");
             return;
         }
+        
+        $files = glob($apiDir . '/*Controller.php');
+        foreach ($files as $file) {
+            $className = $this->getClassNameFromFile($file);
+            if ($className && $this->extendsApiControllerBase($className)) {
+                try {
+                    $controller = new $className();
+                    $this->register($controller, $className);
+                    $this->logger->info("Auto-discovered and registered: {$className}");
+                } catch (\Exception $e) {
+                    $this->logger->error("Failed to instantiate controller {$className}: " . $e->getMessage());
+                }
+            }
+        }
+        
+        // Also discover model-specific API controllers from directory structure
+        if (is_dir($this->modelsDirPath)) {
+            $dirs = scandir($this->modelsDirPath);
+            foreach ($dirs as $dir) {
+                if ($dir === '.' || $dir === '..') continue;
 
-        $dirs = scandir($this->apiControllersDirPath);
-        foreach ($dirs as $dir) {
-            if ($dir === '.' || $dir === '..') continue;
+                $controllerDir = $this->modelsDirPath . DIRECTORY_SEPARATOR . $dir . DIRECTORY_SEPARATOR . 'api';
+                if (!is_dir($controllerDir)) continue;
 
-            $controllerDir = $this->apiControllersDirPath . DIRECTORY_SEPARATOR . $dir . DIRECTORY_SEPARATOR . 'api';
-            if (!is_dir($controllerDir)) continue;
-
-            $files = scandir($controllerDir);
-            foreach ($files as $file) {
-                if (preg_match('/^(.*)APIController\.php$/', $file, $matches)) {
-                    $className = "Gravitycar\\Models\\{$dir}\\Api\\{$matches[1]}APIController";
-                    if (class_exists($className)) {
-                        try {
-                            $controller = new $className();
-                            $this->register($controller, $className);
-                        } catch (\Exception $e) {
-                            $this->logger->error("Failed to instantiate API controller {$className}: " . $e->getMessage());
+                $files = scandir($controllerDir);
+                foreach ($files as $file) {
+                    if (preg_match('/^(.*)APIController\.php$/', $file, $matches)) {
+                        $className = "Gravitycar\\Models\\{$dir}\\Api\\{$matches[1]}APIController";
+                        if (class_exists($className) && $this->extendsApiControllerBase($className)) {
+                            try {
+                                $controller = new $className();
+                                $this->register($controller, $className);
+                                $this->logger->info("Auto-discovered model controller: {$className}");
+                            } catch (\Exception $e) {
+                                $this->logger->error("Failed to instantiate model API controller {$className}: " . $e->getMessage());
+                            }
                         }
                     }
                 }
             }
         }
+        
+        $this->logger->info("Finished automatic discovery of API controllers");
+    }
+    
+    /**
+     * Extract class name from PHP file path
+     */
+    private function getClassNameFromFile(string $filePath): ?string {
+        $fileName = basename($filePath, '.php');
+        $namespace = 'Gravitycar\\Api\\';
+        $className = $namespace . $fileName;
+        
+        return class_exists($className) ? $className : null;
+    }
+    
+    /**
+     * Check if a class extends ApiControllerBase
+     */
+    private function extendsApiControllerBase(string $className): bool {
+        if (!class_exists($className)) {
+            return false;
+        }
+        
+        $reflection = new \ReflectionClass($className);
+        $parentClass = $reflection->getParentClass();
+        
+        while ($parentClass) {
+            if ($parentClass->getName() === 'Gravitycar\\Api\\ApiControllerBase') {
+                return true;
+            }
+            $parentClass = $parentClass->getParentClass();
+        }
+        
+        return false;
     }
 
     /**

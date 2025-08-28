@@ -76,6 +76,24 @@ return [
         'log_documentation_errors' => true
     ],
     
+    // Health Check Configuration
+    'health' => [
+        'check_database' => true,
+        'database_timeout' => 5, // seconds
+        'metadata_stale_hours' => 24,
+        'enable_caching' => true,
+        'cache_ttl' => 30, // seconds
+        'memory_warning_percentage' => 80,
+        'expose_detailed_errors' => false, // in production
+        'enable_debug_info' => false
+    ],
+    
+    // Cache Configuration
+    'cache' => [
+        'directory' => 'cache',
+        'metadata_file' => 'cache/metadata_cache.php'
+    ],
+    
     // Google OAuth Configuration
     'google' => [
         'client_id' => $_ENV['GOOGLE_CLIENT_ID'] ?? 'test-client-id',

@@ -13,37 +13,23 @@ class ApiControllerBaseTest extends TestCase
 {
     private MockApiControllerForApiControllerBaseTest $controller;
     private MockObject $logger;
-    private array $metadata;
 
     protected function setUp(): void
     {
         parent::setUp();
         
         $this->logger = $this->createMock(Logger::class);
-        $this->metadata = [
-            'model' => 'User',
-            'table' => 'users',
-            'fields' => ['id', 'name', 'email']
-        ];
         
         // Create concrete implementation for testing
-        $this->controller = new MockApiControllerForApiControllerBaseTest($this->metadata);
+        $this->controller = new MockApiControllerForApiControllerBaseTest();
         
         // Mock the logger using reflection since ServiceLocator is used
         $this->setPrivateProperty($this->controller, 'logger', $this->logger);
     }
 
-    public function testConstructorSetsMetadata(): void
-    {
-        $metadata = ['test' => 'value'];
-        $controller = new MockApiControllerForApiControllerBaseTest($metadata);
-        
-        $this->assertEquals($metadata, $this->getPrivateProperty($controller, 'metadata'));
-    }
-
     public function testConstructorSetsLogger(): void
     {
-        $controller = new MockApiControllerForApiControllerBaseTest($this->metadata);
+        $controller = new MockApiControllerForApiControllerBaseTest();
         
         $logger = $this->getPrivateProperty($controller, 'logger');
         $this->assertInstanceOf(Logger::class, $logger);
@@ -53,38 +39,6 @@ class ApiControllerBaseTest extends TestCase
     {
         $reflection = new ReflectionClass(ApiControllerBase::class);
         $method = $reflection->getMethod('registerRoutes');
-        
-        $this->assertTrue($method->isAbstract());
-    }
-
-    public function testGetIsAbstract(): void
-    {
-        $reflection = new ReflectionClass(ApiControllerBase::class);
-        $method = $reflection->getMethod('get');
-        
-        $this->assertTrue($method->isAbstract());
-    }
-
-    public function testPostIsAbstract(): void
-    {
-        $reflection = new ReflectionClass(ApiControllerBase::class);
-        $method = $reflection->getMethod('post');
-        
-        $this->assertTrue($method->isAbstract());
-    }
-
-    public function testPutIsAbstract(): void
-    {
-        $reflection = new ReflectionClass(ApiControllerBase::class);
-        $method = $reflection->getMethod('put');
-        
-        $this->assertTrue($method->isAbstract());
-    }
-
-    public function testDeleteIsAbstract(): void
-    {
-        $reflection = new ReflectionClass(ApiControllerBase::class);
-        $method = $reflection->getMethod('delete');
         
         $this->assertTrue($method->isAbstract());
     }
@@ -124,145 +78,45 @@ class ApiControllerBaseTest extends TestCase
         $this->assertEquals(json_encode($data), $output);
     }
 
-    public function testJsonResponseSetsContentTypeHeader(): void
+    public function testRegisterRoutesReturnType(): void
     {
-        $data = ['test' => 'data'];
-        
-        // Use output buffering to capture JSON output
-        ob_start();
-        
-        try {
-            // Call protected method using reflection
-            $method = $this->getPrivateMethod($this->controller, 'jsonResponse');
-            $method->invoke($this->controller, $data);
-            
-            // Verify the output is valid JSON
-            $output = ob_get_contents();
-            $this->assertJson($output);
-            
-            // Verify the data structure
-            $decoded = json_decode($output, true);
-            $this->assertEquals($data, $decoded);
-            
-        } finally {
-            ob_end_clean();
-        }
-    }
-
-    public function testConcreteImplementationCanCallAbstractMethods(): void
-    {
-        // Test that concrete implementation can implement abstract methods
         $routes = $this->controller->registerRoutes();
+        
         $this->assertIsArray($routes);
-        
-        $getResult = $this->controller->get();
-        $this->assertEquals('get_result', $getResult);
-        
-        $postResult = $this->controller->post(['name' => 'test']);
-        $this->assertEquals('post_result', $postResult);
-        
-        $putResult = $this->controller->put(1, ['name' => 'updated']);
-        $this->assertEquals('put_result', $putResult);
-        
-        $deleteResult = $this->controller->delete(1);
-        $this->assertEquals('delete_result', $deleteResult);
+        $this->assertEmpty($routes); // Mock implementation returns empty array
     }
 
-    public function testMetadataAccessibility(): void
+    // Helper methods
+    private function setPrivateProperty(object $object, string $property, $value): void
     {
-        $controller = new MockApiControllerForApiControllerBaseTest($this->metadata);
-        
-        // Verify metadata is accessible to concrete implementations
-        $metadata = $controller->getMetadata();
-        $this->assertEquals($this->metadata, $metadata);
-    }
-
-    public function testLoggerAccessibility(): void
-    {
-        $controller = new MockApiControllerForApiControllerBaseTest($this->metadata);
-        
-        // Verify logger is accessible to concrete implementations
-        $logger = $controller->getLogger();
-        $this->assertInstanceOf(Logger::class, $logger);
-    }
-
-    /**
-     * Helper method to access private properties
-     */
-    private function getPrivateProperty($object, string $propertyName)
-    {
-        $reflection = new ReflectionClass($object);
-        $property = $reflection->getProperty($propertyName);
-        $property->setAccessible(true);
-        return $property->getValue($object);
-    }
-
-    /**
-     * Helper method to set private properties
-     */
-    private function setPrivateProperty($object, string $propertyName, $value): void
-    {
-        $reflection = new ReflectionClass($object);
-        $property = $reflection->getProperty($propertyName);
+        $reflection = new ReflectionClass(get_class($object));
+        $property = $reflection->getProperty($property);
         $property->setAccessible(true);
         $property->setValue($object, $value);
     }
 
-    /**
-     * Helper method to access private methods
-     */
-    private function getPrivateMethod($object, string $methodName): \ReflectionMethod
+    private function getPrivateProperty(object $object, string $property)
     {
-        $reflection = new ReflectionClass($object);
-        $method = $reflection->getMethod($methodName);
+        $reflection = new ReflectionClass(get_class($object));
+        $property = $reflection->getProperty($property);
+        $property->setAccessible(true);
+        return $property->getValue($object);
+    }
+
+    private function getPrivateMethod(object $object, string $method): \ReflectionMethod
+    {
+        $reflection = new ReflectionClass(get_class($object));
+        $method = $reflection->getMethod($method);
         $method->setAccessible(true);
         return $method;
     }
 }
 
-/**
- * Concrete implementation of ApiControllerBase for testing
- */
+// Mock concrete implementation for testing
 class MockApiControllerForApiControllerBaseTest extends ApiControllerBase
 {
     public function registerRoutes(): array
     {
-        return [
-            'GET /api/test' => 'get',
-            'POST /api/test' => 'post',
-            'PUT /api/test/{id}' => 'put',
-            'DELETE /api/test/{id}' => 'delete'
-        ];
-    }
-
-    public function get($id = null): string
-    {
-        return 'get_result';
-    }
-
-    public function post(array $data): string
-    {
-        return 'post_result';
-    }
-
-    public function put($id, array $data): string
-    {
-        return 'put_result';
-    }
-
-    public function delete($id): string
-    {
-        return 'delete_result';
-    }
-
-    // Helper methods for testing
-    public function getMetadata(): array
-    {
-        return $this->metadata;
-    }
-
-    public function getLogger(): Logger
-    {
-        return $this->logger;
+        return [];
     }
 }

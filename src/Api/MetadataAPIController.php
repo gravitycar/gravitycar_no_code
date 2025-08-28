@@ -18,19 +18,18 @@ use Psr\Log\LoggerInterface;
 /**
  * MetadataAPIController: Provides API endpoints for model and field metadata discovery
  */
-class MetadataAPIController {
+class MetadataAPIController extends ApiControllerBase {
     private MetadataEngine $metadataEngine;
     private ?APIRouteRegistry $routeRegistry = null;
     private ReactComponentMapper $componentMapper;
     private DocumentationCache $cache;
     private Config $config;
-    private LoggerInterface $logger;
     
     public function __construct() {
+        parent::__construct();
         $this->metadataEngine = MetadataEngine::getInstance();
         $this->cache = new DocumentationCache();
         $this->config = ServiceLocator::getConfig();
-        $this->logger = ServiceLocator::getLogger();
         $this->componentMapper = new ReactComponentMapper();
     }
     
