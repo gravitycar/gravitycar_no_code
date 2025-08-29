@@ -8,6 +8,8 @@ import Dashboard from './pages/Dashboard';
 import MetadataTestPage from './pages/MetadataTestPage';
 import TestRelatedRecord from './pages/TestRelatedRecord';
 import UsersPage from './pages/UsersPage';
+import MoviesPage from './pages/MoviesPage';
+import MovieQuotesPage from './pages/MovieQuotesPage';
 import './App.css';
 
 // Protected Route Component
@@ -105,10 +107,7 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Layout>
-              <div className="text-center py-12">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Movies Management</h2>
-                <p className="text-gray-600">This page will be implemented in Phase 2</p>
-              </div>
+              <MoviesPage />
             </Layout>
           </ProtectedRoute>
         }
@@ -119,10 +118,7 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <Layout>
-              <div className="text-center py-12">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Movie Quotes Management</h2>
-                <p className="text-gray-600">This page will be implemented in Phase 2</p>
-              </div>
+              <MovieQuotesPage />
             </Layout>
           </ProtectedRoute>
         }

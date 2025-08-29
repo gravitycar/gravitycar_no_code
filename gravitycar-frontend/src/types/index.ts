@@ -22,22 +22,37 @@ export interface User {
 // Movie model types
 export interface Movie {
   id: string; // UUID string
-  title: string;
-  release_year?: number;
-  director?: string;
+  name: string; // Movie title/name
+  poster?: string; // Image path/filename
+  poster_url?: string; // Full URL to poster image
+  synopsis?: string; // Movie synopsis/description
   created_at?: string;
   updated_at?: string;
+  created_by?: string;
+  created_by_name?: string;
+  updated_by?: string;
+  updated_by_name?: string;
+  deleted_at?: string;
+  deleted_by?: string;
+  deleted_by_name?: string;
 }
 
 // Movie Quote types
 export interface MovieQuote {
   id: string; // UUID string
   movie_id: string; // UUID string
-  quote_text: string;
-  character_name?: string;
+  quote: string; // The actual quote text
+  movie?: string; // Related movie name/title
+  movie_poster?: string; // Related movie poster
   created_at?: string;
   updated_at?: string;
-  movie?: Movie; // Optional populated relationship
+  created_by?: string;
+  created_by_name?: string;
+  updated_by?: string;
+  updated_by_name?: string;
+  deleted_at?: string;
+  deleted_by?: string;
+  deleted_by_name?: string;
 }
 
 // Role and Permission types for RBAC
