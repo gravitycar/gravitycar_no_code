@@ -1,0 +1,177 @@
+{
+  "name": "gravitycar-tools",
+  "displayName": "Gravitycar Development Tools",
+  "description": "VS Code tools for interacting with the Gravitycar Framework API and running development tasks",
+  "version": "1.0.0",
+  "publisher": "gravitycar",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "languageModelTools": [
+      {
+        "name": "gravitycar_api_call",
+        "displayName": "Gravitycar API",
+        "description": "Make API calls to the local Gravitycar backend server (localhost:8081)",
+        "modelDescription": "This tool makes API calls to the Gravitycar Framework backend running on localhost:8081. It supports all CRUD operations for Users, Movies, and MovieQuotes, plus health checks and authentication.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "gravitycar-api",
+        "icon": "$(globe)",
+        "userDescription": "Call Gravitycar Framework API endpoints with proper authentication and error handling",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "operation": {
+              "type": "string",
+              "description": "The API operation to perform",
+              "enum": [
+                "auth_login",
+                "health_ping", 
+                "health_detailed",
+                "get_users",
+                "get_user_by_id",
+                "create_user",
+                "update_user", 
+                "delete_user",
+                "get_movies",
+                "get_movie_by_id",
+                "create_movie",
+                "update_movie",
+                "delete_movie",
+                "get_movie_quotes",
+                "get_movie_quote_by_id", 
+                "create_movie_quote",
+                "update_movie_quote",
+                "delete_movie_quote",
+                "get_all_models_metadata",
+                "get_model_metadata",
+                "get_users_metadata"
+              ]
+            },
+            "parameters": {
+              "type": "object",
+              "description": "Parameters for the API operation",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Record ID (UUID format for Gravitycar)"
+                },
+                "modelName": {
+                  "type": "string", 
+                  "description": "Model name for metadata operations"
+                },
+                "data": {
+                  "type": "object",
+                  "description": "Data payload for create/update operations"
+                },
+                "page": {
+                  "type": "integer",
+                  "description": "Page number for pagination",
+                  "default": 1
+                },
+                "limit": {
+                  "type": "integer", 
+                  "description": "Items per page",
+                  "default": 10
+                },
+                "search": {
+                  "type": "string",
+                  "description": "Search term for filtering"
+                },
+                "username": {
+                  "type": "string",
+                  "description": "Username for authentication",
+                  "default": "admin"
+                },
+                "password": {
+                  "type": "string", 
+                  "description": "Password for authentication",
+                  "default": "password"
+                }
+              }
+            }
+          },
+          "required": ["operation"]
+        }
+      },
+      {
+        "name": "gravitycar_test_runner",
+        "displayName": "Gravitycar Test Runner",
+        "modelDescription": "This tool runs PHPUnit tests for the Gravitycar Framework. It can execute unit tests, integration tests, feature tests, or all tests with optional coverage reporting and verbose output.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "gravitycar-test",
+        "icon": "$(beaker)",
+        "userDescription": "Execute PHPUnit tests with various options (unit, integration, coverage, etc.)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "testType": {
+              "type": "string",
+              "description": "Type of tests to run",
+              "enum": ["unit", "integration", "feature", "all", "coverage", "specific"],
+              "default": "unit"
+            },
+            "filter": {
+              "type": "string", 
+              "description": "Filter tests by name/pattern"
+            },
+            "testFile": {
+              "type": "string",
+              "description": "Specific test file to run (for testType=specific)"
+            },
+            "verbose": {
+              "type": "boolean",
+              "description": "Enable verbose output",
+              "default": false
+            }
+          },
+          "required": ["testType"]
+        }
+      },
+      {
+        "name": "gravitycar_server_control",
+        "displayName": "Gravitycar Server Control", 
+        "modelDescription": "This tool controls Gravitycar development servers including the Apache backend and React frontend. It can restart servers, check status, and display logs.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "gravitycar-server",
+        "icon": "$(server-process)",
+        "userDescription": "Start, stop, restart Apache backend and React frontend development servers",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "description": "Server control action",
+              "enum": ["restart-apache", "restart-frontend", "status", "logs"],
+              "default": "status"
+            },
+            "service": {
+              "type": "string",
+              "description": "Which service to control", 
+              "enum": ["backend", "frontend", "both"],
+              "default": "both"
+            }
+          },
+          "required": ["action"]
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
