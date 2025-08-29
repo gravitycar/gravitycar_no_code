@@ -46,8 +46,8 @@ class GravitycarApiTool {
             // Map operations to actual API endpoints and methods
             const operationMap = {
                 // Health endpoints
-                'health_ping': { method: 'GET', endpoint: '/health.php' },
-                'health_detailed': { method: 'GET', endpoint: '/health.php?detailed=1' },
+                'health_ping': { method: 'GET', endpoint: '/ping' },
+                'health_detailed': { method: 'GET', endpoint: '/health' },
                 // Authentication
                 'auth_login': { method: 'POST', endpoint: '/api.php/auth/login' },
                 // Users
