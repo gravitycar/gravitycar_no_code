@@ -33,6 +33,10 @@ interface PageState {
   selectedItem: any | null;
   deletingItem: any | null;
   displayMode: 'table' | 'grid' | 'list';
+  sorting: {
+    field: string | null;
+    direction: 'asc' | 'desc';
+  };
 }
 
 /**
@@ -64,22 +68,36 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
     isEditModalOpen: false,
     selectedItem: null,
     deletingItem: null,
-    displayMode: defaultDisplayMode
+    displayMode: defaultDisplayMode,
+    sorting: {
+      field: null,
+      direction: 'asc'
+    }
   });
 
   // Load items from API
-  const loadItems = async (page: number = 1, search: string = '') => {
+  const loadItems = async (page: number = 1, search: string = '', sortField?: string, sortDirection?: 'asc' | 'desc') => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
       
-      const queryParams: any = { page, limit: state.pagination.limit };
+      const filters: any = {};
       if (search.trim()) {
-        queryParams.search = search.trim();
+        filters.search = search.trim();
+      }
+      
+      // Add sorting if specified
+      const currentSortField = sortField ?? state.sorting.field;
+      const currentSortDirection = sortDirection ?? state.sorting.direction;
+      
+      if (currentSortField) {
+        filters.sort = `${currentSortField}:${currentSortDirection}`;
       }
 
       const response: PaginatedResponse<any> = await apiService.getList(
         modelName,
-        queryParams
+        page,
+        state.pagination.limit,
+        filters
       );
       
       setState(prev => ({
@@ -90,6 +108,10 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
           page: response.pagination?.current_page || page,
           total: response.pagination?.total_items || 0,
           totalPages: response.pagination?.total_pages || 1
+        },
+        sorting: {
+          field: currentSortField,
+          direction: currentSortDirection
         },
         loading: false,
         error: null,
@@ -109,13 +131,21 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
   // Handle search
   const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    loadItems(1, state.searchTerm);
+    loadItems(1, state.searchTerm, state.sorting.field || undefined, state.sorting.direction);
+  };
+
+  // Handle sorting
+  const handleSort = (fieldName: string) => {
+    const isCurrentField = state.sorting.field === fieldName;
+    const newDirection: 'asc' | 'desc' = isCurrentField && state.sorting.direction === 'asc' ? 'desc' : 'asc';
+    
+    loadItems(state.pagination.page, state.searchTerm, fieldName, newDirection);
   };
 
   // Handle pagination
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= state.pagination.totalPages) {
-      loadItems(newPage, state.searchTerm);
+      loadItems(newPage, state.searchTerm, state.sorting.field || undefined, state.sorting.direction);
     }
   };
 
@@ -191,7 +221,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
   };
 
   // Render field value based on metadata
-  const renderFieldValue = (fieldName: string, value: any, fieldMeta: FieldMetadata) => {
+  const renderFieldValue = (_fieldName: string, value: any, fieldMeta: FieldMetadata) => {
     if (value === null || value === undefined || value === '') {
       return <span className="text-gray-400 italic">—</span>;
     }
@@ -240,12 +270,36 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
               <tr>
                 {listFields.map((fieldName) => {
                   const fieldMeta = metadata.fields?.[fieldName];
+                  const isCurrentSort = state.sorting.field === fieldName;
+                  const sortDirection = isCurrentSort ? state.sorting.direction : null;
+                  
                   return (
                     <th 
                       key={fieldName}
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
-                      {fieldMeta?.label || fieldName.replace(/_/g, ' ')}
+                      <button
+                        onClick={() => handleSort(fieldName)}
+                        className="flex items-center space-x-1 hover:text-gray-700 focus:outline-none"
+                      >
+                        <span>{fieldMeta?.label || fieldName.replace(/_/g, ' ')}</span>
+                        <div className="flex flex-col">
+                          <svg 
+                            className={`w-3 h-3 ${isCurrentSort && sortDirection === 'asc' ? 'text-blue-600' : 'text-gray-400'}`}
+                            fill="currentColor" 
+                            viewBox="0 0 20 20"
+                          >
+                            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                          </svg>
+                          <svg 
+                            className={`w-3 h-3 -mt-1 ${isCurrentSort && sortDirection === 'desc' ? 'text-blue-600' : 'text-gray-400'}`}
+                            fill="currentColor" 
+                            viewBox="0 0 20 20"
+                          >
+                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                      </button>
                     </th>
                   );
                 })}

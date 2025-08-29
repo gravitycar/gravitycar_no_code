@@ -214,7 +214,7 @@ return [
         ]
     ],
     'ui' => [
-        'listFields' => ['username', 'email', 'auth_provider', 'user_type', 'is_active', 'last_login'],
+        'listFields' => ['username', 'first_name', 'last_name', 'user_type', 'is_active', 'last_login'],
         'createFields' => ['username', 'password', 'email', 'first_name', 'last_name', 'user_type', 'user_timezone', 'is_active'],
     ],
 ];

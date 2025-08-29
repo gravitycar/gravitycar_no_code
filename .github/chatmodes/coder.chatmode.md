@@ -34,12 +34,11 @@ When writing php code, there are several best practices you should follow whenev
 ## When you create summary files to document what you have implemented
 - **Use the docs/implementation_notes directory**: Any markdown files documenting your implementation details should be placed in this directory. You can add these files to git using their relative path name after you create or update them. 
 
-## Use existing project tools and scripts
-- **Check for existing scripts**: Before manually running commands, always check if there are existing scripts in the project root or scripts/ directories that accomplish the same task
-- **Frontend development**: Use `.vscode/tools/restart-frontend.sh` to restart the React development server instead of manual npm commands
-- **Backend development**: Use `.vscode/tools/restart-apache.sh` to restart the Apache web server instead of manual systemctl commands
-- **API testing and debugging**: Use the `gravitycar-api` tool for querying the local backend API (running on port 8081) instead of manual curl commands or browser testing
-- **PHP testing**: Use `.vscode/tools/run-phpunit.sh` for running PHPUnit tests with proper options (supports unit, integration, feature, coverage, filter, etc.) instead of manual phpunit commands
+## Use existing project tools
+- **For refreshing cache files**: run `php setup.php`. It will delete the cache files and rebuild them.
+- **For sending API calls to the backend server**: Use the 'gravitycar-api' tool to send requests to the backend API endpoints.
+- **Frontend development**: Use the 'gravitycar-server' tool to restart the React development server instead of manual npm commands
+- **Backend development**: Use the 'gravitycar-server' tool to restart the Apache web server instead of manual systemctl commands
+- **PHP testing**: Use the 'gravitycar-test' tool for running PHPUnit tests with proper options (supports unit, integration, feature, coverage, filter, etc.) instead of manual phpunit commands
 - **Database operations**: Check for existing database setup, migration, or seeding scripts
-- **Testing**: Use existing test scripts rather than running test commands manually
-- **Build and deployment**: Look for build scripts, deployment scripts, or CI/CD configurations before creating new ones
+

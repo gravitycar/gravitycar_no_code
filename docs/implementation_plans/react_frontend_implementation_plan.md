@@ -1083,6 +1083,334 @@ The React frontend now provides a complete, production-ready interface for the G
 
 **🎯 Optional Future Enhancements** (Phase 5):
 The core application is complete and production-ready. Future enhancements could include:
+
+## 14. Relationship Management UI Implementation Plan 🔗
+
+### 14.1 Overview
+Comprehensive relationship management interface design for all three relationship types in the Gravitycar Framework, building upon the existing RelatedRecordSelect component.
+
+### 14.2 Current Relationship Analysis
+Based on the existing system, we have:
+
+**✅ Existing Relationships:**
+- **One-to-Many**: Movies ↔ Movie_Quotes (1 movie has many quotes)
+- **Many-to-Many**: Users ↔ Roles (users can have multiple roles, roles can be assigned to multiple users)
+- **Many-to-Many**: Users ↔ Permissions (advanced permission system)
+
+**✅ Current Infrastructure:**
+- RelatedRecordSelect component with search functionality
+- ModelBaseAPIController with relationship endpoints
+- Backend relationship classes (OneToManyRelationship, ManyToManyRelationship)
+
+### 14.3 One-to-Many Relationship UI (HIGHEST PRIORITY)
+
+#### 14.3.1 Design Specification
+**Use Case**: Movies → Movie_Quotes relationship management
+
+**From "One" Side (Movies)**:
+```tsx
+// Movies detail/edit page shows related quotes
+<RelatedItemsSection 
+  title="Movie Quotes"
+  parentModel="Movies"
+  parentId={movie.id}
+  relationship="movies_movie_quotes"
+  relatedModel="Movie_Quotes"
+  displayColumns={['quote']}
+  actions={['create', 'edit', 'delete']}
+  createFields={['quote']} // movie_id auto-populated
+  allowReorder={true}
+/>
+```
+
+**Visual Layout**:
+- **Header**: "Movie Quotes (5)" with Add Quote button
+- **List View**: Cards or table showing quotes with edit/delete actions
+- **Inline Add**: Quick add form at bottom
+- **Drag & Drop**: Reorder quotes if ordering is supported
+
+**From "Many" Side (Movie_Quotes)**:
+```tsx
+// Enhanced RelatedRecordSelect for selecting parent movie
+<RelatedRecordSelect 
+  fieldMetadata={{
+    related_model: 'Movies',
+    display_field: 'name',
+    required: true
+  }}
+  value={quote.movie_id}
+  onChange={handleMovieChange}
+  label="Movie"
+  placeholder="Search for a movie..."
+/>
+```
+
+#### 14.3.2 Component Architecture
+**New Components**:
+1. **`RelatedItemsSection`** - Master component for managing related items
+2. **`RelatedItemCard`** - Individual item display with actions
+3. **`InlineCreateForm`** - Quick creation form for new related items
+4. **`RelatedRecordSelectV2`** - Enhanced version extending RelatedRecordSelect
+
+**Extended RelatedRecordSelect Features**:
+```tsx
+interface EnhancedRelatedRecordSelectProps extends FieldComponentProps {
+  allowCreate?: boolean;        // Show "Create New" option
+  createFields?: string[];      // Fields for quick create modal
+  displayTemplate?: string;     // Custom display format
+  groupBy?: string;            // Group options by field
+  sortBy?: string;             // Default sort order
+  filterCriteria?: object;     // Pre-filter available options
+}
+```
+
+#### 14.3.3 Implementation Steps
+1. **Phase A**: Create RelatedItemsSection component
+2. **Phase B**: Enhance RelatedRecordSelect with create capability
+3. **Phase C**: Add inline editing and reordering
+4. **Phase D**: Implement batch operations (bulk delete, bulk assign)
+
+### 14.4 Many-to-Many Relationship UI (SECOND PRIORITY)
+
+#### 14.4.1 Design Specification  
+**Use Case**: Users ↔ Roles relationship management
+
+**From Either Side (Bidirectional)**:
+```tsx
+// User detail page shows assigned roles
+<ManyToManyManager
+  title="User Roles"
+  sourceModel="Users"
+  sourceId={user.id}
+  relationship="users_roles"
+  targetModel="Roles"
+  displayColumns={['name', 'description']}
+  additionalFields={['assigned_at', 'assigned_by']}
+  allowBulkAssign={true}
+  showHistory={true}
+/>
+```
+
+**Visual Layout**:
+- **Assigned Section**: Grid of currently assigned roles with remove buttons
+- **Available Section**: Searchable list of available roles to assign
+- **Bulk Actions**: "Assign Selected" and "Remove Selected" buttons
+- **Assignment History**: Timeline of assignments/removals with metadata
+
+#### 14.4.2 Component Features
+**Key Capabilities**:
+- **Dual-pane Interface**: Assigned vs Available items
+- **Search & Filter**: Find items to assign quickly
+- **Bulk Operations**: Select multiple items for batch assignment/removal
+- **Additional Field Management**: Handle assignment metadata (dates, assigned_by, etc.)
+- **Permission Checking**: Respect user permissions for assignment actions
+
+**Component Structure**:
+```tsx
+<ManyToManyManager>
+  <AssignedItemsPane 
+    items={assignedRoles}
+    onRemove={handleRemove}
+    onBulkRemove={handleBulkRemove}
+    additionalFields={['assigned_at', 'assigned_by']}
+  />
+  <AvailableItemsPane
+    items={availableRoles}
+    onAssign={handleAssign}
+    onBulkAssign={handleBulkAssign}
+    searchable={true}
+    filterable={true}
+  />
+  <AssignmentHistory
+    relationship={relationship}
+    sourceId={sourceId}
+    showTimeline={true}
+  />
+</ManyToManyManager>
+```
+
+#### 14.4.3 Advanced Features
+- **Assignment Workflow**: Approval process for role assignments
+- **Temporal Assignments**: Roles with start/end dates
+- **Conditional Logic**: Rules for which roles can be assigned together
+- **Import/Export**: CSV import for bulk role assignments
+
+### 14.5 One-to-One Relationship UI (LOWEST PRIORITY)
+
+#### 14.5.1 Design Specification
+**Use Case**: User ↔ Profile relationship (when implemented)
+
+**Visual Design**:
+```tsx
+// User detail page embeds profile information
+<OneToOneRelationship
+  title="User Profile"
+  sourceModel="Users"
+  sourceId={user.id}
+  relationship="user_profile"
+  targetModel="Profiles"
+  embeddedEdit={true}
+  createIfMissing={true}
+/>
+```
+
+**Layout Options**:
+- **Embedded Form**: Profile fields appear as part of user form
+- **Linked Section**: Expandable section with profile details
+- **Separate Tab**: Dedicated tab for profile management
+
+#### 14.5.2 Component Behavior
+**Key Features**:
+- **Auto-Creation**: Offer to create missing related record
+- **Inline Editing**: Edit related record within parent form
+- **Validation Sync**: Coordinate validation between related models
+- **Navigation**: Easy switching between related records
+
+### 14.6 Technical Implementation Strategy
+
+#### 14.6.1 Backend API Enhancements
+**New Endpoints Needed**:
+```php
+// Relationship-specific endpoints
+GET    /api/{model}/{id}/relationships/{relationship}
+POST   /api/{model}/{id}/relationships/{relationship}/link
+DELETE /api/{model}/{id}/relationships/{relationship}/unlink
+PUT    /api/{model}/{id}/relationships/{relationship}/bulk
+
+// Metadata for relationship management
+GET    /api/metadata/relationships/{relationship}
+```
+
+**Response Formats**:
+```json
+{
+  "relationship": {
+    "name": "users_roles",
+    "type": "ManyToMany",
+    "source_model": "Users",
+    "target_model": "Roles",
+    "additional_fields": ["assigned_at", "assigned_by"],
+    "permissions": ["assign", "remove", "view_history"]
+  },
+  "assigned": [...],
+  "available": [...],
+  "history": [...]
+}
+```
+
+#### 14.6.2 Frontend Architecture
+**State Management**:
+```tsx
+// Custom hook for relationship management
+const useRelationshipManager = (config) => {
+  const [assigned, setAssigned] = useState([]);
+  const [available, setAvailable] = useState([]);
+  const [loading, setLoading] = useState(false);
+  
+  const assignItems = async (targetIds) => { ... };
+  const removeItems = async (targetIds) => { ... };
+  const bulkAssign = async (targetIds, additionalData) => { ... };
+  
+  return { assigned, available, assignItems, removeItems, bulkAssign };
+};
+```
+
+**Component Hierarchy**:
+```
+RelationshipManager/
+├── OneToManyManager.tsx
+│   ├── RelatedItemsSection.tsx
+│   ├── RelatedItemCard.tsx
+│   └── InlineCreateForm.tsx
+├── ManyToManyManager.tsx
+│   ├── AssignedItemsPane.tsx
+│   ├── AvailableItemsPane.tsx
+│   └── AssignmentHistory.tsx
+├── OneToOneManager.tsx
+│   └── EmbeddedRelationshipForm.tsx
+└── hooks/
+    ├── useRelationshipManager.ts
+    ├── useRelationshipMetadata.ts
+    └── useRelationshipHistory.ts
+```
+
+#### 14.6.3 Enhanced RelatedRecordSelect Extension
+**New Props for Relationship Context**:
+```tsx
+interface RelatedRecordSelectProps extends FieldComponentProps {
+  // Existing props...
+  
+  // Relationship-specific enhancements
+  relationshipContext?: {
+    type: 'OneToMany' | 'ManyToMany' | 'OneToOne';
+    parentModel?: string;
+    parentId?: string;
+    allowCreate?: boolean;
+    autoPopulateFields?: Record<string, any>;
+  };
+  
+  // UI enhancements
+  showPreview?: boolean;        // Show preview of related record
+  allowDirectEdit?: boolean;    // Edit button next to selection
+  displayTemplate?: string;     // Custom display format
+  
+  // Behavior enhancements  
+  onRelatedChange?: (relatedRecord: any) => void;
+  preFilterOptions?: (options: any[]) => any[];
+}
+```
+
+### 14.7 Implementation Phases
+
+#### Phase A: Enhanced RelatedRecordSelect (Week 11)
+1. **Extend Current Component** with relationship-aware features
+2. **Add Create Capability** - "Create New" option in dropdown
+3. **Preview Integration** - Show related record details on hover/selection
+4. **Direct Edit Links** - Edit button next to selected item
+
+#### Phase B: One-to-Many UI (Week 12)
+1. **RelatedItemsSection Component** - Master container for related items
+2. **Movies → Quotes Interface** - Complete implementation using existing relationship
+3. **Inline Creation** - Quick add forms for new related items
+4. **Bulk Operations** - Multi-select with batch actions
+
+#### Phase C: Many-to-Many UI (Week 13)
+1. **ManyToManyManager Component** - Dual-pane assignment interface
+2. **Users → Roles Interface** - Complete implementation
+3. **Assignment History** - Timeline of relationship changes
+4. **Advanced Features** - Bulk assignment, filtering, search
+
+#### Phase D: One-to-One UI (Week 14)
+1. **OneToOneManager Component** - Embedded relationship editing
+2. **Auto-Creation Logic** - Offer to create missing related records
+3. **Inline Validation** - Coordinate validation between related models
+4. **Polish & Integration** - Seamless user experience
+
+### 14.8 Success Criteria
+
+#### Functional Requirements
+- [ ] **One-to-Many**: Users can manage all quotes for a movie from movie detail page
+- [ ] **Many-to-Many**: Users can assign/remove roles with proper permission checking
+- [ ] **Relationship History**: View timeline of all relationship changes
+- [ ] **Bulk Operations**: Efficiently manage multiple relationships simultaneously
+- [ ] **Search & Filter**: Find and assign relationships quickly
+
+#### Technical Requirements  
+- [ ] **Performance**: Handle large relationship datasets (1000+ items) efficiently
+- [ ] **Responsive Design**: Works seamlessly on desktop and mobile
+- [ ] **Accessibility**: Full keyboard navigation and screen reader support
+- [ ] **Error Handling**: Graceful handling of permission errors and conflicts
+- [ ] **Optimistic Updates**: Immediate UI feedback with rollback on failure
+
+#### User Experience Requirements
+- [ ] **Intuitive Interface**: Clear visual distinction between assigned/available items
+- [ ] **Consistent Patterns**: Same interaction patterns across all relationship types
+- [ ] **Permission Awareness**: UI adapts based on user permissions
+- [ ] **Performance Feedback**: Loading states and progress indicators
+- [ ] **Undo Capability**: Ability to quickly reverse accidental changes
+
+This comprehensive relationship management system will provide a powerful, user-friendly interface for managing all types of relationships in the Gravitycar Framework, building naturally on the existing RelatedRecordSelect foundation while adding specialized interfaces for each relationship type.
+
 - Dashboard analytics and reporting
 - Advanced search and filtering across models
 - Roles/Permissions administrative interface

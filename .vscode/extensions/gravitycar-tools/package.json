@@ -162,7 +162,7 @@
             "action": {
               "type": "string",
               "description": "Server control action",
-              "enum": ["restart-apache", "restart-frontend", "status", "logs", "health-check"],
+              "enum": ["restart-apache", "restart-frontend", "start-frontend", "stop-frontend", "status-frontend", "ping-frontend", "status", "logs", "health-check"],
               "default": "status"
             },
             "service": {

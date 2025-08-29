@@ -8,6 +8,160 @@ interface ServerControlInput {
 
 export class GravitycarServerTool implements vscode.LanguageModelTool<ServerControlInput> {
 
+    /**
+     * Check if the frontend server is running on por                            }, null, 2))
+                        ]);
+                        }
+                    }
+                    break;
+                    
+                case 'status':
+     */
+    private checkFrontendStatus(): { isRunning: boolean; processes: string } {
+        try {
+            const processes = execSync('lsof -Pi :3000 -sTCP:LISTEN', { 
+                encoding: 'utf8',
+                cwd: '/mnt/g/projects/gravitycar_no_code' 
+            }).trim();
+            return { isRunning: true, processes };
+        } catch (error) {
+            return { isRunning: false, processes: '' };
+        }
+    }
+
+    /**
+     * Check if the frontend server is responding to HTTP requests
+     */
+    private checkFrontendPing(): { isResponding: boolean; httpCode: string; error?: string } {
+        try {
+            const httpCode = execSync('curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 5 http://localhost:3000', { 
+                encoding: 'utf8',
+                cwd: '/mnt/g/projects/gravitycar_no_code',
+                timeout: 8000 // 8 second timeout for the entire operation
+            }).trim();
+            return { isResponding: httpCode === '200', httpCode };
+        } catch (error) {
+            return { 
+                isResponding: false, 
+                httpCode: '000',
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
+    /**
+     * Wait for frontend server to be HTTP ready (with retries)
+     */
+    private waitForHttpReady(maxAttempts: number = 6): { isReady: boolean; httpCode: string; attempts: number } {
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            const ping = this.checkFrontendPing();
+            if (ping.isResponding) {
+                return { isReady: true, httpCode: ping.httpCode, attempts: attempt };
+            }
+            
+            // Wait 1 second between attempts (except on the last attempt)
+            if (attempt < maxAttempts) {
+                try {
+                    execSync('sleep 1', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+                } catch (e) {
+                    // Ignore sleep errors
+                }
+            }
+        }
+        
+        const finalPing = this.checkFrontendPing();
+        return { isReady: false, httpCode: finalPing.httpCode, attempts: maxAttempts };
+    }
+
+    /**
+     * Stop frontend server processes
+     */
+    private stopFrontendProcesses(): string {
+        try {
+            // Step 1: Graceful termination
+            try {
+                execSync('lsof -ti:3000 | xargs kill -TERM 2>/dev/null || true', { 
+                    encoding: 'utf8',
+                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    timeout: 5000
+                });
+            } catch (e) {
+                // Ignore errors for graceful termination
+            }
+            
+            // Step 2: Wait for graceful shutdown
+            execSync('sleep 2', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+            
+            // Step 3: Force kill if still running
+            try {
+                execSync('lsof -ti:3000 | xargs kill -9 2>/dev/null || true', { 
+                    encoding: 'utf8',
+                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    timeout: 5000
+                });
+            } catch (e) {
+                // Ignore errors for force kill
+            }
+            
+            // Step 4: Clean up npm/vite processes
+            try {
+                execSync('pkill -f "vite" 2>/dev/null || true', { 
+                    encoding: 'utf8',
+                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    timeout: 5000
+                });
+                execSync('pkill -f "npm run dev" 2>/dev/null || true', { 
+                    encoding: 'utf8',
+                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    timeout: 5000
+                });
+            } catch (e) {
+                // Ignore errors for process cleanup
+            }
+            
+            return 'Frontend processes stopped successfully';
+        } catch (error) {
+            return `Warning: Some processes may not have been stopped cleanly: ${error}`;
+        }
+    }
+
+    /**
+     * Start frontend server in background
+     */
+    private startFrontendServer(): string {
+        try {
+            execSync('cd gravitycar-frontend && nohup npm run dev > ../logs/frontend.log 2>&1 &', { 
+                encoding: 'utf8',
+                cwd: '/mnt/g/projects/gravitycar_no_code' 
+            });
+            
+            // Wait longer for startup and verify multiple times
+            let attempts = 0;
+            const maxAttempts = 10; // 10 seconds total wait time
+            
+            while (attempts < maxAttempts) {
+                execSync('sleep 1', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+                attempts++;
+                
+                const status = this.checkFrontendStatus();
+                if (status.isRunning) {
+                    // Server is running, now wait a bit more for HTTP readiness
+                    execSync('sleep 2', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+                    return 'Frontend server started successfully';
+                }
+                
+                // If we're halfway through attempts, give it more time
+                if (attempts === 5) {
+                    execSync('sleep 2', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+                }
+            }
+            
+            throw new Error('Frontend server failed to start within expected time');
+        } catch (error) {
+            throw new Error(`Failed to start frontend server: ${error}`);
+        }
+    }
+
     async invoke(
         options: vscode.LanguageModelToolInvocationOptions<ServerControlInput>,
         token: vscode.CancellationToken
@@ -31,14 +185,233 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
                     description = 'Restarting Apache server';
                     break;
                     
+                case 'status_frontend':
+                case 'status-frontend':
+                    if (service === 'backend') {
+                        throw new Error('Cannot check frontend status when service is set to backend');
+                    }
+                    const status = this.checkFrontendStatus();
+                    const statusMessage = status.isRunning 
+                        ? `✅ Frontend server is running on port 3000\n${status.processes}`
+                        : 'ℹ Frontend server is not running on port 3000';
+                    
+                    return new vscode.LanguageModelToolResult([
+                        new vscode.LanguageModelTextPart(JSON.stringify({
+                            success: true,
+                            action,
+                            description: 'Frontend server status check',
+                            isRunning: status.isRunning,
+                            output: statusMessage
+                        }, null, 2))
+                    ]);
+                    
+                case 'ping_frontend':
+                case 'ping-frontend':
+                    if (service === 'backend') {
+                        throw new Error('Cannot ping frontend when service is set to backend');
+                    }
+                    const ping = this.checkFrontendPing();
+                    const pingMessage = ping.isResponding
+                        ? `✅ Frontend server is responding (HTTP ${ping.httpCode})`
+                        : `❌ Frontend server is not responding (HTTP ${ping.httpCode})${ping.error ? ` - ${ping.error}` : ''}`;
+                    
+                    return new vscode.LanguageModelToolResult([
+                        new vscode.LanguageModelTextPart(JSON.stringify({
+                            success: true,
+                            action,
+                            description: 'Frontend server ping test',
+                            isResponding: ping.isResponding,
+                            httpCode: ping.httpCode,
+                            output: pingMessage
+                        }, null, 2))
+                    ]);
+                    
                 case 'restart_frontend':
                 case 'restart-frontend':
                     if (service === 'backend') {
                         throw new Error('Cannot restart frontend when service is set to backend');
                     }
-                    command = 'pkill -f "vite" && pkill -f "npm run dev" && cd gravitycar-frontend && npm run dev &';
-                    description = 'Restarting frontend development server';
+                    
+                    let restartMessage = '';
+                    const currentStatus = this.checkFrontendStatus();
+                    
+                    if (currentStatus.isRunning) {
+                        restartMessage += 'Port 3000 is in use, stopping existing processes...\n';
+                        restartMessage += this.stopFrontendProcesses() + '\n';
+                    }
+                    
+                    restartMessage += 'Starting React development server...\n';
+                    try {
+                        restartMessage += this.startFrontendServer();
+                        const finalStatus = this.checkFrontendStatus();
+                        
+                        if (finalStatus.isRunning) {
+                            restartMessage += '\nWaiting for HTTP readiness...';
+                            const httpReady = this.waitForHttpReady(6); // 6 seconds max wait
+                            
+                            if (httpReady.isReady) {
+                                restartMessage += '\n✅ Frontend server started and responding successfully on port 3000';
+                            } else {
+                                restartMessage += `\n⚠️ Frontend server started but not responding to HTTP requests after ${httpReady.attempts} attempts (HTTP ${httpReady.httpCode})`;
+                            }
+                            
+                            return new vscode.LanguageModelToolResult([
+                                new vscode.LanguageModelTextPart(JSON.stringify({
+                                    success: finalStatus.isRunning,
+                                    action,
+                                    description: 'Smart restart of frontend development server',
+                                    isRunning: finalStatus.isRunning,
+                                    isResponding: httpReady.isReady,
+                                    httpCode: httpReady.httpCode,
+                                    output: restartMessage
+                                }, null, 2))
+                            ]);
+                        } else {
+                            restartMessage += '\n❌ Frontend server failed to start';
+                            return new vscode.LanguageModelToolResult([
+                                new vscode.LanguageModelTextPart(JSON.stringify({
+                                    success: false,
+                                    action,
+                                    description: 'Smart restart of frontend development server',
+                                    isRunning: false,
+                                    isResponding: false,
+                                    output: restartMessage
+                                }, null, 2))
+                            ]);
+                        }
+                        
+                    } catch (error) {
+                        restartMessage += `\n❌ Failed to start frontend server: ${error}`;
+                        return new vscode.LanguageModelToolResult([
+                            new vscode.LanguageModelTextPart(JSON.stringify({
+                                success: false,
+                                action,
+                                description: 'Smart restart of frontend development server',
+                                error: error instanceof Error ? error.message : String(error),
+                                output: restartMessage
+                            }, null, 2))
+                        ]);
+                    }
                     break;
+                    
+                case 'stop_frontend':
+                case 'stop-frontend':
+                    if (service === 'backend') {
+                        throw new Error('Cannot stop frontend when service is set to backend');
+                    }
+                    
+                    const stopStatus = this.checkFrontendStatus();
+                    let stopMessage = '';
+                    
+                    if (stopStatus.isRunning) {
+                        stopMessage += 'Stopping frontend server on port 3000...\n';
+                        stopMessage += this.stopFrontendProcesses();
+                        
+                        const finalStopStatus = this.checkFrontendStatus();
+                        if (!finalStopStatus.isRunning) {
+                            stopMessage += '\n✅ Frontend server stopped successfully';
+                        } else {
+                            stopMessage += '\n⚠️ Some frontend processes may still be running';
+                        }
+                        
+                        return new vscode.LanguageModelToolResult([
+                            new vscode.LanguageModelTextPart(JSON.stringify({
+                                success: !finalStopStatus.isRunning,
+                                action,
+                                description: 'Stop frontend development server',
+                                wasRunning: stopStatus.isRunning,
+                                isRunning: finalStopStatus.isRunning,
+                                output: stopMessage
+                            }, null, 2))
+                        ]);
+                    } else {
+                        stopMessage = 'ℹ Frontend server is not running on port 3000';
+                        return new vscode.LanguageModelToolResult([
+                            new vscode.LanguageModelTextPart(JSON.stringify({
+                                success: true,
+                                action,
+                                description: 'Stop frontend development server',
+                                wasRunning: false,
+                                isRunning: false,
+                                output: stopMessage
+                            }, null, 2))
+                        ]);
+                    }
+                    break;
+                    
+                case 'start_frontend':
+                case 'start-frontend':
+                    if (service === 'backend') {
+                        throw new Error('Cannot start frontend when service is set to backend');
+                    }
+                    
+                    const startStatus = this.checkFrontendStatus();
+                    
+                    if (startStatus.isRunning) {
+                        return new vscode.LanguageModelToolResult([
+                            new vscode.LanguageModelTextPart(JSON.stringify({
+                                success: false,
+                                action,
+                                description: 'Start frontend development server',
+                                isRunning: true,
+                                error: 'Port 3000 is already in use. Use restart-frontend to replace the running server.',
+                                output: '❌ Port 3000 is already in use. Use restart-frontend to replace the running server.'
+                            }, null, 2))
+                        ]);
+                    } else {
+                        let startMessage = 'Starting React development server...\n';
+                        try {
+                            startMessage += this.startFrontendServer();
+                            const finalStartStatus = this.checkFrontendStatus();
+                            
+                            if (finalStartStatus.isRunning) {
+                                startMessage += '\nWaiting for HTTP readiness...';
+                                const httpReady = this.waitForHttpReady(6); // 6 seconds max wait
+                                
+                                if (httpReady.isReady) {
+                                    startMessage += '\n✅ Frontend server started and responding successfully on port 3000';
+                                } else {
+                                    startMessage += `\n⚠️ Frontend server started but not responding to HTTP requests after ${httpReady.attempts} attempts (HTTP ${httpReady.httpCode})`;
+                                }
+                                
+                                return new vscode.LanguageModelToolResult([
+                                    new vscode.LanguageModelTextPart(JSON.stringify({
+                                        success: finalStartStatus.isRunning,
+                                        action,
+                                        description: 'Start frontend development server',
+                                        isRunning: finalStartStatus.isRunning,
+                                        isResponding: httpReady.isReady,
+                                        httpCode: httpReady.httpCode,
+                                        output: startMessage
+                                    }, null, 2))
+                                ]);
+                            } else {
+                                startMessage += '\n❌ Frontend server failed to start';
+                                return new vscode.LanguageModelToolResult([
+                                    new vscode.LanguageModelTextPart(JSON.stringify({
+                                        success: false,
+                                        action,
+                                        description: 'Start frontend development server',
+                                        isRunning: false,
+                                        isResponding: false,
+                                        output: startMessage
+                                    }, null, 2))
+                                ]);
+                            }
+                            
+                        } catch (error) {
+                            startMessage += `\n❌ Failed to start frontend server: ${error}`;
+                            return new vscode.LanguageModelToolResult([
+                                new vscode.LanguageModelTextPart(JSON.stringify({
+                                    success: false,
+                                    action,
+                                    description: 'Start frontend development server',
+                                    error: error instanceof Error ? error.message : String(error),
+                                    output: startMessage
+                                }, null, 2))
+                            ]);
+                        }
+                    }
                     
                 case 'status':
                     let statusCommand = '';
@@ -60,9 +433,8 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
                         command = 'tail -n 50 logs/gravitycar.log';
                         description = 'Showing recent Gravitycar backend logs';
                     } else if (service === 'frontend') {
-                        // Frontend logs are typically in the terminal where npm run dev is running
-                        command = 'echo "Frontend logs are displayed in the development server terminal"';
-                        description = 'Frontend development server logs location';
+                        command = 'tail -n 50 logs/frontend.log';
+                        description = 'Showing recent frontend development server logs';
                     }
                     break;
                     
@@ -83,7 +455,7 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
                     break;
                     
                 default:
-                    throw new Error(`Unknown action: ${action}. Available actions: restart-apache, restart-frontend, status, logs, health-check`);
+                    throw new Error(`Unknown action: ${action}. Available actions: restart-apache, restart-frontend, start-frontend, stop-frontend, status-frontend, ping-frontend, status, logs, health-check`);
             }
             
             console.log(`${description}: ${command}`);

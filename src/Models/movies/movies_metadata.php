@@ -32,10 +32,10 @@ return [
         // End of model-specific fields
     ],
     'validationRules' => [],
-    'relationships' => [],
+    'relationships' => ['movies_movie_quotes'],
     'ui' => [
-        'listFields' => ['name', 'poster', 'synopsis'],
-        'createFields' => ['name'],
+        'listFields' => ['name'],
+        'createFields' => ['name', 'poster', 'synopsis'],
     ],
 ];
 
