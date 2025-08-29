@@ -3,6 +3,7 @@ import { execSync } from 'child_process';
 
 interface ServerControlInput {
     action: string;
+    service?: string;
 }
 
 export class GravitycarServerTool implements vscode.LanguageModelTool<ServerControlInput> {
@@ -12,39 +13,77 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
         token: vscode.CancellationToken
     ): Promise<vscode.LanguageModelToolResult> {
         try {
-            const { action } = options.input as any;
+            const { action, service = 'both' } = options.input as any;
             
             let command = '';
             let description = '';
             
-            switch (action) {
+            // Normalize action names (handle both hyphenated and underscore versions)
+            const normalizedAction = action.replace(/-/g, '_');
+            
+            switch (normalizedAction) {
                 case 'restart_apache':
+                case 'restart-apache':
+                    if (service === 'frontend') {
+                        throw new Error('Cannot restart Apache when service is set to frontend');
+                    }
                     command = './restart-apache.sh';
                     description = 'Restarting Apache server';
                     break;
                     
                 case 'restart_frontend':
-                    command = './restart-frontend.sh';
+                case 'restart-frontend':
+                    if (service === 'backend') {
+                        throw new Error('Cannot restart frontend when service is set to backend');
+                    }
+                    command = 'pkill -f "vite" && pkill -f "npm run dev" && cd gravitycar-frontend && npm run dev &';
                     description = 'Restarting frontend development server';
                     break;
                     
                 case 'status':
-                    command = 'systemctl status apache2 && ps aux | grep -E "(npm|node|vite)" | grep -v grep';
+                    let statusCommand = '';
+                    if (service === 'backend' || service === 'both') {
+                        statusCommand += 'systemctl status apache2';
+                    }
+                    if (service === 'both') {
+                        statusCommand += ' && ';
+                    }
+                    if (service === 'frontend' || service === 'both') {
+                        statusCommand += 'ps aux | grep -E "(npm|node|vite)" | grep -v grep';
+                    }
+                    command = statusCommand;
                     description = 'Checking server status';
                     break;
                     
                 case 'logs':
-                    command = 'tail -n 50 logs/gravitycar.log';
-                    description = 'Showing recent Gravitycar logs';
+                    if (service === 'backend' || service === 'both') {
+                        command = 'tail -n 50 logs/gravitycar.log';
+                        description = 'Showing recent Gravitycar backend logs';
+                    } else if (service === 'frontend') {
+                        // Frontend logs are typically in the terminal where npm run dev is running
+                        command = 'echo "Frontend logs are displayed in the development server terminal"';
+                        description = 'Frontend development server logs location';
+                    }
                     break;
                     
                 case 'health_check':
-                    command = 'curl -s http://localhost:8081/health.php && curl -s http://localhost:5173/';
-                    description = 'Performing health check on both servers';
+                case 'health-check':
+                    let healthCommand = '';
+                    if (service === 'backend' || service === 'both') {
+                        healthCommand += 'curl -s http://localhost:8081/health';
+                    }
+                    if (service === 'both') {
+                        healthCommand += ' && ';
+                    }
+                    if (service === 'frontend' || service === 'both') {
+                        healthCommand += 'curl -s http://localhost:3000/';
+                    }
+                    command = healthCommand;
+                    description = 'Performing health check';
                     break;
                     
                 default:
-                    throw new Error(`Unknown action: ${action}`);
+                    throw new Error(`Unknown action: ${action}. Available actions: restart-apache, restart-frontend, status, logs, health-check`);
             }
             
             console.log(`${description}: ${command}`);

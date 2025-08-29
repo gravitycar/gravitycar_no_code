@@ -35,6 +35,11 @@
                 "auth_login",
                 "health_ping", 
                 "health_detailed",
+                "get_list",
+                "get_by_id",
+                "create",
+                "update",
+                "delete",
                 "get_users",
                 "get_user_by_id",
                 "create_user",
@@ -52,7 +57,11 @@
                 "delete_movie_quote",
                 "get_all_models_metadata",
                 "get_model_metadata",
-                "get_users_metadata"
+                "get_users_metadata",
+                "custom_get",
+                "custom_post",
+                "custom_put",
+                "custom_delete"
               ]
             },
             "parameters": {
@@ -94,6 +103,10 @@
                   "type": "string", 
                   "description": "Password for authentication",
                   "default": "password"
+                },
+                "endpoint": {
+                  "type": "string",
+                  "description": "Custom endpoint for custom operations"
                 }
               }
             }
@@ -149,7 +162,7 @@
             "action": {
               "type": "string",
               "description": "Server control action",
-              "enum": ["restart-apache", "restart-frontend", "status", "logs"],
+              "enum": ["restart-apache", "restart-frontend", "status", "logs", "health-check"],
               "default": "status"
             },
             "service": {
