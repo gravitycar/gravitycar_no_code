@@ -248,18 +248,8 @@ const ModelForm: React.FC<ModelFormProps> = ({
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="bg-white shadow-sm rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {recordId ? `Edit ${modelName}` : `Create New ${modelName}`}
-          </h2>
-          {metadata.description && (
-            <p className="text-sm text-gray-600 mt-1">{metadata.description}</p>
-          )}
-        </div>
-
-        <form onSubmit={handleSubmit} className="px-6 py-4">
+    <div className="w-full">
+      <form onSubmit={handleSubmit} className="space-y-6">
           {/* Form-level error display */}
           {validationErrors._form && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
@@ -268,7 +258,17 @@ const ModelForm: React.FC<ModelFormProps> = ({
           )}
 
           <div className="space-y-4">
-            {Object.entries(metadata.fields).map(([fieldName, field]) => 
+            {/* Render fields based on UI metadata createFields order */}
+            {metadata.ui?.createFields?.map(fieldName => {
+              const field = metadata.fields[fieldName];
+              if (!field) {
+                console.warn(`⚠️ Field '${fieldName}' specified in UI createFields but not found in model fields`);
+                return null;
+              }
+              return renderField(fieldName, field);
+            }) || 
+            /* Fallback to all fields if no UI metadata */
+            Object.entries(metadata.fields).map(([fieldName, field]) => 
               renderField(fieldName, field)
             )}
           </div>
@@ -294,7 +294,6 @@ const ModelForm: React.FC<ModelFormProps> = ({
             </button>
           </div>
         </form>
-      </div>
     </div>
   );
 };

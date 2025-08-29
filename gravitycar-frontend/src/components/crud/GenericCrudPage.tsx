@@ -5,6 +5,7 @@ import { apiService } from '../../services/api';
 import { ErrorBoundary } from '../error/ErrorBoundary';
 import { DataWrapper } from '../error/DataWrapper';
 import ModelForm from '../forms/ModelForm';
+import Modal from '../ui/Modal';
 import { getErrorMessage } from '../../utils/errors';
 import type { PaginatedResponse, ModelMetadata, FieldMetadata } from '../../types';
 
@@ -86,8 +87,8 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
         items: response.data || [],
         pagination: {
           ...prev.pagination,
-          page: response.pagination?.page || page,
-          total: response.pagination?.total || 0,
+          page: response.pagination?.current_page || page,
+          total: response.pagination?.total_items || 0,
           totalPages: response.pagination?.total_pages || 1
         },
         loading: false,
@@ -552,23 +553,35 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
 
           {/* Create Modal */}
           {state.isCreateModalOpen && metadata && (
-            <ModelForm
-              modelName={modelName}
-              metadata={metadata}
-              onSuccess={handleFormSuccess}
-              onCancel={handleFormCancel}
-            />
+            <Modal
+              isOpen={state.isCreateModalOpen}
+              onClose={handleFormCancel}
+              title={`Create New ${modelName.slice(0, -1)}`}
+              size="2xl"
+            >
+              <ModelForm
+                modelName={modelName}
+                onSuccess={handleFormSuccess}
+                onCancel={handleFormCancel}
+              />
+            </Modal>
           )}
 
           {/* Edit Modal */}
           {state.isEditModalOpen && state.selectedItem && metadata && (
-            <ModelForm
-              modelName={modelName}
-              metadata={metadata}
-              initialData={state.selectedItem}
-              onSuccess={handleFormSuccess}
-              onCancel={handleFormCancel}
-            />
+            <Modal
+              isOpen={state.isEditModalOpen}
+              onClose={handleFormCancel}
+              title={`Edit ${modelName.slice(0, -1)}`}
+              size="2xl"
+            >
+              <ModelForm
+                modelName={modelName}
+                recordId={state.selectedItem.id}
+                onSuccess={handleFormSuccess}
+                onCancel={handleFormCancel}
+              />
+            </Modal>
           )}
         </div>
       </div>
