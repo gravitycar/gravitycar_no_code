@@ -1,327 +1,77 @@
-import { useState, useEffect } from 'react';
-import { apiService } from '../services/api';
-import { useNotify } from '../contexts/NotificationContext';
-import type { Movie } from '../types';
-import { DataWrapper } from '../components/error/DataWrapper';
-import { ErrorBoundary } from '../components/error/ErrorBoundary';
-import ModelForm from '../components/forms/ModelForm';
+import React from 'react';
+import GenericCrudPage from '../components/crud/GenericCrudPage';
+import type { Movie, ModelMetadata } from '../types';
 
-interface MoviesPageState {
-  movies: Movie[];
-  loading: boolean;
-  error: string | null;
-  totalPages: number;
-  currentPage: number;
-  searchTerm: string;
-  isCreateModalOpen: boolean;
-  isEditModalOpen: boolean;
-  selectedMovie: Movie | null;
-}
-
-const MoviesPage = () => {
-  const notify = useNotify();
-  const [state, setState] = useState<MoviesPageState>({
-    movies: [],
-    loading: true,
-    error: null,
-    totalPages: 1,
-    currentPage: 1,
-    searchTerm: '',
-    isCreateModalOpen: false,
-    isEditModalOpen: false,
-    selectedMovie: null,
-  });
-
-  const loadMovies = async (page: number = 1, search: string = '') => {
-    try {
-      setState(prev => ({ ...prev, loading: true, error: null }));
-      
-      const response = await apiService.getMovies(page, 10);
-      
-      setState(prev => ({
-        ...prev,
-        movies: response.data || [],
-        totalPages: response.pagination?.total_pages || 1,
-        currentPage: page,
-        loading: false,
-        error: null,
-      }));
-    } catch (error) {
-      console.error('Failed to load movies:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to load movies';
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: errorMessage,
-      }));
-      notify.error('Failed to load movies. Please try again.');
-    }
-  };
-
-  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    loadMovies(1, state.searchTerm);
-  };
-
-  const handleCreateMovie = () => {
-    setState(prev => ({ ...prev, isCreateModalOpen: true }));
-  };
-
-  const handleEditMovie = (movie: Movie) => {
-    setState(prev => ({ 
-      ...prev, 
-      selectedMovie: movie, 
-      isEditModalOpen: true 
-    }));
-  };
-
-  const handleDeleteMovie = async (movie: Movie) => {
-    if (!window.confirm(`Are you sure you want to delete "${movie.name}"?`)) {
-      return;
-    }
-
-    try {
-      await apiService.delete('movies', movie.id);
-      notify.success('Movie deleted successfully');
-      loadMovies(state.currentPage, state.searchTerm);
-    } catch (error) {
-      console.error('Failed to delete movie:', error);
-      notify.error('Failed to delete movie. Please try again.');
-    }
-  };
-
-  const handleFormSuccess = () => {
-    setState(prev => ({ 
-      ...prev, 
-      isCreateModalOpen: false, 
-      isEditModalOpen: false, 
-      selectedMovie: null 
-    }));
-    loadMovies(state.currentPage, state.searchTerm);
-    notify.success(state.isEditModalOpen ? 'Movie updated successfully' : 'Movie created successfully');
-  };
-
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= state.totalPages) {
-      loadMovies(newPage, state.searchTerm);
-    }
-  };
-
-  useEffect(() => {
-    loadMovies();
-  }, []);
-
-  const renderMovieCard = (movie: Movie) => (
-    <div key={movie.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-      <div className="p-6">
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">{movie.name}</h3>
-          </div>
-          {movie.poster_url && (
-            <div className="ml-4 flex-shrink-0">
-              <img 
-                src={movie.poster_url} 
-                alt={`${movie.name} poster`}
-                className="w-20 h-28 object-cover rounded"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = 'none';
-                }}
-              />
-            </div>
-          )}
-        </div>
-        
-        {movie.synopsis && (
-          <p className="text-gray-700 text-sm mb-4 line-clamp-3">{movie.synopsis}</p>
+/**
+ * Custom grid renderer for movies with poster images
+ */
+const movieGridRenderer = (movie: Movie, metadata: ModelMetadata, onEdit: (movie: Movie) => void, onDelete: (movie: Movie) => void) => (
+  <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
+    {/* Movie poster */}
+    {movie.poster && (
+      <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
+        <img
+          src={movie.poster}
+          alt={movie.name}
+          className="max-w-full max-h-full object-cover"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.style.display = 'none';
+          }}
+        />
+        {!movie.poster && (
+          <div className="text-gray-400 text-sm">No poster</div>
         )}
-
-        <div className="flex justify-end space-x-2">
+      </div>
+    )}
+    
+    <div className="p-6">
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+        {movie.name}
+      </h3>
+      
+      {movie.synopsis && (
+        <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+          {movie.synopsis}
+        </p>
+      )}
+      
+      <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-200">
+        <div className="text-xs text-gray-500">
+          ID: {movie.id}
+        </div>
+        <div className="flex space-x-2">
           <button
-            onClick={() => handleEditMovie(movie)}
-            className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 transition-colors"
+            onClick={() => onEdit(movie)}
+            className="text-blue-600 hover:text-blue-700 text-sm"
           >
             Edit
           </button>
           <button
-            onClick={() => handleDeleteMovie(movie)}
-            className="bg-red-600 text-white px-3 py-1.5 rounded text-sm hover:bg-red-700 transition-colors"
+            onClick={() => onDelete(movie)}
+            className="text-red-600 hover:text-red-700 text-sm"
           >
             Delete
           </button>
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 
-  const renderPagination = () => (
-    <div className="flex items-center justify-between bg-white px-4 py-3 border-t">
-      <div className="flex justify-between items-center w-full">
-        <div className="text-sm text-gray-700">
-          Page {state.currentPage} of {state.totalPages}
-        </div>
-        <div className="flex space-x-2">
-          <button
-            onClick={() => handlePageChange(state.currentPage - 1)}
-            disabled={state.currentPage <= 1}
-            className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Previous
-          </button>
-          <button
-            onClick={() => handlePageChange(state.currentPage + 1)}
-            disabled={state.currentPage >= state.totalPages}
-            className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Next
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
+/**
+ * Movies Management Page - Now uses the generic metadata-driven CRUD component
+ * with a custom grid renderer for movie-specific display
+ */
+const MoviesPage: React.FC = () => {
   return (
-    <ErrorBoundary>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Movies Management</h1>
-          <button
-            onClick={handleCreateMovie}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-          >
-            Add New Movie
-          </button>
-        </div>
-
-        {/* Search */}
-        <div className="bg-white p-4 rounded-lg shadow">
-          <form onSubmit={handleSearch} className="flex gap-4">
-            <input
-              type="text"
-              placeholder="Search movies by name or synopsis..."
-              value={state.searchTerm}
-              onChange={(e) => setState(prev => ({ ...prev, searchTerm: e.target.value }))}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              type="submit"
-              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors"
-            >
-              Search
-            </button>
-            {state.searchTerm && (
-              <button
-                type="button"
-                onClick={() => {
-                  setState(prev => ({ ...prev, searchTerm: '' }));
-                  loadMovies(1, '');
-                }}
-                className="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500 transition-colors"
-              >
-                Clear
-              </button>
-            )}
-          </form>
-        </div>
-
-        {/* Movies Grid */}
-        <DataWrapper
-          loading={state.loading}
-          error={state.error}
-          data={state.movies}
-          retry={() => loadMovies(state.currentPage, state.searchTerm)}
-          fallback={
-            <div className="text-center py-12 bg-white rounded-lg shadow">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No movies found</h3>
-              <p className="text-gray-500 mb-4">
-                {state.searchTerm ? 'Try adjusting your search terms.' : 'Get started by adding your first movie.'}
-              </p>
-              <button
-                onClick={handleCreateMovie}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Add First Movie
-              </button>
-            </div>
-          }
-        >
-          {(movies) => (
-            <div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {movies.map(renderMovieCard)}
-              </div>
-              {state.totalPages > 1 && (
-                <div className="mt-6">
-                  {renderPagination()}
-                </div>
-              )}
-            </div>
-          )}
-        </DataWrapper>
-
-        {/* Create Movie Modal */}
-        {state.isCreateModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">Add New Movie</h2>
-                  <button
-                    onClick={() => setState(prev => ({ ...prev, isCreateModalOpen: false }))}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <ModelForm
-                  modelName="Movies"
-                  onSuccess={handleFormSuccess}
-                  onCancel={() => setState(prev => ({ ...prev, isCreateModalOpen: false }))}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Edit Movie Modal */}
-        {state.isEditModalOpen && state.selectedMovie && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">Edit Movie</h2>
-                  <button
-                    onClick={() => setState(prev => ({ 
-                      ...prev, 
-                      isEditModalOpen: false, 
-                      selectedMovie: null 
-                    }))}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <ModelForm
-                  modelName="Movies"
-                  recordId={state.selectedMovie.id}
-                  onSuccess={handleFormSuccess}
-                  onCancel={() => setState(prev => ({ 
-                    ...prev, 
-                    isEditModalOpen: false, 
-                    selectedMovie: null 
-                  }))}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </ErrorBoundary>
+    <GenericCrudPage
+      modelName="Movies"
+      title="Movies Management"
+      description="Manage your movie collection"
+      defaultDisplayMode="grid"
+      customGridRenderer={movieGridRenderer}
+    />
   );
 };
 

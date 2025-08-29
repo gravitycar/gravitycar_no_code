@@ -1,317 +1,65 @@
-import { useState, useEffect } from 'react';
-import { apiService } from '../services/api';
-import { useNotify } from '../contexts/NotificationContext';
-import type { MovieQuote } from '../types';
-import { DataWrapper } from '../components/error/DataWrapper';
-import { ErrorBoundary } from '../components/error/ErrorBoundary';
-import ModelForm from '../components/forms/ModelForm';
+import React from 'react';
+import GenericCrudPage from '../components/crud/GenericCrudPage';
+import type { MovieQuote, ModelMetadata } from '../types';
 
-interface MovieQuotesPageState {
-  quotes: MovieQuote[];
-  loading: boolean;
-  error: string | null;
-  totalPages: number;
-  currentPage: number;
-  searchTerm: string;
-  isCreateModalOpen: boolean;
-  isEditModalOpen: boolean;
-  selectedQuote: MovieQuote | null;
-}
-
-const MovieQuotesPage = () => {
-  const notify = useNotify();
-  const [state, setState] = useState<MovieQuotesPageState>({
-    quotes: [],
-    loading: true,
-    error: null,
-    totalPages: 1,
-    currentPage: 1,
-    searchTerm: '',
-    isCreateModalOpen: false,
-    isEditModalOpen: false,
-    selectedQuote: null,
-  });
-
-  const loadQuotes = async (page: number = 1) => {
-    try {
-      setState(prev => ({ ...prev, loading: true, error: null }));
+/**
+ * Custom grid renderer for movie quotes with quote display
+ */
+const movieQuoteGridRenderer = (quote: MovieQuote, metadata: ModelMetadata, onEdit: (quote: MovieQuote) => void, onDelete: (quote: MovieQuote) => void) => (
+  <div className="bg-white rounded-lg shadow border border-gray-200 p-6 hover:shadow-lg transition-shadow">
+    <div className="mb-4">
+      <blockquote className="text-gray-900 italic text-lg mb-3">
+        "{quote.quote_text}"
+      </blockquote>
       
-      const response = await apiService.getMovieQuotes(page, 10);
-      
-      setState(prev => ({
-        ...prev,
-        quotes: response.data || [],
-        totalPages: response.pagination?.total_pages || 1,
-        currentPage: page,
-        loading: false,
-        error: null,
-      }));
-    } catch (error) {
-      console.error('Failed to load movie quotes:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to load movie quotes';
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: errorMessage,
-      }));
-      notify.error('Failed to load movie quotes. Please try again.');
-    }
-  };
-
-  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    loadQuotes(1);
-  };
-
-  const handleCreateQuote = () => {
-    setState(prev => ({ ...prev, isCreateModalOpen: true }));
-  };
-
-  const handleEditQuote = (quote: MovieQuote) => {
-    setState(prev => ({ 
-      ...prev, 
-      selectedQuote: quote, 
-      isEditModalOpen: true 
-    }));
-  };
-
-  const handleDeleteQuote = async (quote: MovieQuote) => {
-    if (!window.confirm(`Are you sure you want to delete this quote?`)) {
-      return;
-    }
-
-    try {
-      await apiService.delete('movie_quotes', quote.id);
-      notify.success('Movie quote deleted successfully');
-      loadQuotes(state.currentPage);
-    } catch (error) {
-      console.error('Failed to delete movie quote:', error);
-      notify.error('Failed to delete movie quote. Please try again.');
-    }
-  };
-
-  const handleFormSuccess = () => {
-    setState(prev => ({ 
-      ...prev, 
-      isCreateModalOpen: false, 
-      isEditModalOpen: false, 
-      selectedQuote: null 
-    }));
-    loadQuotes(state.currentPage);
-    notify.success(state.isEditModalOpen ? 'Movie quote updated successfully' : 'Movie quote created successfully');
-  };
-
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= state.totalPages) {
-      loadQuotes(newPage);
-    }
-  };
-
-  useEffect(() => {
-    loadQuotes();
-  }, []);
-
-  const renderQuoteCard = (quote: MovieQuote) => (
-    <div key={quote.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
-      <div className="mb-4">
-        <blockquote className="text-lg text-gray-800 italic mb-3 leading-relaxed">
-          "{quote.quote}"
-        </blockquote>
-        
-        <div className="space-y-2 text-sm text-gray-600">
-          {quote.movie && (
-            <p>
-              <span className="font-medium">Movie:</span> {quote.movie}
-            </p>
-          )}
-        </div>
+      {quote.character_name && (
+        <p className="text-gray-600 text-sm">
+          — {quote.character_name}
+        </p>
+      )}
+    </div>
+    
+    {quote.movie_id && (
+      <div className="mb-4 text-sm text-gray-500">
+        <span className="font-medium">Movie ID:</span> {quote.movie_id}
       </div>
-
-      <div className="flex justify-end space-x-2 pt-4 border-t">
+    )}
+    
+    <div className="flex justify-between items-center pt-4 border-t border-gray-200">
+      <div className="text-xs text-gray-500">
+        Quote #{quote.id}
+      </div>
+      <div className="flex space-x-2">
         <button
-          onClick={() => handleEditQuote(quote)}
-          className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700 transition-colors"
+          onClick={() => onEdit(quote)}
+          className="text-blue-600 hover:text-blue-700 text-sm"
         >
           Edit
         </button>
         <button
-          onClick={() => handleDeleteQuote(quote)}
-          className="bg-red-600 text-white px-3 py-1.5 rounded text-sm hover:bg-red-700 transition-colors"
+          onClick={() => onDelete(quote)}
+          className="text-red-600 hover:text-red-700 text-sm"
         >
           Delete
         </button>
       </div>
     </div>
-  );
+  </div>
+);
 
-  const renderPagination = () => (
-    <div className="flex items-center justify-between bg-white px-4 py-3 rounded-lg shadow">
-      <div className="flex justify-between items-center w-full">
-        <div className="text-sm text-gray-700">
-          Page {state.currentPage} of {state.totalPages}
-        </div>
-        <div className="flex space-x-2">
-          <button
-            onClick={() => handlePageChange(state.currentPage - 1)}
-            disabled={state.currentPage <= 1}
-            className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Previous
-          </button>
-          <button
-            onClick={() => handlePageChange(state.currentPage + 1)}
-            disabled={state.currentPage >= state.totalPages}
-            className="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Next
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-
+/**
+ * Movie Quotes Management Page - Now uses the generic metadata-driven CRUD component
+ * with a custom grid renderer for quote-specific display
+ */
+const MovieQuotesPage: React.FC = () => {
   return (
-    <ErrorBoundary>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Movie Quotes Management</h1>
-          <button
-            onClick={handleCreateQuote}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-          >
-            Add New Quote
-          </button>
-        </div>
-
-        {/* Search */}
-        <div className="bg-white p-4 rounded-lg shadow">
-          <form onSubmit={handleSearch} className="flex gap-4">
-            <input
-              type="text"
-              placeholder="Search quotes by text or movie..."
-              value={state.searchTerm}
-              onChange={(e) => setState(prev => ({ ...prev, searchTerm: e.target.value }))}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              type="submit"
-              className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 transition-colors"
-            >
-              Search
-            </button>
-            {state.searchTerm && (
-              <button
-                type="button"
-                onClick={() => {
-                  setState(prev => ({ ...prev, searchTerm: '' }));
-                  loadQuotes(1);
-                }}
-                className="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500 transition-colors"
-              >
-                Clear
-              </button>
-            )}
-          </form>
-        </div>
-
-        {/* Movie Quotes Grid */}
-        <DataWrapper
-          loading={state.loading}
-          error={state.error}
-          data={state.quotes}
-          retry={() => loadQuotes(state.currentPage)}
-          fallback={
-            <div className="text-center py-12 bg-white rounded-lg shadow">
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No movie quotes found</h3>
-              <p className="text-gray-500 mb-4">
-                {state.searchTerm ? 'Try adjusting your search terms.' : 'Get started by adding your first movie quote.'}
-              </p>
-              <button
-                onClick={handleCreateQuote}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Add First Quote
-              </button>
-            </div>
-          }
-        >
-          {(quotes) => (
-            <div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {quotes.map(renderQuoteCard)}
-              </div>
-              {state.totalPages > 1 && (
-                <div className="mt-6">
-                  {renderPagination()}
-                </div>
-              )}
-            </div>
-          )}
-        </DataWrapper>
-
-        {/* Create Quote Modal */}
-        {state.isCreateModalOpen && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">Add New Movie Quote</h2>
-                  <button
-                    onClick={() => setState(prev => ({ ...prev, isCreateModalOpen: false }))}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <ModelForm
-                  modelName="Movie_Quotes"
-                  onSuccess={handleFormSuccess}
-                  onCancel={() => setState(prev => ({ ...prev, isCreateModalOpen: false }))}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Edit Quote Modal */}
-        {state.isEditModalOpen && state.selectedQuote && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-900">Edit Movie Quote</h2>
-                  <button
-                    onClick={() => setState(prev => ({ 
-                      ...prev, 
-                      isEditModalOpen: false, 
-                      selectedQuote: null 
-                    }))}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <ModelForm
-                  modelName="Movie_Quotes"
-                  recordId={state.selectedQuote.id}
-                  onSuccess={handleFormSuccess}
-                  onCancel={() => setState(prev => ({ 
-                    ...prev, 
-                    isEditModalOpen: false, 
-                    selectedQuote: null 
-                  }))}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    </ErrorBoundary>
+    <GenericCrudPage
+      modelName="Movie_Quotes"
+      title="Movie Quotes Management"
+      description="Manage memorable quotes from your movies"
+      defaultDisplayMode="grid"
+      customGridRenderer={movieQuoteGridRenderer}
+    />
   );
 };
 
