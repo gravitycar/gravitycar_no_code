@@ -43,9 +43,9 @@ class GravitycarTestTool {
             let command = '';
             switch (test_type) {
                 case 'unit':
-                    command = './run-phpunit.sh';
+                    command = 'vendor/bin/phpunit Tests/Unit/';
                     if (test_path) {
-                        command += ` ${test_path}`;
+                        command += test_path;
                     }
                     if (coverage) {
                         command += ' --coverage-text';
@@ -55,20 +55,20 @@ class GravitycarTestTool {
                     }
                     break;
                 case 'integration':
-                    command = './run-phpunit.sh Tests/Integration/';
+                    command = 'vendor/bin/phpunit Tests/Integration/';
                     if (test_path) {
                         command += test_path;
                     }
                     break;
                 case 'feature':
-                    command = './run-phpunit.sh Tests/Feature/';
+                    command = 'vendor/bin/phpunit Tests/Feature/';
                     if (test_path) {
                         command += test_path;
                     }
                     break;
                 case 'all':
                 default:
-                    command = './run-phpunit.sh';
+                    command = 'vendor/bin/phpunit';
                     if (coverage) {
                         command += ' --coverage-text';
                     }

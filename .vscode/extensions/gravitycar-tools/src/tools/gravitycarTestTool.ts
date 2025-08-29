@@ -21,9 +21,9 @@ export class GravitycarTestTool implements vscode.LanguageModelTool<TestRunInput
             
             switch (test_type) {
                 case 'unit':
-                    command = './run-phpunit.sh';
+                    command = 'vendor/bin/phpunit Tests/Unit/';
                     if (test_path) {
-                        command += ` ${test_path}`;
+                        command += test_path;
                     }
                     if (coverage) {
                         command += ' --coverage-text';
@@ -34,14 +34,14 @@ export class GravitycarTestTool implements vscode.LanguageModelTool<TestRunInput
                     break;
                     
                 case 'integration':
-                    command = './run-phpunit.sh Tests/Integration/';
+                    command = 'vendor/bin/phpunit Tests/Integration/';
                     if (test_path) {
                         command += test_path;
                     }
                     break;
                     
                 case 'feature':
-                    command = './run-phpunit.sh Tests/Feature/';
+                    command = 'vendor/bin/phpunit Tests/Feature/';
                     if (test_path) {
                         command += test_path;
                     }
@@ -49,7 +49,7 @@ export class GravitycarTestTool implements vscode.LanguageModelTool<TestRunInput
                     
                 case 'all':
                 default:
-                    command = './run-phpunit.sh';
+                    command = 'vendor/bin/phpunit';
                     if (coverage) {
                         command += ' --coverage-text';
                     }

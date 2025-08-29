@@ -49,7 +49,7 @@ class GravitycarApiTool {
                 'health_ping': { method: 'GET', endpoint: '/ping' },
                 'health_detailed': { method: 'GET', endpoint: '/health' },
                 // Authentication
-                'auth_login': { method: 'POST', endpoint: '/api.php/auth/login' },
+                'auth_login': { method: 'POST', endpoint: '/auth/login' },
                 // Users
                 'get_users': { method: 'GET', endpoint: '/Users' },
                 'get_user_by_id': { method: 'GET', endpoint: '/Users/{id}' },
