@@ -219,6 +219,12 @@ try {
     $metadataEngine->clearAllCaches();
     printSuccess("MetadataEngine caches cleared");
     
+    // Clear DocumentationCache as well
+    printInfo("Clearing DocumentationCache...");
+    $documentationCache = new \Gravitycar\Services\DocumentationCache();
+    $documentationCache->clearCache();
+    printSuccess("DocumentationCache cleared");
+    
     // Step 3: Rebuild cache files
     printHeader("Step 3: Rebuilding Cache");
     printInfo("Rebuilding metadata cache...");
