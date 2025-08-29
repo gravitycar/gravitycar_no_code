@@ -11,7 +11,7 @@ use Monolog\Logger;
  */
 class TestField extends FieldBase {
     
-    public function validate(): bool {
+    public function validate($model = null): bool {
         // Clear previous validation errors
         $this->validationErrors = [];
         

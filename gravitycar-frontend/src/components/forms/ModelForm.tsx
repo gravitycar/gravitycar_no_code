@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useModelMetadata } from '../../hooks/useModelMetadata';
 import FieldComponent from '../fields/FieldComponent';
 import type { FieldMetadata } from '../../types';
+import { apiService } from '../../services/api';
+import { ApiError } from '../../utils/errors';
 
 interface ModelFormProps {
   modelName: string;
-  recordId?: string | number; // For edit mode
-  onSuccess?: (data: any) => void;
-  onCancel?: () => void;
+  recordId?: string; // For edit mode (UUID string)
   initialData?: Record<string, any>;
   disabled?: boolean;
+  onSuccess?: (record: any) => void;
+  onCancel?: () => void;
 }
 
 /**
@@ -28,10 +30,36 @@ const ModelForm: React.FC<ModelFormProps> = ({
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
+  const [loadingRecord, setLoadingRecord] = useState(false);
+
+  // Load existing record data if recordId is provided
+  useEffect(() => {
+    const loadRecord = async () => {
+      if (recordId && modelName) {
+        setLoadingRecord(true);
+        try {
+          const response = await apiService.getById(modelName, recordId);
+          const recordData = response.data as Record<string, any>;
+          
+          console.log(`📥 Loaded ${modelName} record:`, recordData);
+          setFormData(recordData);
+        } catch (error) {
+          console.error(`❌ Failed to load ${modelName} record:`, error);
+          setValidationErrors({
+            _form: `Failed to load ${modelName} record. Please try again.`
+          });
+        } finally {
+          setLoadingRecord(false);
+        }
+      }
+    };
+
+    loadRecord();
+  }, [recordId, modelName]);
 
   // Initialize form with both initialData and default values from metadata (only once per metadata load)
   useEffect(() => {
-    if (metadata && !hasInitialized) {
+    if (metadata && !hasInitialized && !recordId) { // Don't initialize defaults when loading existing record
       const defaultData: Record<string, any> = {};
       
       // First, apply default values from metadata
@@ -47,7 +75,7 @@ const ModelForm: React.FC<ModelFormProps> = ({
       setFormData(combinedData);
       setHasInitialized(true);
     }
-  }, [metadata, modelName]); // Only depend on metadata and modelName, not initialData
+  }, [metadata, modelName, recordId]); // Added recordId dependency
 
   const handleFieldChange = (fieldName: string, value: any) => {
     console.log(`🔄 Field change: ${fieldName} = ${value}`);
@@ -114,27 +142,61 @@ const ModelForm: React.FC<ModelFormProps> = ({
     try {
       console.log(`📤 Submitting ${recordId ? 'update' : 'create'} for ${modelName}:`, formData);
       
-      // TODO: Implement actual API call here
-      // For now, just simulate success
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      let result;
+      if (recordId) {
+        // Update existing record
+        result = await apiService.update(modelName, recordId, formData);
+      } else {
+        // Create new record
+        result = await apiService.create(modelName, formData);
+      }
       
-      console.log(`✅ Successfully ${recordId ? 'updated' : 'created'} ${modelName}`);
+      console.log(`✅ Successfully ${recordId ? 'updated' : 'created'} ${modelName}:`, result);
       
       if (onSuccess) {
-        onSuccess(formData);
+        onSuccess(result.data);
       }
     } catch (error: any) {
       console.error(`❌ Failed to ${recordId ? 'update' : 'create'} ${modelName}:`, error);
-      // Handle API errors here
+      
+      // Handle validation errors from backend
+      if (error instanceof ApiError && error.status === 422) {
+        const validationErrors = error.getValidationErrors();
+        if (validationErrors) {
+          // Convert validation errors format from string[] to string
+          const formattedErrors: Record<string, string> = {};
+          Object.entries(validationErrors).forEach(([field, messages]) => {
+            formattedErrors[field] = Array.isArray(messages) ? messages.join(', ') : messages;
+          });
+          setValidationErrors(formattedErrors);
+        } else {
+          // No specific validation errors, show general message
+          setValidationErrors({
+            _form: error.getUserFriendlyMessage()
+          });
+        }
+      } else if (error instanceof ApiError) {
+        // Other API errors
+        setValidationErrors({
+          _form: error.getUserFriendlyMessage()
+        });
+      } else {
+        // Fallback for other error types
+        setValidationErrors({
+          _form: error.message || 'An unexpected error occurred'
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (loading) {
+  if (loading || loadingRecord) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="text-gray-600">Loading form...</div>
+        <div className="text-gray-600">
+          {loadingRecord ? `Loading ${modelName} record...` : 'Loading form...'}
+        </div>
       </div>
     );
   }
@@ -198,6 +260,13 @@ const ModelForm: React.FC<ModelFormProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="px-6 py-4">
+          {/* Form-level error display */}
+          {validationErrors._form && (
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-4">
+              <p className="text-red-800">{validationErrors._form}</p>
+            </div>
+          )}
+
           <div className="space-y-4">
             {Object.entries(metadata.fields).map(([fieldName, field]) => 
               renderField(fieldName, field)

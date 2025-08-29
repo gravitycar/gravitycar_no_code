@@ -1,10 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
+import { NotificationProvider } from './contexts/NotificationContext';
+import { ErrorBoundary } from './components/error/ErrorBoundary';
 import Layout from './components/layout/Layout';
 import Login from './components/auth/Login';
 import Dashboard from './pages/Dashboard';
 import MetadataTestPage from './pages/MetadataTestPage';
 import TestRelatedRecord from './pages/TestRelatedRecord';
+import UsersPage from './pages/UsersPage';
 import './App.css';
 
 // Protected Route Component
@@ -85,16 +88,13 @@ const AppRoutes = () => {
         }
       />
       
-      {/* Placeholder routes for future pages */}
+      {/* Users Management Route - COMPLETED */}
       <Route
         path="/users"
         element={
           <ProtectedRoute>
             <Layout>
-              <div className="text-center py-12">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Users Management</h2>
-                <p className="text-gray-600">This page will be implemented in Phase 2</p>
-              </div>
+              <UsersPage />
             </Layout>
           </ProtectedRoute>
         }
@@ -152,11 +152,15 @@ const AppRoutes = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
-    </AuthProvider>
+    <ErrorBoundary>
+      <NotificationProvider>
+        <AuthProvider>
+          <Router>
+            <AppRoutes />
+          </Router>
+        </AuthProvider>
+      </NotificationProvider>
+    </ErrorBoundary>
   );
 }
 

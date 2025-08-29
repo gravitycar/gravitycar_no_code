@@ -14,6 +14,8 @@ import DateTimePicker from './DateTimePicker';
 import HiddenInput from './HiddenInput';
 import RelatedRecordSelect from './RelatedRecordSelect';
 import { ImageUpload } from './ImageUpload';
+import MultiSelect from './MultiSelect';
+import RadioGroup from './RadioGroup';
 
 // Component mapping from FieldBase reactComponent names to React components
 const componentMap: Record<string, React.ComponentType<BaseFieldComponentProps>> = {
@@ -29,10 +31,8 @@ const componentMap: Record<string, React.ComponentType<BaseFieldComponentProps>>
   'HiddenInput': HiddenInput,
   'RelatedRecordSelect': RelatedRecordSelect,
   'ImageUpload': ImageUpload,
-  
-  // Additional mappings for potential variants
-  'MultiSelect': Select, // TODO: Implement proper MultiSelect
-  'RadioGroup': Select, // TODO: Implement proper RadioGroup
+  'MultiSelect': MultiSelect,
+  'RadioGroup': RadioGroup,
 };
 
 interface FieldComponentRenderProps {

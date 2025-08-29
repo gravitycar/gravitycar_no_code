@@ -81,11 +81,32 @@ class Request
     }
 
     /**
-     * Get all extracted parameters
+     * Get all request data including path parameters, query parameters, POST data, JSON body, and cookies
      * 
-     * @return array All extracted parameters as key-value pairs
+     * @return array All request data consolidated with path parameters taking precedence
      */
     public function all(): array
+    {
+        // Start with request data (POST, GET, JSON body)
+        $allData = $this->requestData;
+        
+        // Add cookies if available
+        if (!empty($_COOKIE)) {
+            $allData = array_merge($_COOKIE, $allData);
+        }
+        
+        // Path parameters take precedence over other data
+        $allData = array_merge($allData, $this->extractedParameters);
+        
+        return $allData;
+    }
+
+    /**
+     * Get only the extracted path parameters
+     * 
+     * @return array Only the path parameters as key-value pairs
+     */
+    public function getPathParameters(): array
     {
         return $this->extractedParameters;
     }

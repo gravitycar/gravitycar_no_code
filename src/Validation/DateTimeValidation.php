@@ -29,7 +29,7 @@ class DateTimeValidation extends ValidationRuleBase {
         return true;
     }
 
-    public function validate($value): bool {
+    public function validate($value, $model = null): bool {
         if (!$this->shouldValidateValue($value)) {
             return true;
         }

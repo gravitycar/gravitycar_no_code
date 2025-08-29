@@ -12,7 +12,7 @@ class OptionsValidation extends ValidationRuleBase {
         $this->options = $options;
     }
 
-    public function validate($value): bool {
+    public function validate($value, $model = null): bool {
         if (empty($this->options)) {
             return true; // If no options defined, allow any value
         }

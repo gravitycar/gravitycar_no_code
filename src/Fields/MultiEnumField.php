@@ -13,8 +13,8 @@ class MultiEnumField extends FieldBase {
     protected string $label = '';
     protected bool $required = false;
     protected int $maxLength = 16000;
-    protected string $className = '';
-    protected string $methodName = '';
+    protected string $optionsClass = '';
+    protected string $optionsMethod = '';
     protected int $maxSelections = 0;
     protected int $minSelections = 0;
     protected array $options = [];
@@ -35,11 +35,25 @@ class MultiEnumField extends FieldBase {
     }
 
     protected function loadOptions(): void {
-        // Handle static options or dynamic options
-        if (isset($this->metadata['options'])) {
+        // Handle static options first - but only if they contain actual options
+        if (isset($this->metadata['options']) && is_array($this->metadata['options']) && !empty($this->metadata['options'])) {
             $this->options = $this->metadata['options'];
-        } elseif ($this->className && $this->methodName && class_exists($this->className) && method_exists($this->className, $this->methodName)) {
-            $this->options = call_user_func([$this->className, $this->methodName]);
+            return;
+        }
+
+        // Load options from external class method if specified
+        if ($this->optionsClass && $this->optionsMethod) {
+            try {
+                if (class_exists($this->optionsClass) && method_exists($this->optionsClass, $this->optionsMethod)) {
+                    $this->options = call_user_func([$this->optionsClass, $this->optionsMethod]);
+                } else {
+                    error_log("MultiEnumField: Unable to load options from {$this->optionsClass}::{$this->optionsMethod} - class or method not found");
+                    $this->options = [];
+                }
+            } catch (\Exception $e) {
+                error_log("MultiEnumField: Error loading options from {$this->optionsClass}::{$this->optionsMethod} - " . $e->getMessage());
+                $this->options = [];
+            }
         } else {
             $this->options = [];
         }

@@ -9,7 +9,7 @@ class UniqueValidation extends ValidationRuleBase {
         parent::__construct('Unique', 'This value must be unique.');
     }
 
-    public function validate($value): bool {
+    public function validate($value, $model = null): bool {
         // Skip validation for empty values using inherited method
         if (!$this->shouldValidateValue($value)) {
             return true;
@@ -24,12 +24,20 @@ class UniqueValidation extends ValidationRuleBase {
         try {
             // Use DatabaseConnector to check if this value already exists
             $databaseConnector = \Gravitycar\Core\ServiceLocator::get('Gravitycar\Database\DatabaseConnector');
-            $exists = $databaseConnector->recordExists($this->field, $value);
+            
+            // If we have a model with an ID, use recordExistsExcludingId to exclude the current record
+            if ($model && $model instanceof \Gravitycar\Models\ModelBase && $model->get('id')) {
+                $exists = $databaseConnector->recordExistsExcludingId($this->field, $value, $model->get('id'));
+            } else {
+                // For new records (no ID), use the regular recordExists check
+                $exists = $databaseConnector->recordExists($this->field, $value);
+            }
 
             if ($exists) {
                 $this->logger->info('Unique validation failed - value already exists', [
                     'field_name' => $this->field->getName(),
-                    'value' => $value
+                    'value' => $value,
+                    'model_id' => ($model && $model instanceof \Gravitycar\Models\ModelBase) ? $model->get('id') : 'none'
                 ]);
                 return false;
             }
@@ -40,6 +48,7 @@ class UniqueValidation extends ValidationRuleBase {
             $this->logger->error('Error during unique validation', [
                 'field_name' => $this->field ? $this->field->getName() : 'unknown',
                 'value' => $value,
+                'model_id' => ($model && $model instanceof \Gravitycar\Models\ModelBase) ? $model->get('id') : 'none',
                 'error' => $e->getMessage()
             ]);
 

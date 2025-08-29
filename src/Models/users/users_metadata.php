@@ -9,9 +9,9 @@ return [
             'name' => 'username',
             'type' => 'Text',
             'label' => 'Username',
-            'required' => false, // Made optional for OAuth users
+            'required' => true,
             'unique' => true,
-            'validationRules' => ['Unique'],
+            'validationRules' => ['Required', 'Unique'],
         ],
         'password' => [
             'name' => 'password',

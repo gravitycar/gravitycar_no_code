@@ -736,6 +736,79 @@ class DatabaseConnector {
     }
 
     /**
+     * Check if a record exists in a table where a specific field has a specific value,
+     * excluding a specific record ID (useful for unique validation during updates)
+     */
+    public function recordExistsExcludingId(FieldBase $field, $value, $excludeId = null): bool {
+        // Skip validation for null or empty values
+        if ($value === null || $value === '') {
+            return false;
+        }
+
+        // Field must have a table name set
+        $tableName = $field->getTableName();
+        if (empty($tableName)) {
+            throw new GCException('Field must have a table name set to check record existence', [
+                'field_name' => $field->getName(),
+                'field_type' => get_class($field),
+                'value' => $value
+            ]);
+        }
+
+        try {
+            // Check if value exists in the field's table, excluding the specified ID
+            $conn = $this->getConnection();
+            $queryBuilder = $conn->createQueryBuilder();
+
+            $queryBuilder
+                ->select('COUNT(*) as count')
+                ->from($tableName)
+                ->where($field->getName() . ' = :value')
+                ->setParameter('value', $value);
+
+            // Exclude the current record if an ID is provided
+            if ($excludeId !== null) {
+                $queryBuilder
+                    ->andWhere('id != :excludeId')
+                    ->setParameter('excludeId', $excludeId);
+            }
+
+            $result = $queryBuilder->executeQuery();
+            $count = $result->fetchOne();
+
+            $exists = $count > 0;
+
+            $this->logger->debug('Field value existence check completed with exclusion', [
+                'field_name' => $field->getName(),
+                'field_type' => get_class($field),
+                'table_name' => $tableName,
+                'field_value' => $value,
+                'exclude_id' => $excludeId,
+                'exists' => $exists
+            ]);
+
+            return $exists;
+
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to check record existence for field validation with exclusion', [
+                'field_name' => $field->getName(),
+                'field_type' => get_class($field),
+                'table_name' => $tableName,
+                'field_value' => $value,
+                'exclude_id' => $excludeId,
+                'error' => $e->getMessage()
+            ]);
+
+            // Re-throw as GCException for consistent error handling
+            throw new GCException('Record existence check with exclusion failed: ' . $e->getMessage(), [
+                'field_name' => $field->getName(),
+                'value' => $value,
+                'exclude_id' => $excludeId
+            ], 0, $e);
+        }
+    }
+
+    /**
      * Build SELECT clause for the query
      */
     protected function buildSelectClause(

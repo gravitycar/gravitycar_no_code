@@ -12,7 +12,7 @@ class EmailValidation extends ValidationRuleBase {
         parent::__construct('Email', 'Invalid email address.');
     }
 
-    public function validate($value): bool {
+    public function validate($value, $model = null): bool {
         return filter_var($value, FILTER_VALIDATE_EMAIL) !== false;
     }
 

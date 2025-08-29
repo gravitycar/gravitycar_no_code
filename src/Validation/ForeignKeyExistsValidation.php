@@ -28,7 +28,7 @@ class ForeignKeyExistsValidation extends ValidationRuleBase {
     /**
      * Validate that the foreign key value exists in the related table
      */
-    public function validate(mixed $value): bool {
+    public function validate(mixed $value, $model = null): bool {
         // Early validation checks
         if (!$this->shouldValidateValue($value)) {
             return true;

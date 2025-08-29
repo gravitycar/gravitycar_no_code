@@ -63,15 +63,15 @@ abstract class FieldBase {
         return $this->value;
     }
 
-    public function setValue($value): void {
+    public function setValue($value, $model = null): void {
         // Store the original value before attempting to set new value
         $originalValue = $this->value;
         
         // Temporarily set the new value for validation
         $this->value = $value;
         
-        // Validate the new value
-        if ($this->validate()) {
+        // Validate the new value with optional model context
+        if ($this->validate($model)) {
             // If validation passes, keep the new value and update originalValue
             $this->originalValue = $originalValue;
         } else {
@@ -345,7 +345,7 @@ abstract class FieldBase {
         return $this->validationErrors;
     }
 
-    public function validate(): bool {
+    public function validate($model = null): bool {
         // Clear previous validation errors
         $this->validationErrors = [];
 
@@ -361,8 +361,8 @@ abstract class FieldBase {
                 continue;
             }
 
-            // Call the rule's validate method with the field's current value
-            if (!$rule->validate($this->getValue())) {
+            // Call the rule's validate method with the field's current value and optional model context
+            if (!$rule->validate($this->getValue(), $model)) {
                 // Get the formatted error message from the rule
                 $errorMessage = $rule->getFormatErrorMessage();
 

@@ -46,9 +46,10 @@ abstract class ValidationRuleBase {
     /**
      * Validate a value. Returns true if valid, false otherwise.
      * @param mixed $value
+     * @param \Gravitycar\Models\ModelBase|null $model Optional model context for validation
      * @return bool
      */
-    abstract public function validate($value): bool;
+    abstract public function validate($value, $model = null): bool;
 
     /**
      * Get the error message for failed validation.

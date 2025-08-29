@@ -772,11 +772,11 @@ class ModelBaseTest extends UnitTestCase
                         return $this->value;
                     }
 
-                    public function setValue($value): void {
+                    public function setValue($value, $model = null): void {
                         $this->value = $value;
                     }
 
-                    public function validate(): bool {
+                    public function validate($model = null): bool {
                         return true;
                     }
 

@@ -12,7 +12,7 @@ class RequiredValidation extends ValidationRuleBase {
         parent::__construct('Required', 'This field is required.');
     }
 
-    public function validate($value): bool {
+    public function validate($value, $model = null): bool {
         // Handle null explicitly
         if ($value === null) {
             return false;

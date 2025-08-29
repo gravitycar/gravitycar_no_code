@@ -5,21 +5,5 @@
     "php.validate.enable": true,
     "intelephense.files.maxSize": 5000000,
     "intelephense.completion.triggerParameterHints": true,
-    "intelephense.completion.insertUseDeclaration": true,
-    "github.copilot.chat.tools": {
-        "gravitycar-api": {
-            "name": "Gravitycar API",
-            "description": "Make API calls to the local Gravitycar framework server at localhost:8081. Supports authentication, CRUD operations, and metadata queries. Model names must be capitalized (e.g., Users, Movies). Examples: GET /Users, POST /Movies, GET /metadata/models/Users",
-            "command": "node",
-            "args": [".vscode/tools/gravitycar-api.js"],
-            "input": "json"
-        },
-        "react-server": {
-            "name": "React Dev Server",
-            "description": "Manage the React development server on port 3000. Commands: start, stop, restart, status. Automatically detaches from terminal and manages background processes.",
-            "command": "bash",
-            "args": [".vscode/tools/react-server.sh"],
-            "input": "json"
-        }
-    }
+    "intelephense.completion.insertUseDeclaration": true
 }

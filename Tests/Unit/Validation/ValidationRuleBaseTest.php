@@ -200,7 +200,7 @@ class ValidationRuleBaseTest extends UnitTestCase
  */
 class TestableValidationRule extends ValidationRuleBase
 {
-    public function validate($value): bool
+    public function validate($value, $model = null): bool
     {
         return true; // Always valid for testing
     }

@@ -28,10 +28,10 @@ class EmailField extends FieldBase {
         // ingestMetadata() in parent constructor now handles all property assignments
     }
 
-    public function setValue($value): void {
+    public function setValue($value, $model = null): void {
         if ($this->normalize && is_string($value)) {
             $value = strtolower($value);
         }
-        parent::setValue($value);
+        parent::setValue($value, $model);
     }
 }

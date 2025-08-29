@@ -9,7 +9,7 @@ class URLValidation extends ValidationRuleBase {
         parent::__construct('URL', 'Invalid URL format.');
     }
 
-    public function validate($value): bool {
+    public function validate($value, $model = null): bool {
         // Skip validation for empty values (let Required rule handle that)
         if (empty($value)) {
             return true;

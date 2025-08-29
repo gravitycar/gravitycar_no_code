@@ -13,8 +13,8 @@ class EnumField extends FieldBase {
     protected string $label = '';
     protected bool $required = false;
     protected int $maxLength = 255;
-    protected string $className = '';
-    protected string $methodName = '';
+    protected string $optionsClass = '';
+    protected string $optionsMethod = '';
     protected array $options = [];
     protected string $reactComponent = 'Select';
     
@@ -30,11 +30,25 @@ class EnumField extends FieldBase {
     }
 
     protected function loadOptions(): void {
-        // Handle static options or dynamic options
-        if (isset($this->metadata['options'])) {
+        // Handle static options first - but only if they contain actual options
+        if (isset($this->metadata['options']) && is_array($this->metadata['options']) && !empty($this->metadata['options'])) {
             $this->options = $this->metadata['options'];
-        } elseif ($this->className && $this->methodName && class_exists($this->className) && method_exists($this->className, $this->methodName)) {
-            $this->options = call_user_func([$this->className, $this->methodName]);
+            return;
+        }
+
+        // Load options from external class method if specified
+        if ($this->optionsClass && $this->optionsMethod) {
+            try {
+                if (class_exists($this->optionsClass) && method_exists($this->optionsClass, $this->optionsMethod)) {
+                    $this->options = call_user_func([$this->optionsClass, $this->optionsMethod]);
+                } else {
+                    error_log("EnumField: Unable to load options from {$this->optionsClass}::{$this->optionsMethod} - class or method not found");
+                    $this->options = [];
+                }
+            } catch (\Exception $e) {
+                error_log("EnumField: Error loading options from {$this->optionsClass}::{$this->optionsMethod} - " . $e->getMessage());
+                $this->options = [];
+            }
         } else {
             $this->options = [];
         }

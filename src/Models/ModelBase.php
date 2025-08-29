@@ -371,7 +371,7 @@ abstract class ModelBase {
             throw new GCException("Field $fieldName not found in model",
                 ['field_name' => $fieldName, 'model_class' => static::class, 'available_fields' => array_keys($this->fields)]);
         }
-        $field->setValue($value);
+        $field->setValue($value, $this);
     }
 
     /**

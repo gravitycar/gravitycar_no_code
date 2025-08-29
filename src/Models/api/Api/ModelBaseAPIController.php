@@ -3,6 +3,7 @@ namespace Gravitycar\Models\Api\Api;
 
 use Gravitycar\Api\Request;
 use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Exceptions\APIException;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Exceptions\NotFoundException;
 use Gravitycar\Exceptions\BadRequestException;
@@ -410,10 +411,8 @@ class ModelBaseAPIController {
             
             return ['data' => $model->toArray(), 'message' => 'Record created successfully'];
             
-        } catch (UnprocessableEntityException $e) {
-            throw $e; // Re-throw validation exceptions as-is
-        } catch (InternalServerErrorException $e) {
-            throw $e; // Re-throw server error exceptions as-is
+        } catch (APIException $e) {
+            throw $e; // Re-throw API exceptions as-is
         } catch (\Exception $e) {
             $this->logger->error('Failed to create record', [
                 'model' => $modelName,
@@ -452,15 +451,21 @@ class ModelBaseAPIController {
             // Use ModelBase populateFromAPI method
             $model->populateFromAPI($data);
             
+            // Check for validation errors before attempting to update
+            $validationErrors = $model->getValidationErrors();
+            if (!empty($validationErrors)) {
+                throw UnprocessableEntityException::withValidationErrors($validationErrors);
+            }
+            
             // Use ModelBase update method
             $success = $model->update();
             
             if (!$success) {
-                throw new GCException('Failed to update record', [
+                throw new InternalServerErrorException('Failed to update record', [
                     'model' => $modelName,
                     'id' => $id,
                     'data' => $data
-                ], 500);
+                ]);
             }
             
             $this->logger->info('Record updated successfully', [
@@ -470,8 +475,8 @@ class ModelBaseAPIController {
             
             return ['data' => $model->toArray(), 'message' => 'Record updated successfully'];
             
-        } catch (GCException $e) {
-            throw $e; // Re-throw GCExceptions as-is
+        } catch (APIException $e) {
+            throw $e; // Re-throw API exceptions as-is
         } catch (\Exception $e) {
             $this->logger->error('Failed to update record', [
                 'model' => $modelName,
@@ -479,11 +484,11 @@ class ModelBaseAPIController {
                 'data' => $data,
                 'error' => $e->getMessage()
             ]);
-            throw new GCException('Failed to update record', [
+            throw new InternalServerErrorException('Failed to update record', [
                 'model' => $modelName,
                 'id' => $id,
                 'original_error' => $e->getMessage()
-            ], 500, $e);
+            ], $e);
         }
     }
 

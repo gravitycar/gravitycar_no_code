@@ -259,6 +259,9 @@ class MetadataEngine {
                             $data['fields'] = $coreFields;
                         }
                         
+                        // Resolve external options for fields that specify optionsClass/optionsMethod
+                        $this->resolveExternalFieldOptions($data['fields']);
+                        
                         $metadata[$className] = $data;
                         
                         $this->logger->debug("Merged core fields with entity metadata", [
@@ -300,6 +303,64 @@ class MetadataEngine {
             $this->logger->info("Metadata cache written: $cacheFile");
         }
         $this->metadataCache = $metadata;
+    }
+
+    /**
+     * Resolve external options for fields that specify optionsClass and optionsMethod
+     */
+    protected function resolveExternalFieldOptions(array &$fields): void {
+        foreach ($fields as $fieldName => &$fieldData) {
+            // Only process fields that have optionsClass and optionsMethod but no existing options
+            if (isset($fieldData['optionsClass']) && isset($fieldData['optionsMethod'])) {
+                $optionsClass = $fieldData['optionsClass'];
+                $optionsMethod = $fieldData['optionsMethod'];
+                
+                // Skip if options already exist and are not empty
+                if (isset($fieldData['options']) && !empty($fieldData['options'])) {
+                    continue;
+                }
+                
+                try {
+                    // Load options from external class
+                    if (class_exists($optionsClass) && method_exists($optionsClass, $optionsMethod)) {
+                        $options = call_user_func([$optionsClass, $optionsMethod]);
+                        if (is_array($options) && !empty($options)) {
+                            $fieldData['options'] = $options;
+                            $this->logger->debug("Resolved external options for field", [
+                                'field' => $fieldName,
+                                'class' => $optionsClass,
+                                'method' => $optionsMethod,
+                                'options_count' => count($options)
+                            ]);
+                        } else {
+                            $this->logger->warning("External options method returned empty or invalid data", [
+                                'field' => $fieldName,
+                                'class' => $optionsClass,
+                                'method' => $optionsMethod
+                            ]);
+                            $fieldData['options'] = [];
+                        }
+                    } else {
+                        $this->logger->error("External options class or method not found", [
+                            'field' => $fieldName,
+                            'class' => $optionsClass,
+                            'method' => $optionsMethod,
+                            'class_exists' => class_exists($optionsClass),
+                            'method_exists' => method_exists($optionsClass, $optionsMethod)
+                        ]);
+                        $fieldData['options'] = [];
+                    }
+                } catch (\Exception $e) {
+                    $this->logger->error("Error resolving external options for field", [
+                        'field' => $fieldName,
+                        'class' => $optionsClass,
+                        'method' => $optionsMethod,
+                        'error' => $e->getMessage()
+                    ]);
+                    $fieldData['options'] = [];
+                }
+            }
+        }
     }
 
     /**

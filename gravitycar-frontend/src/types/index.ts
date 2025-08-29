@@ -1,15 +1,27 @@
 // User model types based on Gravitycar backend
 export interface User {
-  id: number;
-  username: string;
+  id: string; // UUID string
+  username?: string;
   email: string;
+  first_name?: string;
+  last_name?: string;
+  google_id?: string;
+  auth_provider: 'local' | 'google' | 'hybrid' | ''; // Can be empty string
+  last_login_method?: 'local' | 'google' | null;
+  email_verified_at?: string | null;
+  profile_picture_url?: string | null;
+  last_google_sync?: string | null;
+  is_active: boolean | string | ''; // Backend returns "1", "", or actual boolean
+  last_login?: string | null;
+  user_type: 'admin' | 'manager' | 'user';
+  user_timezone: string;
   created_at?: string;
   updated_at?: string;
 }
 
 // Movie model types
 export interface Movie {
-  id: number;
+  id: string; // UUID string
   title: string;
   release_year?: number;
   director?: string;
@@ -19,8 +31,8 @@ export interface Movie {
 
 // Movie Quote types
 export interface MovieQuote {
-  id: number;
-  movie_id: number;
+  id: string; // UUID string
+  movie_id: string; // UUID string
   quote_text: string;
   character_name?: string;
   created_at?: string;
@@ -30,7 +42,7 @@ export interface MovieQuote {
 
 // Role and Permission types for RBAC
 export interface Role {
-  id: number;
+  id: string; // UUID string
   name: string;
   description?: string;
   created_at?: string;
@@ -38,7 +50,7 @@ export interface Role {
 }
 
 export interface Permission {
-  id: number;
+  id: string; // UUID string
   name: string;
   description?: string;
   created_at?: string;

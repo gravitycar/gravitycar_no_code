@@ -62,3 +62,5 @@
 - [] Boolean fields are represented in the database as varchar(255) fields. That's not right. 
 - [] Update the APIRouteScorer class to disqualify any routes where any component doesn't have an exact match or a wildcard match.
 - [] Test password reset.
+- [] Confirm field validation failures actually result in an exception being thrown before the DBConnector tries to save the record.
+- [X] There is no list of timezones for users and it's a required field. 

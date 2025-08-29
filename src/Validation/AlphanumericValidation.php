@@ -9,7 +9,7 @@ class AlphanumericValidation extends ValidationRuleBase {
         parent::__construct('Alphanumeric', 'Value must contain only letters and numbers.');
     }
 
-    public function validate($value): bool {
+    public function validate($value, $model = null): bool {
         if (!$this->shouldValidateValue($value)) {
             return true;
         }

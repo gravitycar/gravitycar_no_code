@@ -9,6 +9,7 @@ import type {
   Movie,
   MovieQuote
 } from '../types';
+import { ApiError, isBackendErrorResponse } from '../utils/errors';
 
 class ApiService {
   private api: AxiosInstance;
@@ -34,17 +35,61 @@ class ApiService {
       return config;
     });
 
-    // Add response interceptor for error handling
+    // Add response interceptor for comprehensive error handling
     this.api.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 401) {
-          // Token expired or invalid
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('user');
-          window.location.href = '/login';
+        // Handle network errors (no response)
+        if (!error.response) {
+          console.error('Network error:', error.message);
+          const networkError = new Error('Network error. Please check your connection and try again.');
+          return Promise.reject(networkError);
         }
-        return Promise.reject(error);
+
+        // Handle backend error responses
+        if (error.response.data && isBackendErrorResponse(error.response.data)) {
+          const backendError = new ApiError(error.response.data);
+          
+          // Handle authentication errors
+          if (backendError.status === 401) {
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user');
+            // Redirect to login page
+            window.location.href = '/login';
+            return Promise.reject(backendError);
+          }
+
+          console.error('Backend error:', backendError.getDebugInfo());
+          return Promise.reject(backendError);
+        }
+
+        // Handle non-backend HTTP errors (fallback)
+        const status = error.response.status;
+        let message = `HTTP ${status} error`;
+        
+        switch (status) {
+          case 400:
+            message = 'Bad request. Please check your input.';
+            break;
+          case 401:
+            message = 'Authentication required. Please log in.';
+            localStorage.removeItem('auth_token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+            break;
+          case 403:
+            message = 'Access denied. You don\'t have permission for this action.';
+            break;
+          case 404:
+            message = 'Resource not found.';
+            break;
+          case 500:
+            message = 'Server error. Please try again later.';
+            break;
+        }
+
+        console.error('HTTP error:', { status, message, error });
+        return Promise.reject(new Error(message));
       }
     );
   }
@@ -182,8 +227,28 @@ class ApiService {
         ...filters
       });
       
-      const response: AxiosResponse<PaginatedResponse<T>> = await this.api.get(`/${model}?${params}`);
-      return response.data;
+      const response: AxiosResponse<any> = await this.api.get(`/${model}?${params}`);
+      const responseData = response.data;
+      
+      // Check if response has pagination structure
+      if (responseData.pagination) {
+        // Already in paginated format
+        return responseData as PaginatedResponse<T>;
+      } else {
+        // Convert simple array response to paginated format
+        const data = responseData.data || [];
+        return {
+          success: responseData.success ?? true,
+          data: data,
+          pagination: {
+            current_page: 1,
+            total_pages: 1,
+            total_items: data.length,
+            per_page: data.length
+          },
+          message: responseData.message
+        };
+      }
     } catch (error: any) {
       return {
         success: false,
@@ -199,54 +264,24 @@ class ApiService {
     }
   }
 
-  async getById<T>(model: string, id: number): Promise<ApiResponse<T>> {
-    try {
-      const response: AxiosResponse<ApiResponse<T>> = await this.api.get(`/${model}/${id}`);
-      return response.data;
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to fetch item'
-      };
-    }
+  async getById<T>(model: string, id: string): Promise<ApiResponse<T>> {
+    const response: AxiosResponse<ApiResponse<T>> = await this.api.get(`/${model}/${id}`);
+    return response.data;
   }
 
   async create<T>(model: string, data: Partial<T>): Promise<ApiResponse<T>> {
-    try {
-      const response: AxiosResponse<ApiResponse<T>> = await this.api.post(`/${model}`, data);
-      return response.data;
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to create item',
-        errors: error.response?.data?.errors
-      };
-    }
+    const response: AxiosResponse<ApiResponse<T>> = await this.api.post(`/${model}`, data);
+    return response.data;
   }
 
-  async update<T>(model: string, id: number, data: Partial<T>): Promise<ApiResponse<T>> {
-    try {
-      const response: AxiosResponse<ApiResponse<T>> = await this.api.put(`/${model}/${id}`, data);
-      return response.data;
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to update item',
-        errors: error.response?.data?.errors
-      };
-    }
+  async update<T>(model: string, id: string, data: Partial<T>): Promise<ApiResponse<T>> {
+    const response: AxiosResponse<ApiResponse<T>> = await this.api.put(`/${model}/${id}`, data);
+    return response.data;
   }
 
-  async delete(model: string, id: number): Promise<ApiResponse> {
-    try {
-      const response: AxiosResponse<ApiResponse> = await this.api.delete(`/${model}/${id}`);
-      return response.data;
-    } catch (error: any) {
-      return {
-        success: false,
-        message: error.response?.data?.message || 'Failed to delete item'
-      };
-    }
+  async delete(model: string, id: string): Promise<ApiResponse> {
+    const response: AxiosResponse<ApiResponse> = await this.api.delete(`/${model}/${id}`);
+    return response.data;
   }
 
   // Model-specific convenience methods
@@ -262,15 +297,15 @@ class ApiService {
     return this.getList<MovieQuote>('movie_quotes', page, limit);
   }
 
-  async getUserById(id: number) {
+  async getUserById(id: string) {
     return this.getById<User>('users', id);
   }
 
-  async getMovieById(id: number) {
+  async getMovieById(id: string) {
     return this.getById<Movie>('movies', id);
   }
 
-  async getMovieQuoteById(id: number) {
+  async getMovieQuoteById(id: string) {
     return this.getById<MovieQuote>('movie_quotes', id);
   }
 
