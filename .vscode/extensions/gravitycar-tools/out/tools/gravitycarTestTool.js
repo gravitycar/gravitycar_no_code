@@ -75,11 +75,17 @@ class GravitycarTestTool {
                     break;
             }
             console.log(`Executing: ${command}`);
+            // Set up environment for coverage if needed
+            const env = { ...process.env };
+            if (coverage) {
+                env.XDEBUG_MODE = 'coverage';
+            }
             const output = (0, child_process_1.execSync)(command, {
                 encoding: 'utf8',
                 cwd: '/mnt/g/projects/gravitycar_no_code',
-                timeout: 120000, // 2 minutes for tests
-                maxBuffer: 2 * 1024 * 1024 // 2MB buffer for test output
+                timeout: 180000, // 3 minutes for coverage tests (they take longer)
+                maxBuffer: 4 * 1024 * 1024, // 4MB buffer for coverage output
+                env: env
             });
             const result = {
                 success: !output.includes('FAILURES!') && !output.includes('ERRORS!'),
