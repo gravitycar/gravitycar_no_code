@@ -206,6 +206,7 @@ class MetadataAPIController extends ApiControllerBase {
                     'displayColumns' => $modelData['displayColumns'] ?? null,
                     'fields' => $enhancedFields,
                     'relationships' => $modelData['relationships'] ?? [],
+                    'ui' => $modelData['ui'] ?? null,
                     'api_endpoints' => $this->formatApiEndpoints($routes),
                     'react_form_schema' => $this->componentMapper->generateFormSchema($modelName)
                 ],

@@ -131,6 +131,12 @@ export interface ModelMetadata {
   relationships: RelationshipMetadata[];
   react_form_schema: FormSchema;
   api_endpoints: ApiEndpoint[];
+  ui?: UIMetadata; // Optional - some models may not have UI metadata
+}
+
+export interface UIMetadata {
+  listFields: string[]; // Fields to display in list/table view, in order
+  createFields: string[]; // Fields to show in create/edit forms, in order
 }
 
 export interface FieldMetadata {
