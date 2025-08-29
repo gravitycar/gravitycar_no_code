@@ -72,13 +72,6 @@ const ModelForm: React.FC<ModelFormProps> = ({
       // Then, override with any provided initialData
       const combinedData = { ...defaultData, ...initialData };
       
-      console.log('🔍 Initializing form data for NEW record:');
-      console.log('🔍 recordId:', recordId);
-      console.log('🔍 defaultData:', defaultData);
-      console.log('🔍 initialData:', initialData);
-      console.log('🔍 combinedData:', combinedData);
-      console.log('🔍 combinedData has id?', 'id' in combinedData);
-      
       setFormData(combinedData);
       setHasInitialized(true);
     }
@@ -145,12 +138,7 @@ const ModelForm: React.FC<ModelFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log('🔍 ModelForm handleSubmit called');
-    console.log('🔍 recordId:', recordId);
-    console.log('🔍 formData:', formData);
-    
     if (!validateForm()) {
-      console.log('❌ Form validation failed');
       return;
     }
 
@@ -158,21 +146,13 @@ const ModelForm: React.FC<ModelFormProps> = ({
 
     try {
       console.log(`📤 Submitting ${recordId ? 'update' : 'create'} for ${modelName}:`, formData);
-      console.log('🔍 Decision factors:');
-      console.log('🔍 recordId:', recordId);
-      console.log('🔍 recordId type:', typeof recordId);
-      console.log('🔍 recordId truthy?', !!recordId);
-      console.log('🔍 formData.id:', formData.id);
-      console.log('🔍 will use:', recordId ? 'UPDATE (PUT)' : 'CREATE (POST)');
       
       let result;
       if (recordId) {
         // Update existing record
-        console.log('📤 Calling apiService.update with recordId:', recordId);
         result = await apiService.update(modelName, recordId, formData);
       } else {
         // Create new record
-        console.log('📤 Calling apiService.create (no recordId)');
         result = await apiService.create(modelName, formData);
       }
       
