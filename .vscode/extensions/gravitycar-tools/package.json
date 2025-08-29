@@ -20,7 +20,7 @@
         "name": "gravitycar_api_call",
         "displayName": "Gravitycar API",
         "description": "Make API calls to the local Gravitycar backend server (localhost:8081)",
-        "modelDescription": "This tool makes API calls to the Gravitycar Framework backend running on localhost:8081. It supports all CRUD operations for Users, Movies, and MovieQuotes, plus health checks and authentication.",
+        "modelDescription": "PREFERRED for all Gravitycar API operations. This tool makes authenticated API calls to the Gravitycar Framework backend on localhost:8081. Use this instead of manual curl commands or run_in_terminal for any Gravitycar API requests including health checks, user management, movie operations, and authentication. Handles proper URL patterns (localhost:8081/Users not /api/Users) and error handling automatically.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "gravitycar-api",
         "icon": "$(globe)",
@@ -104,7 +104,7 @@
       {
         "name": "gravitycar_test_runner",
         "displayName": "Gravitycar Test Runner",
-        "modelDescription": "This tool runs PHPUnit tests for the Gravitycar Framework. It can execute unit tests, integration tests, feature tests, or all tests with optional coverage reporting and verbose output.",
+        "modelDescription": "PREFERRED for running PHPUnit tests in Gravitycar Framework. Use this instead of run_in_terminal with phpunit commands. Supports unit tests, integration tests, feature tests, coverage reports, and filtering. Handles proper test configuration and output formatting automatically.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "gravitycar-test",
         "icon": "$(beaker)",
@@ -138,7 +138,7 @@
       {
         "name": "gravitycar_server_control",
         "displayName": "Gravitycar Server Control", 
-        "modelDescription": "This tool controls Gravitycar development servers including the Apache backend and React frontend. It can restart servers, check status, and display logs.",
+        "modelDescription": "PREFERRED for Apache and frontend server management in Gravitycar Framework. Use this instead of run_in_terminal with systemctl or npm commands. Handles server restarts, status checks, and log viewing for both Apache backend (port 8081) and React frontend. Provides proper error handling and service management.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "gravitycar-server",
         "icon": "$(server-process)",
