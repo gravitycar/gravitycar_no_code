@@ -270,7 +270,10 @@ class ApiService {
   }
 
   async create<T>(model: string, data: Partial<T>): Promise<ApiResponse<T>> {
+    console.log('🔍 apiService.create called with:', { model, data });
+    console.log('🔍 About to make POST request to:', `/${model}`);
     const response: AxiosResponse<ApiResponse<T>> = await this.api.post(`/${model}`, data);
+    console.log('🔍 POST response received:', response);
     return response.data;
   }
 

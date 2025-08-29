@@ -133,7 +133,12 @@ const ModelForm: React.FC<ModelFormProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('🔍 ModelForm handleSubmit called');
+    console.log('🔍 recordId:', recordId);
+    console.log('🔍 formData:', formData);
+    
     if (!validateForm()) {
+      console.log('❌ Form validation failed');
       return;
     }
 
@@ -145,9 +150,11 @@ const ModelForm: React.FC<ModelFormProps> = ({
       let result;
       if (recordId) {
         // Update existing record
+        console.log('📤 Calling apiService.update with recordId:', recordId);
         result = await apiService.update(modelName, recordId, formData);
       } else {
         // Create new record
+        console.log('📤 Calling apiService.create (no recordId)');
         result = await apiService.create(modelName, formData);
       }
       
