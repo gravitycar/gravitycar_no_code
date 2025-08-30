@@ -564,9 +564,9 @@ class DatabaseConnector {
             return $selectFields;
         }
 
-        $joinAlias = "rel_{$this->joinCounter}";
-        $this->joinCounter++;
-
+        // Create alias with table name prefix and current counter value
+        $joinAlias = "{$relatedModel->getTableName()}_rel_{$this->joinCounter}";
+        
         try {
             // Add LEFT JOIN for related table
             $queryBuilder->leftJoin(
@@ -579,9 +579,12 @@ class DatabaseConnector {
             // Add the foreign key field
             $selectFields[] = "{$mainAlias}.{$fieldName}";
 
-            // Add concatenated display name from the related model
-            $concatDisplayName = $this->concatDisplayName($relatedModel, $field);
+            // Add concatenated display name from the related model using the same alias
+            $concatDisplayName = $this->concatDisplayName($relatedModel, $field, $joinAlias);
             $selectFields[] = "{$concatDisplayName} as " . $field->getDisplayFieldName();
+            
+            // Increment counter AFTER creating the join and display name
+            $this->joinCounter++;
 
             $this->logger->debug("Added RelatedRecord join", [
                 'field_name' => $fieldName,
@@ -604,7 +607,7 @@ class DatabaseConnector {
     /**
      * Create SQL CONCAT() function call for related model display columns
      */
-    private function concatDisplayName($relatedModel, \Gravitycar\Fields\RelatedRecordField $field): string {
+    private function concatDisplayName($relatedModel, \Gravitycar\Fields\RelatedRecordField $field, string $joinAlias): string {
         try {
             $displayColumns = $relatedModel->getDisplayColumns();
             $fieldName = $field->getName();
@@ -638,7 +641,7 @@ class DatabaseConnector {
                 if ($relatedModel->hasField('name')) {
                     $nameField = $relatedModel->getFields()['name'];
                     if ($nameField->isDBField()) {
-                        return "COALESCE(rel_{$this->joinCounter}.name, '')";
+                        return "COALESCE({$joinAlias}.name, '')";
                     }
                 }
                 
@@ -648,18 +651,18 @@ class DatabaseConnector {
                     'parent_field' => $fieldName,
                     'original_display_columns' => $displayColumns
                 ]);
-                return "COALESCE(rel_{$this->joinCounter}.id, '')";
+                return "COALESCE({$joinAlias}.id, '')";
             }
 
             if (count($dbDisplayColumns) === 1) {
                 // Single column - use COALESCE to handle NULL values
-                return "COALESCE(rel_{$this->joinCounter}.{$dbDisplayColumns[0]}, '')";
+                return "COALESCE({$joinAlias}.{$dbDisplayColumns[0]}, '')";
             }
 
             // Multiple columns - use CONCAT with COALESCE to handle NULL values
             $concatParts = [];
             foreach ($dbDisplayColumns as $column) {
-                $concatParts[] = "COALESCE(rel_{$this->joinCounter}.{$column}, '')";
+                $concatParts[] = "COALESCE({$joinAlias}.{$column}, '')";
             }
 
             // Join with spaces between columns, using CONCAT_WS to handle empty strings
@@ -668,7 +671,7 @@ class DatabaseConnector {
         } catch (\Exception $e) {
             $this->logger->warning("Failed to create CONCAT for RelatedRecord field {$field->getName()}: " . $e->getMessage());
             // Fallback to simple id field which should always be available and be a database field
-            return "COALESCE(rel_{$this->joinCounter}.id, '')";
+            return "COALESCE({$joinAlias}.id, '')";
         }
     }
 
@@ -910,12 +913,14 @@ class DatabaseConnector {
             $conn = $this->getConnection();
             $queryBuilder = $conn->createQueryBuilder();
             $tableName = $model->getTableName();
-            $mainAlias = 't';
+            $mainAlias = $model->getAlias(); // Use model's alias instead of hardcoded 't'
+            $modelFields = $model->getFields();
 
-            // Base query
-            $queryBuilder
-                ->select("{$mainAlias}.*")
-                ->from($tableName, $mainAlias);
+            // Start with main table using model's alias
+            $queryBuilder->from($tableName, $mainAlias);
+
+            // Build SELECT clause with RelatedRecord field handling (same as find() method)
+            $this->buildSelectClause($queryBuilder, $model, $modelFields, []);
 
             // Apply soft delete filter unless including deleted records
             if (!$includeDeleted && $model->hasField('deleted_at')) {
@@ -979,7 +984,7 @@ class DatabaseConnector {
             $conn = $this->getConnection();
             $queryBuilder = $conn->createQueryBuilder();
             $tableName = $model->getTableName();
-            $mainAlias = 't';
+            $mainAlias = $model->getAlias(); // Use model's alias for consistency
 
             // Base count query
             $queryBuilder

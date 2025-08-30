@@ -117,7 +117,7 @@
       {
         "name": "gravitycar_test_runner",
         "displayName": "Gravitycar Test Runner",
-        "modelDescription": "PREFERRED for running PHPUnit tests in Gravitycar Framework. Use this instead of run_in_terminal with phpunit commands. Supports unit tests, integration tests, feature tests, coverage reports, and filtering. Handles proper test configuration and output formatting automatically.",
+        "modelDescription": "PREFERRED for running PHPUnit tests in Gravitycar Framework. Use this instead of run_in_terminal with phpunit commands. Supports unit tests, integration tests, feature tests, coverage reports, debug output, and TestDox formatting. Handles proper test configuration and output formatting automatically. Compatible with PHPUnit 10.5.",
         "canBeReferencedInPrompt": true,
         "toolReferenceName": "gravitycar-test",
         "icon": "$(beaker)",
@@ -139,9 +139,14 @@
               "type": "string",
               "description": "Specific test file to run (for testType=specific)"
             },
-            "verbose": {
+            "debug": {
               "type": "boolean",
-              "description": "Enable verbose output",
+              "description": "Enable debug output (PHPUnit 10.5 compatible)",
+              "default": false
+            },
+            "testdox": {
+              "type": "boolean", 
+              "description": "Use TestDox format for more readable output",
               "default": false
             }
           },

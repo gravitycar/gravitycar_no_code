@@ -217,18 +217,34 @@ class ServiceLocator {
     }
 
     /**
-     * Get the current user - enhanced for authentication system
+     * Get the current user - enhanced for authentication system with guest fallback
+     * 
+     * This method first tries to get the authenticated user via JWT token.
+     * If no authenticated user is found, it returns the guest user instead.
+     * This ensures that there is always a user context available for audit trails.
      */
     public static function getCurrentUser(): ?\Gravitycar\Models\ModelBase {
         try {
             $token = self::getAuthTokenFromRequest();
             
-            if (!$token) {
+            if ($token) {
+                $authService = self::getAuthenticationService();
+                $authenticatedUser = $authService->validateJwtToken($token);
+                
+                if ($authenticatedUser) {
+                    return $authenticatedUser;
+                }
+            }
+            
+            // No authenticated user found, fall back to guest user
+            try {
+                $guestManager = new \Gravitycar\Utils\GuestUserManager();
+                return $guestManager->getGuestUser();
+            } catch (Exception $e) {
+                self::getLogger()->error('Failed to get guest user fallback: ' . $e->getMessage());
                 return null;
             }
             
-            $authService = self::getAuthenticationService();
-            return $authService->validateJwtToken($token);
         } catch (Exception $e) {
             self::getLogger()->debug('Unable to get current user: ' . $e->getMessage());
             return null;

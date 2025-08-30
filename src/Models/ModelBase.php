@@ -668,11 +668,44 @@ abstract class ModelBase {
 
     /**
      * Get current user ID for audit fields
-     * TODO: Implement proper user session management
+     * 
+     * This method retrieves the currently authenticated user's ID from the JWT token
+     * in the request headers. It integrates with the Gravitycar authentication system
+     * that uses JWT tokens for user session management.
+     * 
+     * @return string|null The current user's ID if authenticated, null otherwise
      */
     protected function getCurrentUserId(): ?string {
-        // Placeholder implementation - will be replaced with proper session management
-        return null;
+        try {
+            $currentUser = ServiceLocator::getCurrentUser();
+            return $currentUser ? $currentUser->get('id') : null;
+        } catch (\Exception $e) {
+            $this->logger->debug('Failed to get current user ID for audit fields', [
+                'error' => $e->getMessage(),
+                'model_class' => static::class
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Get the currently authenticated user model instance
+     * 
+     * This method returns the full Users model instance for the currently authenticated user.
+     * The authentication is based on JWT tokens that are validated against the database.
+     * 
+     * @return \Gravitycar\Models\ModelBase|null The current user model if authenticated, null otherwise
+     */
+    public function getCurrentUser(): ?\Gravitycar\Models\ModelBase {
+        try {
+            return ServiceLocator::getCurrentUser();
+        } catch (\Exception $e) {
+            $this->logger->debug('Failed to get current user model', [
+                'error' => $e->getMessage(),
+                'model_class' => static::class
+            ]);
+            return null;
+        }
     }
 
     /**

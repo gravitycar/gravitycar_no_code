@@ -318,6 +318,153 @@ class ApiService {
       return false;
     }
   }
+
+  // Relationship management methods
+  async getRelatedRecords<T>(
+    model: string, 
+    id: string, 
+    relationship: string,
+    options?: { page?: number; limit?: number; search?: string }
+  ): Promise<PaginatedResponse<T>> {
+    try {
+      const params = new URLSearchParams();
+      if (options?.page) params.append('page', options.page.toString());
+      if (options?.limit) params.append('limit', options.limit.toString());
+      if (options?.search) params.append('search', options.search);
+      
+      const response: AxiosResponse<any> = await this.api.get(
+        `/${model}/${id}/relationships/${relationship}?${params}`
+      );
+      
+      const responseData = response.data;
+      
+      // Convert to paginated format if needed
+      if (responseData.pagination) {
+        return responseData as PaginatedResponse<T>;
+      } else {
+        const data = responseData.data || responseData || [];
+        return {
+          success: responseData.success ?? true,
+          data: Array.isArray(data) ? data : [data],
+          pagination: {
+            current_page: 1,
+            total_pages: 1,
+            total_items: Array.isArray(data) ? data.length : 1,
+            per_page: Array.isArray(data) ? data.length : 1
+          },
+          message: responseData.message
+        };
+      }
+    } catch (error) {
+      console.error(`Failed to get related ${relationship} for ${model}:`, error);
+      return {
+        success: false,
+        data: [],
+        pagination: {
+          current_page: 1,
+          total_pages: 1,
+          total_items: 0,
+          per_page: 10
+        },
+        message: `Failed to get related ${relationship}`
+      };
+    }
+  }
+  
+  async assignRelationship(
+    model: string,
+    id: string,
+    relationship: string,
+    targetIds: string[],
+    additionalData?: Record<string, any>
+  ): Promise<ApiResponse<any>> {
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.post(
+        `/${model}/${id}/relationships/${relationship}/assign`,
+        { target_ids: targetIds, additional_data: additionalData }
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to assign ${relationship} relationship for ${model}:`, error);
+      return {
+        success: false,
+        data: null,
+        message: `Failed to assign ${relationship} relationship`
+      };
+    }
+  }
+  
+  async removeRelationship(
+    model: string,
+    id: string,
+    relationship: string,
+    targetIds: string[]
+  ): Promise<ApiResponse<any>> {
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.post(
+        `/${model}/${id}/relationships/${relationship}/remove`,
+        { target_ids: targetIds }
+      );
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to remove ${relationship} relationship for ${model}:`, error);
+      return {
+        success: false,
+        data: null,
+        message: `Failed to remove ${relationship} relationship`
+      };
+    }
+  }
+  
+  async getRelationshipHistory<T>(
+    model: string,
+    id: string,
+    relationship: string,
+    options?: { page?: number; limit?: number }
+  ): Promise<PaginatedResponse<T>> {
+    try {
+      const params = new URLSearchParams();
+      if (options?.page) params.append('page', options.page.toString());
+      if (options?.limit) params.append('limit', options.limit.toString());
+      
+      const response: AxiosResponse<any> = await this.api.get(
+        `/${model}/${id}/relationships/${relationship}/history?${params}`
+      );
+      
+      const responseData = response.data;
+      
+      // Convert to paginated format if needed
+      if (responseData.pagination) {
+        return responseData as PaginatedResponse<T>;
+      } else {
+        const data = responseData.data || [];
+        return {
+          success: responseData.success ?? true,
+          data: data,
+          pagination: {
+            current_page: 1,
+            total_pages: 1,
+            total_items: data.length,
+            per_page: data.length
+          },
+          message: responseData.message
+        };
+      }
+    } catch (error) {
+      console.error(`Failed to get ${relationship} history for ${model}:`, error);
+      return {
+        success: false,
+        data: [],
+        pagination: {
+          current_page: 1,
+          total_pages: 1,
+          total_items: 0,
+          per_page: 10
+        },
+        message: `Failed to get ${relationship} history`
+      };
+    }
+  }
 }
 
 // Export singleton instance

@@ -2,10 +2,11 @@ import * as vscode from 'vscode';
 import { execSync } from 'child_process';
 
 interface TestRunInput {
-    test_type: string;
-    test_path?: string;
-    coverage?: boolean;
-    verbose?: boolean;
+    testType: string;
+    filter?: string;
+    testFile?: string;
+    debug?: boolean;
+    testdox?: boolean;
 }
 
 export class GravitycarTestTool implements vscode.LanguageModelTool<TestRunInput> {
@@ -14,44 +15,95 @@ export class GravitycarTestTool implements vscode.LanguageModelTool<TestRunInput
         options: vscode.LanguageModelToolInvocationOptions<TestRunInput>,
         token: vscode.CancellationToken
     ): Promise<vscode.LanguageModelToolResult> {
+        let command = '';
+        
         try {
-            const { test_type, test_path, coverage, verbose } = options.input as any;
+            const { testType, filter, testFile, debug, testdox } = options.input as any;
             
-            let command = '';
+            // Handle coverage test type 
+            const isCoverage = testType === 'coverage';
             
-            switch (test_type) {
+            console.log(`Running ${testType} tests...`);
+            switch (testType) {
                 case 'unit':
+                case 'coverage':
                     command = 'vendor/bin/phpunit Tests/Unit/';
-                    if (test_path) {
-                        command += test_path;
+                    if (testFile) {
+                        command += testFile;
                     }
-                    if (coverage) {
+                    if (isCoverage) {
                         command += ' --coverage-text';
                     }
-                    if (verbose) {
-                        command += ' --verbose';
+                    if (filter) {
+                        command += ` --filter "${filter}"`;
+                    }
+                    if (debug) {
+                        command += ' --debug';
+                    }
+                    if (testdox) {
+                        command += ' --testdox';
                     }
                     break;
                     
                 case 'integration':
                     command = 'vendor/bin/phpunit Tests/Integration/';
-                    if (test_path) {
-                        command += test_path;
+                    if (testFile) {
+                        command += testFile;
+                    }
+                    if (filter) {
+                        command += ` --filter "${filter}"`;
+                    }
+                    if (debug) {
+                        command += ' --debug';
+                    }
+                    if (testdox) {
+                        command += ' --testdox';
                     }
                     break;
                     
                 case 'feature':
                     command = 'vendor/bin/phpunit Tests/Feature/';
-                    if (test_path) {
-                        command += test_path;
+                    if (testFile) {
+                        command += testFile;
+                    }
+                    if (filter) {
+                        command += ` --filter "${filter}"`;
+                    }
+                    if (debug) {
+                        command += ' --debug';
+                    }
+                    if (testdox) {
+                        command += ' --testdox';
+                    }
+                    break;
+                    
+                case 'specific':
+                    if (!testFile) {
+                        throw new Error('testFile parameter is required for specific test type');
+                    }
+                    command = `vendor/bin/phpunit ${testFile}`;
+                    if (filter) {
+                        command += ` --filter "${filter}"`;
+                    }
+                    if (debug) {
+                        command += ' --debug';
+                    }
+                    if (testdox) {
+                        command += ' --testdox';
                     }
                     break;
                     
                 case 'all':
                 default:
                     command = 'vendor/bin/phpunit';
-                    if (coverage) {
-                        command += ' --coverage-text';
+                    if (filter) {
+                        command += ` --filter "${filter}"`;
+                    }
+                    if (debug) {
+                        command += ' --debug';
+                    }
+                    if (testdox) {
+                        command += ' --testdox';
                     }
                     break;
             }
@@ -60,34 +112,56 @@ export class GravitycarTestTool implements vscode.LanguageModelTool<TestRunInput
             
             // Set up environment for coverage if needed
             const env = { ...process.env };
-            if (coverage) {
+            if (isCoverage) {
                 env.XDEBUG_MODE = 'coverage';
             }
             
-            const output = execSync(command, { 
-                encoding: 'utf8',
-                cwd: '/mnt/g/projects/gravitycar_no_code',
-                timeout: 180000, // 3 minutes for coverage tests (they take longer)
-                maxBuffer: 4 * 1024 * 1024, // 4MB buffer for coverage output
-                env: env
-            });
+            let output = '';
+            let success = false;
+            
+            try {
+                output = execSync(command, { 
+                    encoding: 'utf8',
+                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    timeout: 180000, // 3 minutes for coverage tests (they take longer)
+                    maxBuffer: 4 * 1024 * 1024, // 4MB buffer for coverage output
+                    env: env
+                });
+                success = true;
+            } catch (error: any) {
+                // execSync throws on non-zero exit codes, but we still want the output
+                console.log(`Error occurred while running ${testType} tests: ` + error.message);
+                if (error.stdout) {
+                    output = error.stdout;
+                } else if (error.stderr) {
+                    output = error.stderr;
+                } else {
+                    output = error.message || String(error);
+                }
+                // Check if it's a test failure vs a real error
+                success = !output.includes('FAILURES!') && !output.includes('ERRORS!') && !error.message.includes('Command failed');
+                console.log(`Test ${success ? 'passed' : 'failed'}`);
+            }
             
             const result = {
-                success: !output.includes('FAILURES!') && !output.includes('ERRORS!'),
-                test_type,
+                success,
+                testType,
                 output: output.trim(),
                 command
             };
             
+            console.log("No problems...");
             return new vscode.LanguageModelToolResult([
                 new vscode.LanguageModelTextPart(JSON.stringify(result, null, 2))
             ]);
             
-        } catch (error) {
+        } catch (error: any) {
+            console.log('error occurred while trying to run the command ' + command + ': ' + error.message);
             const errorResult = {
                 success: false,
                 error: error instanceof Error ? error.message : String(error),
-                test_type: options.input.test_type
+                testType: options.input.testType,
+                command: command || 'Command not constructed'
             };
             
             return new vscode.LanguageModelToolResult([

@@ -1,5 +1,31 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { FieldComponentProps } from '../../types';
+
+// Enhanced props interface for relationship management
+interface RelationshipContext {
+  type: 'OneToMany' | 'ManyToMany' | 'OneToOne';
+  parentModel?: string;
+  parentId?: string;
+  relationship?: string;
+  allowCreate?: boolean;
+  autoPopulateFields?: Record<string, any>;
+}
+
+interface EnhancedRelatedRecordProps extends FieldComponentProps {
+  // NEW: Relationship-specific enhancements
+  relationshipContext?: RelationshipContext;
+  
+  // NEW: UI enhancements
+  showPreview?: boolean;        // Show preview card of related record
+  allowDirectEdit?: boolean;    // Edit button next to selection
+  displayTemplate?: string;     // Custom display format template
+  showRelatedCount?: boolean;   // Show count of related items
+  
+  // NEW: Behavior enhancements
+  onRelatedChange?: (relatedRecord: any) => void;
+  preFilterOptions?: (options: any[]) => any[];
+  onCreateNew?: () => void;     // Callback for "Create New" action
+}
 
 /**
  * Enhanced Related record selection component with search functionality
@@ -10,8 +36,11 @@ import type { FieldComponentProps } from '../../types';
  * - Loading states
  * - Clear selection
  * - Focus retention during API updates
+ * - Create new option
+ * - Preview and direct edit capabilities
+ * - Relationship context awareness
  */
-const RelatedRecordSelect: React.FC<FieldComponentProps> = ({
+const RelatedRecordSelect: React.FC<EnhancedRelatedRecordProps> = ({
   value,
   onChange,
   error,
@@ -20,7 +49,16 @@ const RelatedRecordSelect: React.FC<FieldComponentProps> = ({
   required = false,
   fieldMetadata,
   placeholder,
-  label
+  label,
+  // NEW enhanced props
+  relationshipContext,
+  showPreview = false,
+  allowDirectEdit = false,
+  displayTemplate,
+  showRelatedCount = false,
+  onRelatedChange,
+  preFilterOptions,
+  onCreateNew
 }) => {
   const [options, setOptions] = useState<Array<{value: any, label: string}>>([]);
   const [loading, setLoading] = useState(false);
@@ -213,7 +251,22 @@ const RelatedRecordSelect: React.FC<FieldComponentProps> = ({
 
         console.log(`RelatedRecordSelect: Final options:`, recordOptions);
         
-        setOptions(recordOptions);
+        // Apply pre-filter if provided
+        let finalOptions = recordOptions;
+        if (preFilterOptions) {
+          finalOptions = preFilterOptions(recordOptions);
+        }
+        
+        // Add "Create New" option if allowed
+        if (relationshipContext?.allowCreate && !disabled && !readOnly) {
+          finalOptions.unshift({
+            value: '__CREATE_NEW__',
+            label: `+ Create New ${relatedModel}`,
+            isCreateOption: true
+          } as any);
+        }
+        
+        setOptions(finalOptions);
         
         // Restore focus to search input after API update (FOCUS RETENTION FIX)
         // Only restore if dropdown is open (indicates user is actively searching)
@@ -278,13 +331,40 @@ const RelatedRecordSelect: React.FC<FieldComponentProps> = ({
   };
 
   // Handle option selection
-  const handleOptionSelect = (option: {value: any, label: string}) => {
+  const handleOptionSelect = (option: {value: any, label: string, isCreateOption?: boolean}) => {
+    // Handle "Create New" option
+    if (option.isCreateOption && option.value === '__CREATE_NEW__') {
+      handleCreateNew();
+      return;
+    }
+    
     setSelectedOption(option);
     onChange(option.value);
     setIsOpen(false);
     setSearchTerm('');
     setHighlightedIndex(-1);
+    
+    // Trigger related change callback if provided
+    if (onRelatedChange) {
+      // Find the full record data for the selected option
+      const selectedRecord = options.find(opt => opt.value === option.value);
+      if (selectedRecord) {
+        onRelatedChange(selectedRecord);
+      }
+    }
   };
+
+  // Handle create new action
+  const handleCreateNew = useCallback(() => {
+    if (onCreateNew) {
+      onCreateNew();
+    } else {
+      // Default behavior: could open a modal or navigate to create page
+      console.log(`RelatedRecordSelect: Create new ${relatedModel} requested`);
+      // TODO: Implement default create modal or navigation
+    }
+    setIsOpen(false);
+  }, [onCreateNew, relatedModel]);
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -391,21 +471,57 @@ const RelatedRecordSelect: React.FC<FieldComponentProps> = ({
             disabled={disabled || loading}
             required={required}
             className={`
-              flex-1 px-3 py-2 border rounded-l-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+              flex-1 px-3 py-2 border shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+              ${selectedOption && (allowDirectEdit || showPreview) ? 'rounded-l-md' : !selectedOption ? 'rounded-l-md' : 'rounded-md'}
               ${error ? 'border-red-500' : 'border-gray-300'}
               ${disabled || loading ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}
             `}
           />
           
+          {/* Enhanced action buttons when option is selected */}
           {selectedOption && !disabled && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className="px-3 py-2 bg-gray-200 border border-l-0 border-gray-300 rounded-r-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              title="Clear selection"
-            >
-              ✕
-            </button>
+            <div className="flex">
+              {/* Preview button */}
+              {showPreview && (
+                <button
+                  type="button"
+                  onClick={() => {/* TODO: Implement preview modal */}}
+                  className="px-2 py-2 bg-blue-50 border border-l-0 border-gray-300 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  title="Preview record"
+                >
+                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </button>
+              )}
+              
+              {/* Direct edit button */}
+              {allowDirectEdit && (
+                <button
+                  type="button"
+                  onClick={() => {/* TODO: Implement direct edit */}}
+                  className="px-2 py-2 bg-green-50 border border-l-0 border-gray-300 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  title="Edit record"
+                >
+                  <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+              )}
+              
+              {/* Clear button */}
+              <button
+                type="button"
+                onClick={handleClear}
+                className={`px-3 py-2 bg-gray-200 border border-l-0 border-gray-300 hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500
+                  ${(showPreview || allowDirectEdit) ? 'rounded-r-md' : 'rounded-r-md'}
+                `}
+                title="Clear selection"
+              >
+                ✕
+              </button>
+            </div>
           )}
           
           {!selectedOption && (
@@ -438,21 +554,35 @@ const RelatedRecordSelect: React.FC<FieldComponentProps> = ({
               </div>
             )}
             
-            {!loading && options.map((option, index) => (
-              <div
-                key={option.value}
-                onClick={() => handleOptionSelect(option)}
-                className={`px-3 py-2 cursor-pointer ${
-                  index === highlightedIndex
-                    ? 'bg-blue-100 text-blue-900'
-                    : 'hover:bg-gray-100'
-                } ${
-                  option.value === value ? 'bg-blue-50 font-medium' : ''
-                }`}
-              >
-                {option.label}
-              </div>
-            ))}
+            {!loading && options.map((option, index) => {
+              const isCreateOption = (option as any).isCreateOption;
+              return (
+                <div
+                  key={option.value}
+                  onClick={() => handleOptionSelect(option)}
+                  className={`px-3 py-2 cursor-pointer ${
+                    isCreateOption 
+                      ? 'bg-green-50 text-green-800 border-b border-green-200 font-medium hover:bg-green-100' 
+                      : index === highlightedIndex
+                        ? 'bg-blue-100 text-blue-900'
+                        : 'hover:bg-gray-100'
+                  } ${
+                    !isCreateOption && option.value === value ? 'bg-blue-50 font-medium' : ''
+                  }`}
+                >
+                  {isCreateOption ? (
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      {option.label}
+                    </div>
+                  ) : (
+                    option.label
+                  )}
+                </div>
+              );
+            })}
             
             {!loading && searchTerm && options.length > 0 && (
               <div className="px-3 py-1 text-xs text-gray-500 border-t bg-gray-50">

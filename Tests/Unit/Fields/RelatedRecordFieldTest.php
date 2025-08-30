@@ -24,7 +24,7 @@ class RelatedRecordFieldTest extends UnitTestCase
             'type' => 'RelatedRecord',
             'label' => 'User',
             'required' => false,
-            'relatedModelName' => 'User',
+            'relatedModel' => 'User',
             'relatedFieldName' => 'id',
             'displayFieldName' => 'user_name'
         ];
@@ -50,9 +50,9 @@ class RelatedRecordFieldTest extends UnitTestCase
      */
     public function testRequiredMetadata(): void
     {
-        // Test missing relatedModelName
+        // Test missing relatedModel
         $this->expectException(GCException::class);
-        $this->expectExceptionMessage('RelatedRecord field missing required metadata: relatedModelName');
+        $this->expectExceptionMessage('RelatedRecord field missing required metadata: relatedModel');
 
         $invalidMetadata = [
             'name' => 'invalid_field',
@@ -75,7 +75,7 @@ class RelatedRecordFieldTest extends UnitTestCase
         $invalidMetadata = [
             'name' => 'invalid_field',
             'type' => 'RelatedRecord',
-            'relatedModelName' => 'User',
+            'relatedModel' => 'User',
             'displayFieldName' => 'name'
         ];
 
@@ -93,7 +93,7 @@ class RelatedRecordFieldTest extends UnitTestCase
         $invalidMetadata = [
             'name' => 'invalid_field',
             'type' => 'RelatedRecord',
-            'relatedModelName' => 'User',
+            'relatedModel' => 'User',
             'relatedFieldName' => 'id'
         ];
 
@@ -138,7 +138,7 @@ class RelatedRecordFieldTest extends UnitTestCase
      */
     public function testGetRelatedModelInstance(): void
     {
-        // This test will fail in practice due to ServiceLocator dependencies
+        // This test will fail in practice due to ModelFactory dependencies
         // but we can test that the method attempts to create the model
         try {
             $instance = $this->field->getRelatedModelInstance();
@@ -199,7 +199,7 @@ class RelatedRecordFieldTest extends UnitTestCase
         $categoryMetadata = [
             'name' => 'category_id',
             'type' => 'RelatedRecord',
-            'relatedModelName' => 'Category',
+            'relatedModel' => 'Category',
             'relatedFieldName' => 'id',
             'displayFieldName' => 'category_name'
         ];
@@ -212,7 +212,7 @@ class RelatedRecordFieldTest extends UnitTestCase
         $deptMetadata = [
             'name' => 'department_id',
             'type' => 'RelatedRecord',
-            'relatedModelName' => 'Department',
+            'relatedModel' => 'Department',
             'relatedFieldName' => 'dept_id',
             'displayFieldName' => 'dept_display'
         ];
@@ -232,7 +232,7 @@ class RelatedRecordFieldTest extends UnitTestCase
             'name' => 'required_user_id',
             'type' => 'RelatedRecord',
             'required' => true,
-            'relatedModelName' => 'User',
+            'relatedModel' => 'User',
             'relatedFieldName' => 'id',
             'displayFieldName' => 'user_name'
         ];
@@ -250,7 +250,7 @@ class RelatedRecordFieldTest extends UnitTestCase
         $selfRefMetadata = [
             'name' => 'parent_id',
             'type' => 'RelatedRecord',
-            'relatedModelName' => 'Category',
+            'relatedModel' => 'Category',
             'relatedFieldName' => 'id',
             'displayFieldName' => 'parent_name'
         ];
@@ -270,7 +270,7 @@ class RelatedRecordFieldTest extends UnitTestCase
         $invalidMetadata = [
             'name' => 'invalid_field',
             'type' => 'RelatedRecord',
-            'relatedModelName' => '', // Empty string should fail
+            'relatedModel' => '', // Empty string should fail
             'relatedFieldName' => 'id',
             'displayFieldName' => 'name'
         ];

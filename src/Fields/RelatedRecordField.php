@@ -3,6 +3,7 @@ namespace Gravitycar\Fields;
 
 use Gravitycar\Fields\FieldBase;
 use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Exceptions\GCException;
 use Monolog\Logger;
 
@@ -13,13 +14,13 @@ use Monolog\Logger;
 class RelatedRecordField extends FieldBase {
     /** @var array */
     protected array $requiredMetadataFields = [
-        'relatedModelName',
+        'relatedModel',
         'relatedFieldName',
         'displayFieldName'
     ];
 
     /** @var string */
-    protected string $relatedModelName;
+    protected string $relatedModel;
 
     /** @var string */
     protected string $relatedFieldName;
@@ -38,6 +39,13 @@ class RelatedRecordField extends FieldBase {
     public function __construct(array $metadata) {
         parent::__construct($metadata);
         $this->validateRelatedRecordMetadata(empty($metadata));
+        
+        // Initialize properties from metadata if available
+        if (!empty($metadata)) {
+            $this->relatedModel = $metadata['relatedModel'] ?? '';
+            $this->relatedFieldName = $metadata['relatedFieldName'] ?? '';
+            $this->displayFieldName = $metadata['displayFieldName'] ?? '';
+        }
     }
 
     /**
@@ -64,7 +72,7 @@ class RelatedRecordField extends FieldBase {
      * Get the name of the related model class
      */
     public function getRelatedModelName(): string {
-        return $this->relatedModelName;
+        return $this->relatedModel;
     }
 
     /**
@@ -75,19 +83,17 @@ class RelatedRecordField extends FieldBase {
     }
 
     /**
-     * Get an instance of the related model using ServiceLocator
+     * Get an instance of the related model using ModelFactory
      */
     public function getRelatedModelInstance() {
         $modelName = $this->getRelatedModelName();
-        $fullClassName = "Gravitycar\\Models\\{$modelName}";
 
         try {
-            return ServiceLocator::create($fullClassName);
+            return ModelFactory::new($modelName);
         } catch (\Exception $e) {
             throw new GCException("Could not create instance of related model: {$modelName}", [
                 'field_name' => $this->name,
                 'related_model' => $modelName,
-                'full_class_name' => $fullClassName,
                 'error' => $e->getMessage()
             ]);
         }

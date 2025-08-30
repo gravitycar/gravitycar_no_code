@@ -6,31 +6,34 @@ return [
     'fields' => [
         'quote' => [
             'name' => 'quote',
-            'type' => 'BigText',
+            'type' => 'Text',
             'label' => 'Quote',
             'required' => true,
             'validationRules' => ['Required'],
         ],
         'movie_id' => [
             'name' => 'movie_id',
-            'type' => 'ID',
+            'type' => 'RelatedRecord',
             'label' => 'Movie',
             'required' => true,
             'validationRules' => ['Required'],
+            'relatedModel' => 'Movies',
+            'relatedFieldName' => 'id',
+            'displayFieldName' => 'movie_name',
+            'searchable' => true,
         ],
-        'movie' => [
-            'name' => 'movie',
-            'type' => 'Text',
-            'label' => 'Movie Title',
-            'nonDb' => true,
-            'readOnly' => true,
-        ],
-        'movie_poster' => [
-            'name' => 'movie_poster',
-            'type' => 'Text',
-            'label' => 'Movie Poster',
-            'nonDb' => true,
-            'readOnly' => true,
+        'movie_name' => [
+          'name' => 'movie_name',
+          'type' => 'Text',
+          'label' => 'Movie Name',
+          'description' => 'Name of the movie associated with this quote',
+          'required' => false,
+          'readOnly' => true,
+          'isDBField' => false,
+          'nullable' => true,
+          'validationRules' => 
+          array (
+          ),
         ],
         // End of model-specific fields
     ],
@@ -39,7 +42,7 @@ return [
         'movies_movie_quotes',
         ],
     'ui' => [
-        'listFields' => ['quote', 'movie', 'movie_poster'],
+        'listFields' => ['quote', 'movie_name'],
         'createFields' => ['quote', 'movie_id'],
     ],
 ];
