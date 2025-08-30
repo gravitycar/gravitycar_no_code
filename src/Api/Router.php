@@ -4,6 +4,7 @@ namespace Gravitycar\Api;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Exceptions\UnauthorizedException;
 use Gravitycar\Exceptions\ForbiddenException;
+use Gravitycar\Exceptions\NotFoundException;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Services\AuthenticationService;
 use Gravitycar\Services\AuthorizationService;
@@ -57,7 +58,7 @@ class Router {
         
         if (!$bestRoute) {
             $allRoutes = $this->routeRegistry->getRoutes();
-            throw new GCException("No matching route found for $method $path", [
+            throw new NotFoundException("No matching route found for $method $path", [
                 'method' => $method, 
                 'path' => $path, 
                 'available_routes' => array_map(function($route) {

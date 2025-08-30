@@ -50,6 +50,17 @@ class APIPathScorer
                 $i,
                 $pathLength
             );
+            
+            // If any component doesn't match, disqualify the entire route
+            if ($componentScore === 0) {
+                $this->logger->debug("Route disqualified due to component mismatch", [
+                    'position' => $i,
+                    'clientComponent' => $clientPathComponents[$i],
+                    'registeredComponent' => $registeredPathComponents[$i]
+                ]);
+                return 0;
+            }
+            
             $totalScore += $componentScore;
         }
 

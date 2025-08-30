@@ -42,12 +42,12 @@
 - [X] Implement a data transfer object to move data about the request into an API controller.
 - [X] Implement the ModelBaseApiController class so that it covers all the basic CRUD and Relationship operations.
 - [X] Integrate the Apache Web Server with the Gravitycar Framework with an entry point for REST requests.
-- [] Implement a filterCriteria class for processing search criteria from the request.
+- [X] Implement a filterCriteria class for processing search criteria from the request.
 - [] Implement bulk requests.
 - [] Routes seem to be duplicated when they are registered. We need a smarter way to stop that from happening.
 - [X] find every instance of $logger or anything else the ServiceLocator handles and replace it with "$this->logger = ServiceLocator::getLogger();"
 - [] HelpAPIController - a class that returns a description of all of the supported end points, with the parameter names. 
-- [] MetadataAPIController - a class that returns all or some of our metadata for models and relationships.
+- [X] MetadataAPIController - a class that returns all or some of our metadata for models and relationships.
 - [] Create additional GCExcpetion subclasses
     - [X] Subclasses for every 400-500 HTTP error code.
     - [] Sublcasses for database failures.
@@ -58,9 +58,9 @@
 - [] Why is the authentication service generating SQL? That shouldn't be necessary.
 - [] Is the database service the same as the database_connector service?
 - [] Change the wildcards in API Routes from ? to {paramName}, like ['{modelName}', '{id}', '', '{relatinshipName}']. Then we can get rid of the parameterNames and just parse the param names out of the wildcards.
-- [] The /metadata/modules/<model_name> endpoint should fail, but the APIPathScorer doesn't see it that way. It did pick a very close match, which is good, I guess. But the 'modules' part should have produced a 404 error.
+- [X] The /metadata/modules/<model_name> endpoint should fail, but the APIPathScorer doesn't see it that way. It did pick a very close match, which is good, I guess. But the 'modules' part should have produced a 404 error.
 - [] Boolean fields are represented in the database as varchar(255) fields. That's not right. 
-- [] Update the APIRouteScorer class to disqualify any routes where any component doesn't have an exact match or a wildcard match.
+- [X] Update the APIRouteScorer class to disqualify any routes where any component doesn't have an exact match or a wildcard match.
 - [] Test password reset.
 - [] Confirm field validation failures actually result in an exception being thrown before the DBConnector tries to save the record.
 - [X] There is no list of timezones for users and it's a required field. 
