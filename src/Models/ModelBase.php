@@ -78,7 +78,6 @@ abstract class ModelBase {
      */
     protected function loadMetadata(): void {
         $modelName = $this->metadataEngine->resolveModelName(static::class);
-        $this->name = $modelName; // Store the model name
         $this->metadata = $this->metadataEngine->getModelMetadata($modelName);
         $this->validateMetadata($this->metadata);
         $this->metadataLoaded = true;
@@ -1029,7 +1028,7 @@ abstract class ModelBase {
     }
 
     public function getName():string {
-        return $this->name;
+        return $this->metadata['name'] ?? $this->metadataEngine->resolveModelName(static::class);
     }
 
     /**
