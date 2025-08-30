@@ -385,8 +385,12 @@ class ModelBaseAPIController {
         try {
             $model = ModelFactory::new($modelName);
             
-            // Use ModelBase populateFromAPI method
-            $model->populateFromAPI($data);
+            // NEW: Separate relationship fields from regular model fields
+            $relationshipData = $this->extractRelationshipFields($modelName, $data);
+            $modelData = array_diff_key($data, $relationshipData);
+            
+            // Populate regular model fields
+            $model->populateFromAPI($modelData);
             
             // Check for validation errors before attempting to create
             $validationErrors = $model->getValidationErrors();
@@ -394,8 +398,13 @@ class ModelBaseAPIController {
                 throw UnprocessableEntityException::withValidationErrors($validationErrors);
             }
             
-            // Use ModelBase create method
+            // Use ModelBase create method for regular fields
             $success = $model->create();
+            
+            // NEW: Process relationship fields after successful model creation
+            if ($success && !empty($relationshipData)) {
+                $this->processRelationshipFields($model, $relationshipData);
+            }
             
             if (!$success) {
                 throw new InternalServerErrorException('Failed to create record', [
@@ -448,8 +457,12 @@ class ModelBaseAPIController {
         ]);
         
         try {
-            // Use ModelBase populateFromAPI method
-            $model->populateFromAPI($data);
+            // NEW: Separate relationship fields from regular model fields
+            $relationshipData = $this->extractRelationshipFields($modelName, $data);
+            $modelData = array_diff_key($data, $relationshipData);
+            
+            // Populate regular model fields
+            $model->populateFromAPI($modelData);
             
             // Check for validation errors before attempting to update
             $validationErrors = $model->getValidationErrors();
@@ -457,8 +470,13 @@ class ModelBaseAPIController {
                 throw UnprocessableEntityException::withValidationErrors($validationErrors);
             }
             
-            // Use ModelBase update method
+            // Use ModelBase update method for regular fields
             $success = $model->update();
+            
+            // NEW: Process relationship fields after successful model update
+            if ($success && !empty($relationshipData)) {
+                $this->processRelationshipFields($model, $relationshipData);
+            }
             
             if (!$success) {
                 throw new InternalServerErrorException('Failed to update record', [
@@ -1141,5 +1159,166 @@ class ModelBaseAPIController {
         }
         
         return [];
+    }
+
+    /**
+     * Extract relationship fields from request data based on model metadata
+     * 
+     * @param string $modelName The model name
+     * @param array $data The request data
+     * @return array Relationship field data
+     */
+    protected function extractRelationshipFields(string $modelName, array $data): array {
+        try {
+            // Get model metadata to identify relationship fields
+            $metadataEngine = ServiceLocator::getMetadataEngine();
+            $metadata = $metadataEngine->getModelMetadata($modelName);
+            
+            $relationshipData = [];
+            $relationshipFields = $metadata['ui']['relationshipFields'] ?? [];
+            
+            foreach ($relationshipFields as $fieldName => $fieldConfig) {
+                if (isset($data[$fieldName])) {
+                    $relationshipData[$fieldName] = [
+                        'value' => $data[$fieldName],
+                        'config' => $fieldConfig
+                    ];
+                }
+            }
+            
+            $this->logger->debug('Extracted relationship fields', [
+                'model' => $modelName,
+                'relationshipFields' => array_keys($relationshipData),
+                'data' => $relationshipData
+            ]);
+            
+            return $relationshipData;
+            
+        } catch (\Exception $e) {
+            $this->logger->warning('Failed to extract relationship fields', [
+                'model' => $modelName,
+                'error' => $e->getMessage()
+            ]);
+            return [];
+        }
+    }
+
+    /**
+     * Process relationship field updates using ModelBase relationship methods
+     * 
+     * @param ModelBase $model The model instance
+     * @param array $relationshipData The relationship data to process
+     * @return void
+     */
+    protected function processRelationshipFields(ModelBase $model, array $relationshipData): void {
+        $modelName = $model->getName();
+        
+        foreach ($relationshipData as $fieldName => $fieldData) {
+            $value = $fieldData['value'];
+            $config = $fieldData['config'];
+            $relationshipName = $config['relationship'];
+            
+            $this->logger->info('Processing relationship field', [
+                'model' => $modelName,
+                'field' => $fieldName,
+                'relationship' => $relationshipName,
+                'value' => $value,
+                'mode' => $config['mode']
+            ]);
+            
+            try {
+                if ($config['mode'] === 'parent_selection') {
+                    // This is a child model selecting its parent (e.g., Movie_Quote selecting Movie)
+                    $this->processParentSelection($model, $relationshipName, $value, $config);
+                } elseif ($config['mode'] === 'children_management') {
+                    // This is a parent model managing its children (e.g., Movie managing Quotes)
+                    $this->processChildrenManagement($model, $relationshipName, $value, $config);
+                }
+                
+            } catch (\Exception $e) {
+                $this->logger->error('Failed to process relationship field', [
+                    'model' => $modelName,
+                    'field' => $fieldName,
+                    'relationship' => $relationshipName,
+                    'error' => $e->getMessage()
+                ]);
+                // Don't throw - continue processing other relationships
+            }
+        }
+    }
+
+    /**
+     * Process parent selection relationship (child selecting parent)
+     * Example: Movie_Quote selecting which Movie it belongs to
+     * 
+     * @param ModelBase $childModel The child model instance
+     * @param string $relationshipName The relationship name
+     * @param string $parentId The parent model ID
+     * @param array $config The relationship field configuration
+     * @return void
+     */
+    protected function processParentSelection(ModelBase $childModel, string $relationshipName, string $parentId, array $config): void {
+        if (empty($parentId)) {
+            $this->logger->info('Empty parent ID, skipping relationship processing');
+            return;
+        }
+        
+        // Get the parent model
+        $parentModelName = $config['relatedModel'];
+        $parentModel = ModelFactory::retrieve($parentModelName, $parentId);
+        
+        if (!$parentModel) {
+            throw new NotFoundException("Parent {$parentModelName} with ID {$parentId} not found");
+        }
+        
+        // Remove any existing relationships for this child
+        $existingRelations = $childModel->getRelated($relationshipName);
+        foreach ($existingRelations as $existingRelation) {
+            // Create parent model instance to remove relationship
+            $existingParent = ModelFactory::retrieve($parentModelName, $existingRelation['one_' . strtolower($parentModelName) . '_id']);
+            if ($existingParent) {
+                $childModel->removeRelation($relationshipName, $existingParent);
+                $this->logger->debug('Removed existing relationship', [
+                    'child' => $childModel->getName(),
+                    'childId' => $childModel->get('id'),
+                    'parent' => $parentModelName,
+                    'parentId' => $existingRelation['one_' . strtolower($parentModelName) . '_id']
+                ]);
+            }
+        }
+        
+        // Add the new relationship
+        $success = $childModel->addRelation($relationshipName, $parentModel);
+        
+        if ($success) {
+            $this->logger->info('Relationship created successfully', [
+                'child' => $childModel->getName(),
+                'childId' => $childModel->get('id'),
+                'parent' => $parentModelName,
+                'parentId' => $parentId,
+                'relationship' => $relationshipName
+            ]);
+        } else {
+            throw new InternalServerErrorException('Failed to create relationship');
+        }
+    }
+
+    /**
+     * Process children management relationship (parent managing children)
+     * Example: Movie managing its Quotes
+     * 
+     * @param ModelBase $parentModel The parent model instance
+     * @param string $relationshipName The relationship name
+     * @param array $childrenData The children data
+     * @param array $config The relationship field configuration
+     * @return void
+     */
+    protected function processChildrenManagement(ModelBase $parentModel, string $relationshipName, array $childrenData, array $config): void {
+        // This would be used for managing multiple children from the parent view
+        // For now, we'll focus on the parent_selection case which is what Movie_Quotes needs
+        $this->logger->info('Children management not yet implemented', [
+            'parent' => $parentModel->getName(),
+            'relationship' => $relationshipName
+        ]);
     }
 }
