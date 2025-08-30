@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useModelMetadata } from '../../hooks/useModelMetadata';
 import FieldComponent from '../fields/FieldComponent';
+import RelatedRecordSelect from '../fields/RelatedRecordSelect';
 import type { FieldMetadata } from '../../types';
 import { apiService } from '../../services/api';
 import { ApiError } from '../../utils/errors';
@@ -252,6 +253,44 @@ const ModelForm: React.FC<ModelFormProps> = ({
     );
   };
 
+  // NEW: Render relationship fields based on metadata
+  const renderRelationshipField = (fieldName: string, relationshipField: any) => {
+    return (
+      <div key={`relationship-${fieldName}`} className="mb-4">
+        <RelatedRecordSelect
+          value={formData[fieldName] || ''}
+          onChange={(value) => handleFieldChange(fieldName, value)}
+          error={validationErrors[fieldName]}
+          disabled={disabled || isSubmitting}
+          required={relationshipField.required}
+          fieldMetadata={{
+            name: fieldName,
+            label: relationshipField.label,
+            required: relationshipField.required,
+            related_model: relationshipField.relatedModel,
+            display_field: relationshipField.displayField,
+            type: 'RelatedRecord',
+            react_component: 'RelatedRecordSelect',
+          }}
+          placeholder={`Search for ${relationshipField.label?.toLowerCase()}...`}
+          relationshipContext={{
+            type: relationshipField.mode === 'parent_selection' ? 'OneToMany' : 'ManyToMany',
+            parentModel: modelName,
+            parentId: recordId,
+            relationship: relationshipField.relationship,
+            allowCreate: relationshipField.allowCreate || false,
+          }}
+          allowDirectEdit={true}
+          showPreview={true}
+          onCreateNew={() => {
+            console.log(`Create new ${relationshipField.relatedModel} requested`);
+            // TODO: Implement GenericCreateModal
+          }}
+        />
+      </div>
+    );
+  };
+
   return (
     <div className="w-full">
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -263,7 +302,7 @@ const ModelForm: React.FC<ModelFormProps> = ({
           )}
 
           <div className="space-y-4">
-            {/* Render fields based on UI metadata createFields order */}
+            {/* Render regular fields based on UI metadata createFields order */}
             {metadata.ui?.createFields?.map(fieldName => {
               const field = metadata.fields[fieldName];
               if (!field) {
@@ -275,6 +314,11 @@ const ModelForm: React.FC<ModelFormProps> = ({
             /* Fallback to all fields if no UI metadata */
             Object.entries(metadata.fields).map(([fieldName, field]) => 
               renderField(fieldName, field)
+            )}
+
+            {/* NEW: Render relationship fields */}
+            {metadata.ui?.relationshipFields && Object.entries(metadata.ui.relationshipFields).map(([fieldName, relationshipField]) => 
+              renderRelationshipField(fieldName, relationshipField)
             )}
           </div>
 

@@ -11,39 +11,32 @@ return [
             'required' => true,
             'validationRules' => ['Required'],
         ],
-        'movie_id' => [
-            'name' => 'movie_id',
-            'type' => 'RelatedRecord',
-            'label' => 'Movie',
-            'required' => true,
-            'validationRules' => ['Required'],
-            'relatedModel' => 'Movies',
-            'relatedFieldName' => 'id',
-            'displayFieldName' => 'movie_name',
-            'searchable' => true,
-        ],
-        'movie_name' => [
-          'name' => 'movie_name',
-          'type' => 'Text',
-          'label' => 'Movie Name',
-          'description' => 'Name of the movie associated with this quote',
-          'required' => false,
-          'readOnly' => true,
-          'isDBField' => false,
-          'nullable' => true,
-          'validationRules' => 
-          array (
-          ),
-        ],
+        // ❌ REMOVED: movie_id field (now handled through relationships)
+        // ❌ REMOVED: movie_name field (now handled through relationships)
         // End of model-specific fields
     ],
     'validationRules' => [],
     'relationships' => [
         'movies_movie_quotes',
-        ],
+    ],
     'ui' => [
-        'listFields' => ['quote', 'movie_name'],
-        'createFields' => ['quote', 'movie_id'],
+        'listFields' => ['quote'],
+        'createFields' => ['quote'],
+        'editFields' => ['quote'],
+        // NEW: Relationship-driven UI configuration
+        'relationshipFields' => [
+            'movie_selection' => [
+                'type' => 'RelationshipSelector',
+                'relationship' => 'movies_movie_quotes',
+                'mode' => 'parent_selection',  // This quote belongs to one movie
+                'required' => true,
+                'label' => 'Movie',
+                'relatedModel' => 'Movies',
+                'displayField' => 'name',
+                'allowCreate' => true,
+                'searchable' => true,
+            ]
+        ],
     ],
 ];
 

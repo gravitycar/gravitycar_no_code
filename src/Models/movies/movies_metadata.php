@@ -36,6 +36,22 @@ return [
     'ui' => [
         'listFields' => ['name'],
         'createFields' => ['name', 'poster', 'synopsis'],
+        'editFields' => ['name', 'poster', 'synopsis'],
+        // NEW: Define how related items appear in the detail/edit view
+        'relatedItemsSections' => [
+            'quotes' => [
+                'title' => 'Movie Quotes',
+                'relationship' => 'movies_movie_quotes',
+                'mode' => 'children_management',  // This movie has many quotes
+                'relatedModel' => 'Movie_Quotes',
+                'displayColumns' => ['quote'],
+                'actions' => ['create', 'edit', 'delete'],
+                'allowInlineCreate' => true,
+                'allowInlineEdit' => true,
+                'createFields' => ['quote'],
+                'editFields' => ['quote'],
+            ]
+        ],
     ],
 ];
 

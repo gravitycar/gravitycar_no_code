@@ -137,6 +137,38 @@ export interface ModelMetadata {
 export interface UIMetadata {
   listFields: string[]; // Fields to display in list/table view, in order
   createFields: string[]; // Fields to show in create/edit forms, in order
+  editFields?: string[]; // Fields to show in edit forms (optional, defaults to createFields)
+  // NEW: Relationship field configurations
+  relationshipFields?: Record<string, RelationshipFieldMetadata>;
+  // NEW: Related items sections for detail/edit views
+  relatedItemsSections?: Record<string, RelatedItemsSectionMetadata>;
+}
+
+// NEW: Relationship field metadata for form rendering
+export interface RelationshipFieldMetadata {
+  type: 'RelationshipSelector';
+  relationship: string;
+  mode: 'parent_selection' | 'children_management';
+  required: boolean;
+  label: string;
+  relatedModel: string;
+  displayField: string;
+  allowCreate?: boolean;
+  searchable?: boolean;
+}
+
+// NEW: Related items section metadata for detail views
+export interface RelatedItemsSectionMetadata {
+  title: string;
+  relationship: string;
+  mode: 'children_management';
+  relatedModel: string;
+  displayColumns: string[];
+  actions: string[]; // ['create', 'edit', 'delete']
+  allowInlineCreate?: boolean;
+  allowInlineEdit?: boolean;
+  createFields: string[];
+  editFields: string[];
 }
 
 export interface FieldMetadata {
