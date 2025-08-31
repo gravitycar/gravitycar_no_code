@@ -197,6 +197,15 @@ const ModelForm: React.FC<ModelFormProps> = ({
     }
   };
 
+  // Debug logging for relationship fields
+  console.log(`📊 ModelForm for ${modelName}:`, {
+    hasMetadata: !!metadata,
+    relationshipFields: metadata?.ui?.relationshipFields,
+    loading,
+    error,
+    formData
+  });
+
   if (loading || loadingRecord) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -255,6 +264,7 @@ const ModelForm: React.FC<ModelFormProps> = ({
 
   // NEW: Render relationship fields based on metadata
   const renderRelationshipField = (fieldName: string, relationshipField: any) => {
+    console.log(`🔗 Rendering relationship field: ${fieldName}`, relationshipField);
     return (
       <div key={`relationship-${fieldName}`} className="mb-4">
         <RelatedRecordSelect

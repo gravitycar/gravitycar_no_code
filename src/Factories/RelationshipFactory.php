@@ -55,8 +55,8 @@ class RelationshipFactory {
                 ]);
             }
 
-            // Create relationship instance with Logger (MetadataEngine loading pattern)
-            $relationship = new $className($this->logger);
+            // Create relationship instance with relationship name parameter
+            $relationship = new $className($relationshipName);
 
             // Register the relationship
             $this->registerRelationship($relationship, $metadata);

@@ -262,7 +262,7 @@ class ModelBaseAPIController {
                 'id' => $id
             ]);
             
-            return ['data' => $model->toArray()];
+            return ['data' => $model->toArrayWithRelationships()];
             
         } catch (NotFoundException $e) {
             throw $e; // Re-throw NotFoundException as-is
@@ -389,6 +389,15 @@ class ModelBaseAPIController {
             $relationshipData = $this->extractRelationshipFields($modelName, $data);
             $modelData = array_diff_key($data, $relationshipData);
             
+            // DEBUG: Log what we found
+            $this->logger->info('DEBUG: Relationship processing', [
+                'model' => $modelName,
+                'original_data' => $data,
+                'relationship_data' => $relationshipData,
+                'model_data' => $modelData,
+                'has_relationships' => !empty($relationshipData)
+            ]);
+            
             // Populate regular model fields
             $model->populateFromAPI($modelData);
             
@@ -418,7 +427,7 @@ class ModelBaseAPIController {
                 'id' => $model->get('id')
             ]);
             
-            return ['data' => $model->toArray(), 'message' => 'Record created successfully'];
+            return ['data' => $model->toArrayWithRelationships(), 'message' => 'Record created successfully'];
             
         } catch (APIException $e) {
             throw $e; // Re-throw API exceptions as-is
@@ -491,7 +500,7 @@ class ModelBaseAPIController {
                 'id' => $id
             ]);
             
-            return ['data' => $model->toArray(), 'message' => 'Record updated successfully'];
+            return ['data' => $model->toArrayWithRelationships(), 'message' => 'Record updated successfully'];
             
         } catch (APIException $e) {
             throw $e; // Re-throw API exceptions as-is
@@ -601,7 +610,7 @@ class ModelBaseAPIController {
                 'id' => $id
             ]);
             
-            return ['data' => $model->toArray(), 'message' => 'Record restored successfully'];
+            return ['data' => $model->toArrayWithRelationships(), 'message' => 'Record restored successfully'];
             
         } catch (GCException $e) {
             throw $e; // Re-throw GCExceptions as-is

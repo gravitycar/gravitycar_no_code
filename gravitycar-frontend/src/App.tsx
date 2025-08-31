@@ -10,6 +10,7 @@ import TestRelatedRecord from './pages/TestRelatedRecord';
 import UsersPage from './pages/UsersPage';
 import MoviesPage from './pages/MoviesPage';
 import MovieQuotesPage from './pages/MovieQuotesPage';
+import MoviesQuotesRelationshipDemo from './pages/MoviesQuotesRelationshipDemo';
 import './App.css';
 
 // Protected Route Component
@@ -119,6 +120,17 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <Layout>
               <MovieQuotesPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/movies-quotes-demo"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <MoviesQuotesRelationshipDemo />
             </Layout>
           </ProtectedRoute>
         }

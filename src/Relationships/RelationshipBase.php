@@ -22,6 +22,7 @@ abstract class RelationshipBase extends ModelBase {
     const CASCADE_SET_DEFAULT = 'setDefault';
 
     protected ?string $tableName = null;
+    protected ?string $relationshipName = null;
     protected CoreFieldsMetadata $coreFieldsMetadata;
     protected MetadataEngine $metadataEngine;
     protected bool $metadataFromEngine = false;
@@ -29,7 +30,8 @@ abstract class RelationshipBase extends ModelBase {
     /**
      * Constructor - uses ServiceLocator for dependencies
      */
-    public function __construct() {
+    public function __construct(?string $relationshipName = null) {
+        $this->relationshipName = $relationshipName;
         $this->logger = ServiceLocator::getLogger();
         $this->coreFieldsMetadata = ServiceLocator::getCoreFieldsMetadata();
         $this->metadataEngine = ServiceLocator::getMetadataEngine();
@@ -43,14 +45,17 @@ abstract class RelationshipBase extends ModelBase {
      */
     protected function loadMetadata(): void {
         if ($this->metadataFromEngine) {
-            // Load relationship metadata using MetadataEngine
-            $relationshipName = $this->getRelationshipNameFromClass();
+            // Use the relationship name passed to constructor, fallback to class-based name
+            $relationshipName = $this->relationshipName ?? $this->getRelationshipNameFromClass();
             $this->metadata = $this->metadataEngine->getRelationshipMetadata($relationshipName);
         }
         // For backward compatibility, metadata is already set in constructor for array-based approach
         
         $this->validateMetadata($this->metadata);
         $this->metadataLoaded = true;
+        
+        // Call ingestMetadata to generate table name and process fields
+        $this->ingestMetadata();
     }
 
     /**
@@ -666,23 +671,22 @@ abstract class RelationshipBase extends ModelBase {
                 return false;
             }
 
-            // Create a relationship instance from the found record and populate it
-            $relationshipInstance = new static($this->metadata, $this->logger, $this->coreFieldsMetadata);
-            $relationshipInstance->populateFromRow($results[0]);
+            // Populate this relationship instance with the found record data
+            $this->populateFromRow($results[0]);
 
             // Set soft delete fields
             $currentUserId = $this->getCurrentUserId();
             $currentTimestamp = date('Y-m-d H:i:s');
 
-            if ($relationshipInstance->hasField('deleted_at')) {
-                $relationshipInstance->set('deleted_at', $currentTimestamp);
+            if ($this->hasField('deleted_at')) {
+                $this->set('deleted_at', $currentTimestamp);
             }
-            if ($relationshipInstance->hasField('deleted_by') && $currentUserId) {
-                $relationshipInstance->set('deleted_by', $currentUserId);
+            if ($this->hasField('deleted_by') && $currentUserId) {
+                $this->set('deleted_by', $currentUserId);
             }
 
             // Update the relationship record using DatabaseConnector
-            $success = $dbConnector->update($relationshipInstance);
+            $success = $dbConnector->update($this);
 
             if ($success) {
                 $this->logger->info('{type} relationship soft deleted successfully', [

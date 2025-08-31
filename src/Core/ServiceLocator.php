@@ -20,6 +20,7 @@ use Gravitycar\Models\Users;
  */
 class ServiceLocator {
     private static ?Container $container = null;
+    private static ?\Gravitycar\Models\ModelBase $cachedCurrentUser = null;
 
     /**
      * Get the DI container
@@ -222,8 +223,15 @@ class ServiceLocator {
      * This method first tries to get the authenticated user via JWT token.
      * If no authenticated user is found, it returns the guest user instead.
      * This ensures that there is always a user context available for audit trails.
+     * 
+     * The user instance is cached in memory after the first retrieval to improve performance.
      */
     public static function getCurrentUser(): ?\Gravitycar\Models\ModelBase {
+        // Return cached user if already retrieved
+        if (self::$cachedCurrentUser !== null) {
+            return self::$cachedCurrentUser;
+        }
+        
         try {
             $token = self::getAuthTokenFromRequest();
             
@@ -232,14 +240,20 @@ class ServiceLocator {
                 $authenticatedUser = $authService->validateJwtToken($token);
                 
                 if ($authenticatedUser) {
-                    return $authenticatedUser;
+                    // Cache the authenticated user
+                    self::$cachedCurrentUser = $authenticatedUser;
+                    return self::$cachedCurrentUser;
                 }
             }
             
             // No authenticated user found, fall back to guest user
             try {
                 $guestManager = new \Gravitycar\Utils\GuestUserManager();
-                return $guestManager->getGuestUser();
+                $guestUser = $guestManager->getGuestUser();
+                
+                // Cache the guest user
+                self::$cachedCurrentUser = $guestUser;
+                return self::$cachedCurrentUser;
             } catch (Exception $e) {
                 self::getLogger()->error('Failed to get guest user fallback: ' . $e->getMessage());
                 return null;
@@ -249,6 +263,16 @@ class ServiceLocator {
             self::getLogger()->debug('Unable to get current user: ' . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * Clear the cached current user
+     * 
+     * This method should be called when the user session changes (login, logout, etc.)
+     * to ensure the cache is refreshed on the next getCurrentUser() call.
+     */
+    public static function clearCurrentUserCache(): void {
+        self::$cachedCurrentUser = null;
     }
 
     /**

@@ -195,7 +195,7 @@ abstract class ModelBase {
         // Create RelationshipFactory instance using DI system
         $relationshipFactory = ServiceLocator::createRelationshipFactory($this);
 
-        foreach ($this->metadata['relationships'] as $relName => $relConfig) {
+        foreach ($this->metadata['relationships'] as $relName) {
             try {
                 // Use RelationshipFactory to create relationship with validation
                 $relationship = $relationshipFactory->createRelationship($relName);
@@ -403,6 +403,124 @@ abstract class ModelBase {
             $data[$fieldName] = $field->getValue();
         }
         return $data;
+    }
+
+    /**
+     * Convert model to array representation including relationship field values
+     * 
+     * @return array Associative array of field names and values plus relationship field values
+     */
+    public function toArrayWithRelationships(): array {
+        // Start with regular field data
+        $data = $this->toArray();
+        
+        // Add relationship field values
+        $relationshipData = $this->getRelationshipFieldValues();
+        
+        return array_merge($data, $relationshipData);
+    }
+
+    /**
+     * Get current values for all relationship fields defined in metadata
+     * 
+     * @return array Associative array of relationship field names and their current values
+     */
+    public function getRelationshipFieldValues(): array {
+        $relationshipData = [];
+        
+        try {
+            // Get relationship fields from UI metadata
+            $relationshipFields = $this->metadata['ui']['relationshipFields'] ?? [];
+            
+            if (empty($relationshipFields)) {
+                return $relationshipData;
+            }
+            
+            // Initialize relationships if not already done
+            $this->getRelationships();
+            
+            foreach ($relationshipFields as $fieldName => $fieldConfig) {
+                $relationshipName = $fieldConfig['relationship'] ?? null;
+                $mode = $fieldConfig['mode'] ?? 'parent_selection';
+                
+                if (!$relationshipName || !isset($this->relationships[$relationshipName])) {
+                    continue;
+                }
+                
+                $relationship = $this->relationships[$relationshipName];
+                $currentValue = $this->getCurrentRelationshipValue($relationship, $mode, $fieldConfig);
+                
+                if ($currentValue !== null) {
+                    $relationshipData[$fieldName] = $currentValue;
+                }
+            }
+            
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to get relationship field values', [
+                'model' => get_class($this),
+                'model_id' => $this->get('id'),
+                'error' => $e->getMessage()
+            ]);
+            // Don't throw - just return empty array to avoid breaking API responses
+        }
+        
+        return $relationshipData;
+    }
+
+    /**
+     * Get the current value for a specific relationship field
+     * 
+     * @param RelationshipBase $relationship The relationship instance
+     * @param string $mode The relationship mode (parent_selection, child_selection, etc.)
+     * @param array $fieldConfig The field configuration from metadata
+     * @return string|null The current relationship value (typically a UUID)
+     */
+    protected function getCurrentRelationshipValue(RelationshipBase $relationship, string $mode, array $fieldConfig): ?string {
+        try {
+            // Get related records for this model
+            $relatedRecords = $relationship->getRelatedRecords($this);
+            
+            if (empty($relatedRecords)) {
+                return null;
+            }
+            
+            // For parent_selection mode, we expect one related record and want the parent model ID
+            if ($mode === 'parent_selection') {
+                $firstRecord = $relatedRecords[0];
+                
+                // Determine which field contains the parent model ID
+                $relatedModel = $fieldConfig['relatedModel'] ?? null;
+                if (!$relatedModel) {
+                    return null;
+                }
+                
+                // Get the field name for the related model in the relationship table
+                $relatedModelLower = strtolower($relatedModel);
+                
+                // For OneToMany relationships, the parent is typically the "one" side
+                $relationshipType = $relationship->getType();
+                if ($relationshipType === 'OneToMany') {
+                    $fieldName = 'one_' . $relatedModelLower . '_id';
+                } else {
+                    $fieldName = $relatedModelLower . '_id';
+                }
+                
+                return $firstRecord[$fieldName] ?? null;
+            }
+            
+            // For other modes, implement as needed
+            return null;
+            
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to get current relationship value', [
+                'model' => get_class($this),
+                'model_id' => $this->get('id'),
+                'relationship' => $relationship->getName(),
+                'mode' => $mode,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
     }
 
     /**
