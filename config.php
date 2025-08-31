@@ -94,6 +94,14 @@ return [
         'metadata_file' => 'cache/metadata_cache.php'
     ],
     
+    // TMDB API Configuration
+    'tmdb' => [
+        'api_key' => $_ENV['TMDB_API_KEY'] ?? null,
+        'read_access_token' => $_ENV['TMDB_API_READ_ACCESS_TOKEN'] ?? null,
+        'base_url' => 'https://api.themoviedb.org/3',
+        'image_base_url' => 'https://image.tmdb.org/t/p'
+    ],
+
     // Google OAuth Configuration
     'google' => [
         'client_id' => $_ENV['GOOGLE_CLIENT_ID'] ?? 'test-client-id',

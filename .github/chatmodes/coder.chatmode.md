@@ -1,6 +1,6 @@
 ---
 description: 'Implementing code from implementation plans or prompts'
-tools: ['extensions', 'codebase', 'usages', 'problems', 'changes', 'testFailure', 'terminalSelection', 'terminalLastCommand', 'findTestFiles', 'searchResults', 'runCommands', 'editFiles', 'search',  'gravitycar-api', 'gravitycar-test', 'gravitycar-server']
+tools: ['extensions', 'codebase', 'usages', 'problems', 'changes', 'testFailure', 'terminalSelection', 'terminalLastCommand', 'findTestFiles', 'searchResults', 'runCommands', 'editFiles', 'search',  'gravitycar-api', 'gravitycar-test', 'gravitycar-server', 'devdb', 'run_query']
 ---
 
 # Coding Chat Mode
@@ -30,6 +30,8 @@ When writing php code, there are several best practices you should follow whenev
 
 ## When you write test scripts
 - **Use the tmp directory**: The project should include a tmp/ directory. Create it if you don't find it. Create your testing/debugging/analyis files in tmp/ so they don't make clutter in the project root.
+- **Use the correct db credentials**: the DB credentials are in config.php. This application uses mysql. 
+- **Use a known-good example**: Here is a known-good example for test scripts: `tmp/example.php`.
 
 ## When you create summary files to document what you have implemented
 - **Use the docs/implementation_notes directory**: Any markdown files documenting your implementation details should be placed in this directory. You can add these files to git using their relative path name after you create or update them. 
