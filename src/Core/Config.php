@@ -13,13 +13,51 @@ class Config {
     /** @var array */
     protected array $env = [];
     /** @var string */
-    protected string $configFilePath = 'config.php';
+    protected string $configFilePath;
     /** @var string */
-    protected string $envFilePath = '.env';
+    protected string $envFilePath;
 
     public function __construct() {
+        // Find the project root directory (where config.php should be)
+        $this->configFilePath = $this->findProjectFile('config.php');
+        $this->envFilePath = $this->findProjectFile('.env');
+        
         $this->loadEnv();
         $this->loadConfig();
+    }
+
+    /**
+     * Find a file in the project root directory by traversing up from current directory
+     */
+    protected function findProjectFile(string $filename): string {
+        $currentDir = getcwd();
+        $maxLevels = 10; // Prevent infinite loops
+        
+        for ($i = 0; $i < $maxLevels; $i++) {
+            $filePath = $currentDir . DIRECTORY_SEPARATOR . $filename;
+            if (file_exists($filePath)) {
+                return $filePath;
+            }
+            
+            // Check if we can find composer.json or vendor directory as indicators of project root
+            $composerPath = $currentDir . DIRECTORY_SEPARATOR . 'composer.json';
+            $vendorPath = $currentDir . DIRECTORY_SEPARATOR . 'vendor';
+            if (file_exists($composerPath) || is_dir($vendorPath)) {
+                // We're in the project root, but the file doesn't exist here
+                return $currentDir . DIRECTORY_SEPARATOR . $filename;
+            }
+            
+            // Move up one directory
+            $parentDir = dirname($currentDir);
+            if ($parentDir === $currentDir) {
+                // We've reached the filesystem root
+                break;
+            }
+            $currentDir = $parentDir;
+        }
+        
+        // Fallback to relative path if not found
+        return $filename;
     }
 
     /**
