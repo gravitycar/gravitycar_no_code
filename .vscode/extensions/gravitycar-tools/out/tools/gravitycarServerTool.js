@@ -36,7 +36,22 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.GravitycarServerTool = void 0;
 const vscode = __importStar(require("vscode"));
 const child_process_1 = require("child_process");
+const path = __importStar(require("path"));
 class GravitycarServerTool {
+    /**
+     * Get the current workspace root path dynamically
+     */
+    getWorkspaceRoot() {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            return workspaceFolders[0].uri.fsPath;
+        }
+        // Fallback: if no workspace folders, try to determine from this extension's location
+        // This extension is in .vscode/extensions/gravitycar-tools, so go up 3 levels
+        const extensionPath = __dirname;
+        const projectRoot = path.resolve(extensionPath, '../../../../..');
+        return projectRoot;
+    }
     /**
      * Check if the frontend server is running on por                            }, null, 2))
                         ]);
@@ -50,7 +65,7 @@ class GravitycarServerTool {
         try {
             const processes = (0, child_process_1.execSync)('lsof -Pi :3000 -sTCP:LISTEN', {
                 encoding: 'utf8',
-                cwd: '/mnt/g/projects/gravitycar_no_code'
+                cwd: this.getWorkspaceRoot()
             }).trim();
             return { isRunning: true, processes };
         }
@@ -65,7 +80,7 @@ class GravitycarServerTool {
         try {
             const httpCode = (0, child_process_1.execSync)('curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 5 http://localhost:3000', {
                 encoding: 'utf8',
-                cwd: '/mnt/g/projects/gravitycar_no_code',
+                cwd: this.getWorkspaceRoot(),
                 timeout: 8000 // 8 second timeout for the entire operation
             }).trim();
             return { isResponding: httpCode === '200', httpCode };
@@ -90,7 +105,7 @@ class GravitycarServerTool {
             // Wait 1 second between attempts (except on the last attempt)
             if (attempt < maxAttempts) {
                 try {
-                    (0, child_process_1.execSync)('sleep 1', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+                    (0, child_process_1.execSync)('sleep 1', { cwd: this.getWorkspaceRoot() });
                 }
                 catch (e) {
                     // Ignore sleep errors
@@ -109,7 +124,7 @@ class GravitycarServerTool {
             try {
                 (0, child_process_1.execSync)('lsof -ti:3000 | xargs kill -TERM 2>/dev/null || true', {
                     encoding: 'utf8',
-                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    cwd: this.getWorkspaceRoot(),
                     timeout: 5000
                 });
             }
@@ -117,12 +132,12 @@ class GravitycarServerTool {
                 // Ignore errors for graceful termination
             }
             // Step 2: Wait for graceful shutdown
-            (0, child_process_1.execSync)('sleep 2', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+            (0, child_process_1.execSync)('sleep 2', { cwd: this.getWorkspaceRoot() });
             // Step 3: Force kill if still running
             try {
                 (0, child_process_1.execSync)('lsof -ti:3000 | xargs kill -9 2>/dev/null || true', {
                     encoding: 'utf8',
-                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    cwd: this.getWorkspaceRoot(),
                     timeout: 5000
                 });
             }
@@ -133,12 +148,12 @@ class GravitycarServerTool {
             try {
                 (0, child_process_1.execSync)('pkill -f "vite" 2>/dev/null || true', {
                     encoding: 'utf8',
-                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    cwd: this.getWorkspaceRoot(),
                     timeout: 5000
                 });
                 (0, child_process_1.execSync)('pkill -f "npm run dev" 2>/dev/null || true', {
                     encoding: 'utf8',
-                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    cwd: this.getWorkspaceRoot(),
                     timeout: 5000
                 });
             }
@@ -158,23 +173,23 @@ class GravitycarServerTool {
         try {
             (0, child_process_1.execSync)('cd gravitycar-frontend && nohup npm run dev > ../logs/frontend.log 2>&1 &', {
                 encoding: 'utf8',
-                cwd: '/mnt/g/projects/gravitycar_no_code'
+                cwd: this.getWorkspaceRoot()
             });
             // Wait longer for startup and verify multiple times
             let attempts = 0;
             const maxAttempts = 10; // 10 seconds total wait time
             while (attempts < maxAttempts) {
-                (0, child_process_1.execSync)('sleep 1', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+                (0, child_process_1.execSync)('sleep 1', { cwd: this.getWorkspaceRoot() });
                 attempts++;
                 const status = this.checkFrontendStatus();
                 if (status.isRunning) {
                     // Server is running, now wait a bit more for HTTP readiness
-                    (0, child_process_1.execSync)('sleep 2', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+                    (0, child_process_1.execSync)('sleep 2', { cwd: this.getWorkspaceRoot() });
                     return 'Frontend server started successfully';
                 }
                 // If we're halfway through attempts, give it more time
                 if (attempts === 5) {
-                    (0, child_process_1.execSync)('sleep 2', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+                    (0, child_process_1.execSync)('sleep 2', { cwd: this.getWorkspaceRoot() });
                 }
             }
             throw new Error('Frontend server failed to start within expected time');
@@ -457,7 +472,7 @@ class GravitycarServerTool {
             console.log(`${description}: ${command}`);
             const output = (0, child_process_1.execSync)(command, {
                 encoding: 'utf8',
-                cwd: '/mnt/g/projects/gravitycar_no_code',
+                cwd: this.getWorkspaceRoot(),
                 timeout: 30000,
                 maxBuffer: 1024 * 1024 // 1MB buffer
             });

@@ -179,6 +179,45 @@
           },
           "required": ["action"]
         }
+      },
+      {
+        "name": "gravitycar_cache_rebuild",
+        "displayName": "Gravitycar Cache Rebuild",
+        "modelDescription": "PREFERRED for refreshing Gravitycar Framework cache files and running setup tasks. Use this tool when you need to: 1) Update model metadata after adding/modifying model classes, fields, or relationships, 2) Refresh API routes cache after adding new API controllers or endpoints, 3) Clear and rebuild all cache files after structural changes to the framework, 4) Run database schema updates and migrations, 5) Create or update sample data and user accounts, 6) Fix cache-related issues or inconsistencies, 7) Initialize the framework after installation or major updates. This tool runs the setup.php script which: bootstraps the application, clears existing cache files, rebuilds metadata and API routes cache, tests router functionality, generates/updates database schema, seeds authentication roles and permissions, creates sample user records. Use after any changes to: model definitions, field configurations, relationship definitions, API controller classes, validation rules, database schema requirements, authentication/authorization setup.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "gravitycar-cache",
+        "icon": "$(refresh)",
+        "userDescription": "Rebuild framework cache files, update database schema, and run setup tasks",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "fullSetup": {
+              "type": "boolean",
+              "description": "Run complete setup including database schema and sample data creation",
+              "default": true
+            },
+            "clearOnly": {
+              "type": "boolean",
+              "description": "Only clear cache files without rebuilding (not yet implemented)",
+              "default": false
+            },
+            "skipDatabase": {
+              "type": "boolean", 
+              "description": "Skip database schema generation and updates (not yet implemented)",
+              "default": false
+            },
+            "skipUsers": {
+              "type": "boolean",
+              "description": "Skip sample user creation (not yet implemented)", 
+              "default": false
+            },
+            "verbose": {
+              "type": "boolean",
+              "description": "Enable verbose output for debugging",
+              "default": false
+            }
+          }
+        }
       }
     ]
   },

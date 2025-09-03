@@ -36,7 +36,22 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.GravitycarTestTool = void 0;
 const vscode = __importStar(require("vscode"));
 const child_process_1 = require("child_process");
+const path = __importStar(require("path"));
 class GravitycarTestTool {
+    /**
+     * Get the current workspace root path dynamically
+     */
+    getWorkspaceRoot() {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            return workspaceFolders[0].uri.fsPath;
+        }
+        // Fallback: if no workspace folders, try to determine from this extension's location
+        // This extension is in .vscode/extensions/gravitycar-tools, so go up 3 levels
+        const extensionPath = __dirname;
+        const projectRoot = path.resolve(extensionPath, '../../../../..');
+        return projectRoot;
+    }
     async invoke(options, token) {
         let command = '';
         try {
@@ -134,7 +149,7 @@ class GravitycarTestTool {
             try {
                 output = (0, child_process_1.execSync)(command, {
                     encoding: 'utf8',
-                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    cwd: this.getWorkspaceRoot(),
                     timeout: 180000, // 3 minutes for coverage tests (they take longer)
                     maxBuffer: 4 * 1024 * 1024, // 4MB buffer for coverage output
                     env: env
