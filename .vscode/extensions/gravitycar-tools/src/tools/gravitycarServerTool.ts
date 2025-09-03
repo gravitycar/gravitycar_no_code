@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { execSync } from 'child_process';
+import * as path from 'path';
 
 interface ServerControlInput {
     action: string;
@@ -7,6 +8,22 @@ interface ServerControlInput {
 }
 
 export class GravitycarServerTool implements vscode.LanguageModelTool<ServerControlInput> {
+
+    /**
+     * Get the current workspace root path dynamically
+     */
+    private getWorkspaceRoot(): string {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            return workspaceFolders[0].uri.fsPath;
+        }
+        
+        // Fallback: if no workspace folders, try to determine from this extension's location
+        // This extension is in .vscode/extensions/gravitycar-tools, so go up 3 levels
+        const extensionPath = __dirname;
+        const projectRoot = path.resolve(extensionPath, '../../../../..');
+        return projectRoot;
+    }
 
     /**
      * Check if the frontend server is running on por                            }, null, 2))
@@ -21,7 +38,7 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
         try {
             const processes = execSync('lsof -Pi :3000 -sTCP:LISTEN', { 
                 encoding: 'utf8',
-                cwd: '/mnt/g/projects/gravitycar_no_code' 
+                cwd: this.getWorkspaceRoot() 
             }).trim();
             return { isRunning: true, processes };
         } catch (error) {
@@ -36,7 +53,7 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
         try {
             const httpCode = execSync('curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 5 http://localhost:3000', { 
                 encoding: 'utf8',
-                cwd: '/mnt/g/projects/gravitycar_no_code',
+                cwd: this.getWorkspaceRoot(),
                 timeout: 8000 // 8 second timeout for the entire operation
             }).trim();
             return { isResponding: httpCode === '200', httpCode };
@@ -62,7 +79,7 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
             // Wait 1 second between attempts (except on the last attempt)
             if (attempt < maxAttempts) {
                 try {
-                    execSync('sleep 1', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+                    execSync('sleep 1', { cwd: this.getWorkspaceRoot() });
                 } catch (e) {
                     // Ignore sleep errors
                 }
@@ -82,7 +99,7 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
             try {
                 execSync('lsof -ti:3000 | xargs kill -TERM 2>/dev/null || true', { 
                     encoding: 'utf8',
-                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    cwd: this.getWorkspaceRoot(),
                     timeout: 5000
                 });
             } catch (e) {
@@ -90,13 +107,13 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
             }
             
             // Step 2: Wait for graceful shutdown
-            execSync('sleep 2', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+            execSync('sleep 2', { cwd: this.getWorkspaceRoot() });
             
             // Step 3: Force kill if still running
             try {
                 execSync('lsof -ti:3000 | xargs kill -9 2>/dev/null || true', { 
                     encoding: 'utf8',
-                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    cwd: this.getWorkspaceRoot(),
                     timeout: 5000
                 });
             } catch (e) {
@@ -107,12 +124,12 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
             try {
                 execSync('pkill -f "vite" 2>/dev/null || true', { 
                     encoding: 'utf8',
-                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    cwd: this.getWorkspaceRoot(),
                     timeout: 5000
                 });
                 execSync('pkill -f "npm run dev" 2>/dev/null || true', { 
                     encoding: 'utf8',
-                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    cwd: this.getWorkspaceRoot(),
                     timeout: 5000
                 });
             } catch (e) {
@@ -132,7 +149,7 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
         try {
             execSync('cd gravitycar-frontend && nohup npm run dev > ../logs/frontend.log 2>&1 &', { 
                 encoding: 'utf8',
-                cwd: '/mnt/g/projects/gravitycar_no_code' 
+                cwd: this.getWorkspaceRoot() 
             });
             
             // Wait longer for startup and verify multiple times
@@ -140,19 +157,19 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
             const maxAttempts = 10; // 10 seconds total wait time
             
             while (attempts < maxAttempts) {
-                execSync('sleep 1', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+                execSync('sleep 1', { cwd: this.getWorkspaceRoot() });
                 attempts++;
                 
                 const status = this.checkFrontendStatus();
                 if (status.isRunning) {
                     // Server is running, now wait a bit more for HTTP readiness
-                    execSync('sleep 2', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+                    execSync('sleep 2', { cwd: this.getWorkspaceRoot() });
                     return 'Frontend server started successfully';
                 }
                 
                 // If we're halfway through attempts, give it more time
                 if (attempts === 5) {
-                    execSync('sleep 2', { cwd: '/mnt/g/projects/gravitycar_no_code' });
+                    execSync('sleep 2', { cwd: this.getWorkspaceRoot() });
                 }
             }
             
@@ -462,7 +479,7 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
             
             const output = execSync(command, { 
                 encoding: 'utf8',
-                cwd: '/mnt/g/projects/gravitycar_no_code',
+                cwd: this.getWorkspaceRoot(),
                 timeout: 30000,
                 maxBuffer: 1024 * 1024 // 1MB buffer
             });

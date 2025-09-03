@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { execSync } from 'child_process';
+import * as path from 'path';
 
 interface TestRunInput {
     testType: string;
@@ -10,6 +11,22 @@ interface TestRunInput {
 }
 
 export class GravitycarTestTool implements vscode.LanguageModelTool<TestRunInput> {
+
+    /**
+     * Get the current workspace root path dynamically
+     */
+    private getWorkspaceRoot(): string {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            return workspaceFolders[0].uri.fsPath;
+        }
+        
+        // Fallback: if no workspace folders, try to determine from this extension's location
+        // This extension is in .vscode/extensions/gravitycar-tools, so go up 3 levels
+        const extensionPath = __dirname;
+        const projectRoot = path.resolve(extensionPath, '../../../../..');
+        return projectRoot;
+    }
 
     async invoke(
         options: vscode.LanguageModelToolInvocationOptions<TestRunInput>,
@@ -122,7 +139,7 @@ export class GravitycarTestTool implements vscode.LanguageModelTool<TestRunInput
             try {
                 output = execSync(command, { 
                     encoding: 'utf8',
-                    cwd: '/mnt/g/projects/gravitycar_no_code',
+                    cwd: this.getWorkspaceRoot(),
                     timeout: 180000, // 3 minutes for coverage tests (they take longer)
                     maxBuffer: 4 * 1024 * 1024, // 4MB buffer for coverage output
                     env: env
