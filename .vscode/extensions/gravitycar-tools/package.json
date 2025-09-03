@@ -218,6 +218,40 @@
             }
           }
         }
+      },
+      {
+        "name": "gravitycar_php_debug_scripts",
+        "displayName": "Gravitycar PHP Debug Scripts",
+        "modelDescription": "PREFERRED for running PHP debug and testing scripts in the tmp/ directory of the Gravitycar Framework project. Use this tool to execute PHP scripts created for debugging, testing, or analyzing framework functionality. This tool provides safe execution of PHP files located only in the project's tmp/ directory with complete output capture and exit code reporting. Common use cases: 1) Debug metadata loading and model definitions, 2) Test API endpoint functionality and routing, 3) Verify database connections and queries, 4) Analyze relationship configurations and data flow, 5) Test authentication and authorization systems, 6) Validate field configurations and validation rules, 7) Debug cache loading and framework bootstrap processes, 8) Test service integrations (TMDB API, etc.), 9) Verify user creation and management workflows, 10) Analyze request parsing and response formatting. Security: Only executes .php files within the tmp/ directory, prevents path traversal attacks, and provides controlled execution environment. Returns complete stdout, stderr, and exit codes for thorough analysis.",
+        "canBeReferencedInPrompt": true,
+        "toolReferenceName": "gravitycar-php-debug",
+        "icon": "$(debug)",
+        "userDescription": "Execute PHP debug scripts from tmp/ directory with output capture and analysis",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "scriptFile": {
+              "type": "string",
+              "description": "Path to PHP script in tmp/ directory (e.g., 'tmp/debug_metadata.php' or 'debug_metadata.php')"
+            },
+            "verbose": {
+              "type": "boolean",
+              "description": "Enable verbose output for debugging",
+              "default": false
+            },
+            "showErrors": {
+              "type": "boolean",
+              "description": "Show detailed error information",
+              "default": true
+            },
+            "timeout": {
+              "type": "integer",
+              "description": "Execution timeout in milliseconds",
+              "default": 60000
+            }
+          },
+          "required": ["scriptFile"]
+        }
       }
     ]
   },

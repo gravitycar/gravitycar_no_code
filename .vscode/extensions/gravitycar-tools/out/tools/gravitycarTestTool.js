@@ -47,9 +47,9 @@ class GravitycarTestTool {
             return workspaceFolders[0].uri.fsPath;
         }
         // Fallback: if no workspace folders, try to determine from this extension's location
-        // This extension is in .vscode/extensions/gravitycar-tools, so go up 3 levels
+        // This extension is in .vscode/extensions/gravitycar-tools/out/tools, so go up 4 levels
         const extensionPath = __dirname;
-        const projectRoot = path.resolve(extensionPath, '../../../../..');
+        const projectRoot = path.resolve(extensionPath, '../../../..');
         return projectRoot;
     }
     async invoke(options, token) {
