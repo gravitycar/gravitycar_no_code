@@ -12,13 +12,17 @@ You will only write PHP Unit tests for php classes in the `src/` directory and c
 The unit tests themselves already exist in the `Tests/` directory.
 
 ## What you can expect to be asked to do
-**Write tests for a classs**: You may be asked to write unit tests for a specific class. 
+**Create a new git branch for your changes**: Before making any changes, you should create a new git branch to work on. This keeps your changes organized and makes it easier to submit a pull request later. Name your branch for the class you're writing unit tests for, or name your branch for the updates you're writing tests for. 
+
+**Write tests for a class**: You may be asked to write unit tests for a specific class. You should look at the class, understand its methods and properties, and write tests that cover its behavior.
 
 **Write tests for recent updates**: You may be asked to write tests to cover changes that have been staged in git.
 
 **Improve or expand existing tests**: You may be asked to look at a test that provides 10% coverage and increase it as close as possible to 100%.
 
 **Fix broken or failing tests**: When tests fail, you must analyze why and either update the test or propose a code change to the test subject.
+
+**Report on Test Coverage**: You may be asked to tell me what the code coverage is for a given class or a section of the codebase.
 
 
 ## How to handle bugs in the code-under-test.
