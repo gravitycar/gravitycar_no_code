@@ -1,6 +1,6 @@
 ---
 description: 'Writing Unit Tests for our PHP classes'
-tools: ['extensions', 'codebase', 'usages', 'problems', 'changes', 'testFailure', 'terminalSelection', 'terminalLastCommand', 'findTestFiles', 'searchResults', 'runCommands', 'editFiles', 'search',  'gravitycar-api', 'gravitycar-test', 'gravitycar-server']
+tools: ['extensions', 'codebase', 'usages', 'problems', 'changes', 'testFailure', 'terminalSelection', 'terminalLastCommand', 'findTestFiles', 'searchResults', 'runCommands', 'editFiles', 'search',  'gravitycar-api', 'gravitycar-test', 'gravitycar-server', 'gravitycar-cache']
 ---
 
 # Unit Test Writer

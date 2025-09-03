@@ -69,35 +69,12 @@ class ContainerConfig {
                 // Create logger instance
                 $logger = new Logger('gravitycar');
 
-                // Try to get config for logger settings, with fallback defaults
+                // Use hardcoded defaults to avoid circular dependency with Config
+                // Config can be loaded later and logger settings updated if needed
                 $logFile = 'logs/gravitycar.log';
                 $logLevel = Logger::INFO;
                 $dailyRotation = true;
                 $maxFiles = 30;
-                
-                try {
-                    $config = new Config(); // Create config directly to avoid circular dependency
-                    $logFile = $config->get('logging.file', 'logs/gravitycar.log');
-                    $logLevelName = $config->get('logging.level', 'info');
-                    $dailyRotation = $config->get('logging.daily_rotation', true);
-                    $maxFiles = $config->get('logging.max_files', 30);
-                    
-                    // Convert log level name to Monolog constant
-                    $logLevel = match(strtolower($logLevelName)) {
-                        'debug' => Logger::DEBUG,
-                        'info' => Logger::INFO,
-                        'notice' => Logger::NOTICE,
-                        'warning' => Logger::WARNING,
-                        'error' => Logger::ERROR,
-                        'critical' => Logger::CRITICAL,
-                        'alert' => Logger::ALERT,
-                        'emergency' => Logger::EMERGENCY,
-                        default => Logger::INFO
-                    };
-                } catch (\Exception $configError) {
-                    // If config fails, use defaults and continue
-                    // Don't try to log this error as it would create circular dependency
-                }
 
                 // Create log directory if needed
                 $logDir = dirname($logFile);
@@ -229,11 +206,6 @@ class ContainerConfig {
         // Router - prototype with ServiceLocator instance
         $di->set('router', $di->lazyNew(\Gravitycar\Api\Router::class, [
             'serviceLocator' => $di->lazyGet('metadata_engine') // Backward compatibility - pass MetadataEngine as serviceLocator
-        ]));
-
-        // Installer model - prototype
-        $di->set('installer', $di->lazyNew(\Gravitycar\Models\installer\Installer::class, [
-            'logger' => $di->lazyGet('logger')
         ]));
 
         // Authentication services

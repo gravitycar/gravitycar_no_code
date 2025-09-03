@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { GravitycarApiTool } from './tools/gravitycarApiTool';
 import { GravitycarTestTool } from './tools/gravitycarTestTool';
 import { GravitycarServerTool } from './tools/gravitycarServerTool';
+import { GravitycarCacheRebuildTool } from './tools/gravitycarCacheRebuildTool';
+import { GravitycarPhpDebugScriptTool } from './tools/gravitycarPhpDebugScriptTool';
 
 export function activate(context: vscode.ExtensionContext) {
     console.log('Activating Gravitycar Tools extension...');
@@ -29,6 +31,18 @@ function registerTools(context: vscode.ExtensionContext) {
     const serverTool = new GravitycarServerTool();
     context.subscriptions.push(
         vscode.lm.registerTool('gravitycar_server_control', serverTool)
+    );
+
+    // Register Gravitycar Cache Rebuild tool
+    const cacheRebuildTool = new GravitycarCacheRebuildTool();
+    context.subscriptions.push(
+        vscode.lm.registerTool('gravitycar_cache_rebuild', cacheRebuildTool)
+    );
+
+    // Register Gravitycar PHP Debug Script tool
+    const phpDebugScriptTool = new GravitycarPhpDebugScriptTool();
+    context.subscriptions.push(
+        vscode.lm.registerTool('gravitycar_php_debug_scripts', phpDebugScriptTool)
     );
 
     console.log('All Gravitycar tools registered successfully');
