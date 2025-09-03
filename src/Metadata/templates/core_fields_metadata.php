@@ -33,7 +33,7 @@ return [
         'readOnly' => true,
         'isDBField' => true,
         'validationRules' => [
-            'type' => 'datetime'
+            'type' => 'DateTime'
         ]
     ],
     'updated_at' => [
@@ -45,7 +45,7 @@ return [
         'readOnly' => true,
         'isDBField' => true,
         'validationRules' => [
-            'type' => 'datetime'
+            'type' => 'DateTime'
         ]
     ],
     'deleted_at' => [
@@ -58,7 +58,7 @@ return [
         'isDBField' => true,
         'nullable' => true,
         'validationRules' => [
-            'type' => 'datetime'
+            'type' => 'DateTime'
         ]
     ],
     'created_by' => [

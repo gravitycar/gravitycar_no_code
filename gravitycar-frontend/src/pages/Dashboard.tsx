@@ -155,10 +155,10 @@ const Dashboard = () => {
                 {recentData.movies.map((movie) => (
                   <li key={movie.id} className="flex justify-between items-center">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{movie.title}</p>
+                      <p className="text-sm font-medium text-gray-900">{movie.name}</p>
                       <p className="text-sm text-gray-500">
                         {movie.release_year && `${movie.release_year} • `}
-                        {movie.director || 'No director listed'}
+                        {movie.synopsis || 'No synopsis available'}
                       </p>
                     </div>
                     <span className="text-xs text-gray-400">ID: {movie.id}</span>

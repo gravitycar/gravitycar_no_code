@@ -9,7 +9,7 @@ import type { Movie, ModelMetadata } from '../types';
  */
 const movieGridRenderer = (
   movie: Movie, 
-  metadata: ModelMetadata, 
+  _metadata: ModelMetadata, 
   onEdit: (movie: Movie) => void, 
   onDelete: (movie: Movie) => void,
   onViewQuotes?: (movie: Movie) => void
@@ -44,17 +44,50 @@ const movieGridRenderer = (
         </p>
       )}
       
+      {/* Movie details */}
+      <div className="space-y-2 mb-4">
+        {movie.release_year && (
+          <div className="text-sm text-gray-500">
+            <span className="font-medium">Year:</span> {movie.release_year}
+          </div>
+        )}
+        {movie.obscurity_score && (
+          <div className="text-sm text-gray-500">
+            <span className="font-medium">Obscurity:</span> {movie.obscurity_score}/5
+          </div>
+        )}
+        {movie.tmdb_id && (
+          <div className="text-xs text-blue-600 flex items-center space-x-1">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>TMDB Enhanced</span>
+          </div>
+        )}
+      </div>
+      
       <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-200">
-        <div className="text-xs text-gray-500">
-          ID: {movie.id}
+        <div className="flex space-x-2">
+          {onViewQuotes && (
+            <button
+              onClick={() => onViewQuotes(movie)}
+              className="text-green-600 hover:text-green-700 text-sm"
+            >
+              Quotes
+            </button>
+          )}
+          {movie.trailer_url && (
+            <a
+              href={movie.trailer_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-purple-600 hover:text-purple-700 text-sm"
+            >
+              Trailer
+            </a>
+          )}
         </div>
         <div className="flex space-x-2">
-          <button
-            onClick={() => onViewQuotes?.(movie)}
-            className="text-green-600 hover:text-green-700 text-sm"
-          >
-            Quotes
-          </button>
           <button
             onClick={() => onEdit(movie)}
             className="text-blue-600 hover:text-blue-700 text-sm"
@@ -74,7 +107,7 @@ const movieGridRenderer = (
 );
 
 /**
- * Enhanced Movies Management Page with Quote Relationship Management
+ * Enhanced Movies Management Page with TMDB Integration and Quote Management
  * 
  * This page demonstrates the One-to-Many relationship management between
  * Movies and Movie_Quotes using our new relationship UI components.
@@ -106,7 +139,7 @@ const MoviesPage: React.FC = () => {
       <GenericCrudPage
         modelName="Movies"
         title="Movies Management"
-        description="Manage your movie collection and their memorable quotes"
+        description="Manage your movie collection with TMDB integration and memorable quotes"
         defaultDisplayMode="grid"
         customGridRenderer={enhancedMovieGridRenderer}
       />

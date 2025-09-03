@@ -65,3 +65,4 @@
 - [] Confirm field validation failures actually result in an exception being thrown before the DBConnector tries to save the record.
 - [X] There is no list of timezones for users and it's a required field. 
 - [] Dropping fields from metadata no longer drops them from the database? I thought we had that fixed a long time ago.
+- [] Model api classes are not being picked up by the APIRegistry.

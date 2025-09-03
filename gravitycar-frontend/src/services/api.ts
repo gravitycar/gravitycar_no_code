@@ -465,6 +465,39 @@ class ApiService {
       };
     }
   }
+  
+  // TMDB integration methods
+  async searchTMDB(title: string): Promise<ApiResponse<any>> {
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.get(
+        `/movies/tmdb/search?title=${encodeURIComponent(title)}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error('TMDB search failed:', error);
+      return {
+        success: false,
+        data: null,
+        message: 'Failed to search TMDB'
+      };
+    }
+  }
+  
+  async enrichMovieWithTMDB(tmdbId: string): Promise<ApiResponse<any>> {
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.get(
+        `/movies/tmdb/enrich/${tmdbId}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error('TMDB enrichment failed:', error);
+      return {
+        success: false,
+        data: null,
+        message: 'Failed to enrich movie with TMDB data'
+      };
+    }
+  }
 }
 
 // Export singleton instance

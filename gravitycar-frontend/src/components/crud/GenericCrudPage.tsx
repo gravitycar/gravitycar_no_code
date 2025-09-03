@@ -8,6 +8,7 @@ import ModelForm from '../forms/ModelForm';
 import Modal from '../ui/Modal';
 import { getErrorMessage } from '../../utils/errors';
 import type { PaginatedResponse, ModelMetadata, FieldMetadata } from '../../types';
+import TMDBEnhancedCreateForm from '../movies/TMDBEnhancedCreateForm';
 
 interface GenericCrudPageProps {
   modelName: string;
@@ -179,7 +180,17 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
     }
   };
 
-  const handleFormSuccess = () => {
+  const handleFormSuccess = async (data?: any) => {
+    // Handle success for both standard and custom forms
+    if (data) {
+      console.log(`✅ Successfully ${state.isCreateModalOpen ? 'created' : 'updated'} ${modelName}:`, data);
+      if (state.isCreateModalOpen) {
+        notify.success(`${modelName.slice(0, -1)} created successfully`);
+      } else {
+        notify.success(`${modelName.slice(0, -1)} updated successfully`);
+      }
+    }
+
     setState(prev => ({ 
       ...prev, 
       isCreateModalOpen: false, 
@@ -248,6 +259,42 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
         return (
           <a href={`mailto:${value}`} className="text-blue-600 hover:text-blue-800">
             {value}
+          </a>
+        );
+
+      case 'Image':
+        return (
+          <div className="flex items-center space-x-2">
+            <img
+              src={String(value)}
+              alt={fieldMeta.label || 'Image'}
+              className="w-12 h-16 object-cover rounded border border-gray-200"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                target.nextElementSibling?.classList.remove('hidden');
+              }}
+            />
+            <div className="hidden text-gray-400 text-xs">
+              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" />
+              </svg>
+            </div>
+          </div>
+        );
+
+      case 'Video':
+        return (
+          <a
+            href={String(value)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 text-sm flex items-center space-x-1"
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M2 6a2 2 0 012-2h6l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
+            </svg>
+            <span>Watch</span>
           </a>
         );
 
@@ -366,48 +413,91 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
       );
     }
 
-    // Default grid rendering
+    if (!metadata) return null;
+
+    // Default grid rendering with enhanced Image field support
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {state.items.map(item => (
-          <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              {getItemDisplayName(item, metadata)}
-            </h3>
-            
-            {metadata?.ui?.listFields?.slice(0, 3).map(fieldName => {
-              const fieldMeta = metadata.fields?.[fieldName];
-              const value = item[fieldName];
-              if (!value) return null;
-              
-              return (
-                <div key={fieldName} className="mb-2">
-                  <span className="text-sm font-medium text-gray-500">
-                    {fieldMeta?.label || fieldName.replace(/_/g, ' ')}:
-                  </span>
-                  <div className="mt-1">
-                    {fieldMeta ? renderFieldValue(fieldName, value, fieldMeta) : String(value)}
-                  </div>
+        {state.items.map(item => {
+          const listFields = metadata.ui?.listFields || [];
+          
+          // Find the first Image field for featured display
+          const imageField = listFields.find(fieldName => 
+            metadata.fields?.[fieldName]?.type === 'Image'
+          );
+          const imageValue = imageField ? item[imageField] : null;
+          
+          // Get remaining fields (excluding the featured image)
+          const otherFields = listFields.filter(fieldName => fieldName !== imageField);
+          
+          return (
+            <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
+              {/* Featured Image */}
+              {imageValue && imageField && (
+                <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
+                  <img
+                    src={String(imageValue)}
+                    alt={metadata.fields?.[imageField]?.label || 'Image'}
+                    className="max-w-full max-h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      const parent = target.parentElement;
+                      if (parent) {
+                        parent.innerHTML = `
+                          <div class="text-gray-400 text-center p-4">
+                            <svg class="w-12 h-12 mx-auto mb-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" />
+                            </svg>
+                            <span class="text-sm">Image not available</span>
+                          </div>
+                        `;
+                      }
+                    }}
+                  />
                 </div>
-              );
-            })}
-            
-            <div className="flex justify-end space-x-2 mt-4 pt-4 border-t border-gray-200">
-              <button
-                onClick={() => handleEdit(item)}
-                className="text-blue-600 hover:text-blue-700 text-sm"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => handleDelete(item)}
-                className="text-red-600 hover:text-red-700 text-sm"
-              >
-                Delete
-              </button>
+              )}
+              
+              <div className="p-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  {getItemDisplayName(item, metadata)}
+                </h3>
+                
+                {otherFields.slice(0, 3).map(fieldName => {
+                  const fieldMeta = metadata.fields?.[fieldName];
+                  const value = item[fieldName];
+                  if (!value) return null;
+                  
+                  return (
+                    <div key={fieldName} className="mb-2">
+                      <span className="text-sm font-medium text-gray-500">
+                        {fieldMeta?.label || fieldName.replace(/_/g, ' ')}:
+                      </span>
+                      <div className="mt-1">
+                        {fieldMeta ? renderFieldValue(fieldName, value, fieldMeta) : String(value)}
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                <div className="flex justify-end space-x-2 mt-4 pt-4 border-t border-gray-200">
+                  <button
+                    onClick={() => handleEdit(item)}
+                    className="text-blue-600 hover:text-blue-700 text-sm"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(item)}
+                    className="text-red-600 hover:text-red-700 text-sm"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -613,11 +703,19 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
               title={`Create New ${modelName.slice(0, -1)}`}
               size="2xl"
             >
-              <ModelForm
-                modelName={modelName}
-                onSuccess={handleFormSuccess}
-                onCancel={handleFormCancel}
-              />
+              {modelName === 'Movies' ? (
+                <TMDBEnhancedCreateForm
+                  metadata={metadata}
+                  onSuccess={handleFormSuccess}
+                  onCancel={handleFormCancel}
+                />
+              ) : (
+                <ModelForm
+                  modelName={modelName}
+                  onSuccess={handleFormSuccess}
+                  onCancel={handleFormCancel}
+                />
+              )}
             </Modal>
           )}
 

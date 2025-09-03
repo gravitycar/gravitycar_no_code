@@ -312,19 +312,26 @@ const ModelForm: React.FC<ModelFormProps> = ({
           )}
 
           <div className="space-y-4">
-            {/* Render regular fields based on UI metadata createFields order */}
-            {metadata.ui?.createFields?.map(fieldName => {
-              const field = metadata.fields[fieldName];
-              if (!field) {
-                console.warn(`⚠️ Field '${fieldName}' specified in UI createFields but not found in model fields`);
-                return null;
-              }
-              return renderField(fieldName, field);
-            }) || 
-            /* Fallback to all fields if no UI metadata */
-            Object.entries(metadata.fields).map(([fieldName, field]) => 
-              renderField(fieldName, field)
-            )}
+            {/* Render regular fields based on UI metadata - use editFields for edit mode, createFields for create mode */}
+            {(() => {
+              const isEditMode = !!recordId;
+              const fieldsToRender = isEditMode 
+                ? metadata.ui?.editFields || metadata.ui?.createFields 
+                : metadata.ui?.createFields;
+              
+              return fieldsToRender?.map(fieldName => {
+                const field = metadata.fields[fieldName];
+                if (!field) {
+                  console.warn(`⚠️ Field '${fieldName}' specified in UI ${isEditMode ? 'editFields' : 'createFields'} but not found in model fields`);
+                  return null;
+                }
+                return renderField(fieldName, field);
+              }) || 
+              /* Fallback to all fields if no UI metadata */
+              Object.entries(metadata.fields).map(([fieldName, field]) => 
+                renderField(fieldName, field)
+              );
+            })()}
 
             {/* NEW: Render relationship fields */}
             {metadata.ui?.relationshipFields && Object.entries(metadata.ui.relationshipFields).map(([fieldName, relationshipField]) => 

@@ -5,5 +5,18 @@
     "php.validate.enable": true,
     "intelephense.files.maxSize": 5000000,
     "intelephense.completion.triggerParameterHints": true,
-    "intelephense.completion.insertUseDeclaration": true
+    "intelephense.completion.insertUseDeclaration": true,
+    "Devdb.enableMcpServer": true,
+    "Devdb.phpExecutablePath": "php",
+    "Devdb.connections": [
+        {
+            "name": "gravitycar_dev",
+            "driver": "mysql",
+            "host": "localhost",
+            "port": 3306,
+            "database": "gravitycar_nc",
+            "username": "mike",
+            "password": "mike"
+        }
+    ]
 }

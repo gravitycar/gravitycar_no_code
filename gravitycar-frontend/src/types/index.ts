@@ -23,9 +23,13 @@ export interface User {
 export interface Movie {
   id: string; // UUID string
   name: string; // Movie title/name
-  poster?: string; // Image path/filename
+  poster?: string; // Image path/filename (legacy)
   poster_url?: string; // Full URL to poster image
   synopsis?: string; // Movie synopsis/description
+  tmdb_id?: number; // TMDB ID for external data linking
+  trailer_url?: string; // Video URL for trailer
+  obscurity_score?: number; // Film obscurity: 1=Very Popular, 5=Very Obscure
+  release_year?: number; // Movie release year
   created_at?: string;
   updated_at?: string;
   created_by?: string;
@@ -194,6 +198,19 @@ export interface FieldMetadata {
   searchable?: boolean;
   sortable?: boolean;
   filterable?: boolean;
+  // Image field specific properties
+  width?: number;
+  height?: number;
+  altText?: string;
+  allowLocal?: boolean;
+  allowRemote?: boolean;
+  thumbnailWidth?: number;
+  thumbnailHeight?: number;
+  showThumbnail?: boolean;
+  thumbnailSize?: string;
+  // Video field specific properties
+  showControls?: boolean;
+  autoplay?: boolean;
   // Component props from backend
   component_props?: any;
   react_validation?: any;

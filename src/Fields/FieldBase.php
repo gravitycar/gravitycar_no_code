@@ -442,6 +442,34 @@ abstract class FieldBase {
     }
 
     /**
+     * Set the readonly state of this field
+     * 
+     * @param bool $readonly Whether the field should be readonly
+     * @return void
+     */
+    public function setReadOnly(bool $readonly): void {
+        $this->metadata['readonly'] = $readonly;
+    }
+
+    /**
+     * Set the readonly state to true (convenience method)
+     * 
+     * @return void
+     */
+    public function makeReadOnly(): void {
+        $this->setReadOnly(true);
+    }
+
+    /**
+     * Set the readonly state to false (convenience method)
+     * 
+     * @return void
+     */
+    public function makeEditable(): void {
+        $this->setReadOnly(false);
+    }
+
+    /**
      * Check if this field is unique
      */
     public function isUnique(): bool {
