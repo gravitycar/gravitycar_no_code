@@ -1,6 +1,6 @@
 <?php
 
-namespace Gravitycar\Api;
+namespace Gravitycar\Exceptions;
 
 use Gravitycar\Exceptions\BadRequestException;
 

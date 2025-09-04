@@ -12,7 +12,7 @@ use Gravitycar\Api\RequestParameterParser;
 use Gravitycar\Api\FilterCriteria;
 use Gravitycar\Api\SearchEngine;
 use Gravitycar\Api\ResponseFormatter;
-use Gravitycar\Api\ParameterValidationException;
+use Gravitycar\Exceptions\ParameterValidationException;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Exceptions\GCException;

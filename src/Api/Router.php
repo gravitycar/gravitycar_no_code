@@ -5,6 +5,8 @@ use Gravitycar\Exceptions\GCException;
 use Gravitycar\Exceptions\UnauthorizedException;
 use Gravitycar\Exceptions\ForbiddenException;
 use Gravitycar\Exceptions\NotFoundException;
+use Gravitycar\Exceptions\ParameterValidationException;
+use Gravitycar\Api\ParameterValidationResult;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Services\AuthenticationService;
 use Gravitycar\Services\AuthorizationService;
@@ -260,7 +262,7 @@ class Router {
      * Perform comprehensive validation with model context
      */
     protected function performValidationWithModel(Request $request, \Gravitycar\Models\ModelBase $model, array $parsedParams): array {
-        $validationException = new ParameterValidationException();
+        $validationResult = new ParameterValidationResult();
         $validatedParams = [];
         
         // Get helper instances from request
@@ -275,7 +277,7 @@ class Router {
             }
             $validatedParams['filters'] = $validatedFilters;
         } catch (\Exception $e) {
-            $validationException->addError('filters', 'Filter validation failed: ' . $e->getMessage());
+            $validationResult->addError('filters', 'Filter validation failed: ' . $e->getMessage());
             $validatedParams['filters'] = [];
         }
         
@@ -287,7 +289,7 @@ class Router {
             }
             $validatedParams['search'] = $validatedSearch;
         } catch (\Exception $e) {
-            $validationException->addError('search', 'Search validation failed: ' . $e->getMessage());
+            $validationResult->addError('search', 'Search validation failed: ' . $e->getMessage());
             $validatedParams['search'] = [];
         }
         
@@ -318,7 +320,7 @@ class Router {
             }
             $validatedParams['sorting'] = $validatedSorting;
         } catch (\Exception $e) {
-            $validationException->addError('sorting', 'Sorting validation failed: ' . $e->getMessage());
+            $validationResult->addError('sorting', 'Sorting validation failed: ' . $e->getMessage());
             $validatedParams['sorting'] = [];
         }
         
@@ -331,14 +333,12 @@ class Router {
                 'offset' => max(0, (int) ($pagination['offset'] ?? 0))
             ];
         } catch (\Exception $e) {
-            $validationException->addError('pagination', 'Pagination validation failed: ' . $e->getMessage());
+            $validationResult->addError('pagination', 'Pagination validation failed: ' . $e->getMessage());
             $validatedParams['pagination'] = ['page' => 1, 'pageSize' => 20, 'offset' => 0];
         }
         
         // If we collected any validation errors, throw them
-        if ($validationException->hasErrors()) {
-            throw $validationException;
-        }
+        $validationResult->throwIfHasErrors('Parameter validation failed');
         
         $this->logger->info('Model validation completed successfully', [
             'model' => get_class($model),
