@@ -30,6 +30,7 @@ When writing php code, there are several best practices you should follow whenev
 
 ## When you write test scripts
 - **Use the tmp directory**: The project should include a tmp/ directory. Create it if you don't find it. Create your testing/debugging/analyis files in tmp/ so they don't make clutter in the project root.
+- **Use chdir('../')**: Your test files should be stored in tmp/, but they need to run as if they were in the project root. Use `chdir('../')` at the beginning of your test scripts.
 - **Use the correct db credentials**: the DB credentials are in config.php. This application uses mysql. 
 - **Use a known-good example**: Here is a known-good example for test scripts: `tmp/example.php`.
 

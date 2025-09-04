@@ -11,6 +11,32 @@ use Gravitycar\Factories\ModelFactory;
  */
 class OneToManyRelationship extends RelationshipBase {
 
+    /**
+     * Get the other model in the relationship given one model
+     * For OneToMany relationships, returns the opposite model (One->Many or Many->One)
+     */
+    public function getOtherModel(ModelBase $model): ModelBase {
+        $modelClass = get_class($model);
+        $modelName = basename(str_replace('\\', '/', $modelClass));
+        
+        $modelOne = $this->metadata['modelOne'];
+        $modelMany = $this->metadata['modelMany'];
+        
+        if ($modelName === $modelOne) {
+            // Source is modelOne, return modelMany instance
+            return ModelFactory::new($modelMany);
+        } elseif ($modelName === $modelMany) {
+            // Source is modelMany, return modelOne instance
+            return ModelFactory::new($modelOne);
+        } else {
+            throw new GCException("Model {$modelName} is not part of this OneToMany relationship", [
+                'model_class' => $modelClass,
+                'relationship_name' => $this->getName(),
+                'expected_models' => [$modelOne, $modelMany]
+            ]);
+        }
+    }
+
 
 
     /**

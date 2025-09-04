@@ -3,6 +3,7 @@
 return [
     'name' => 'Movies',
     'table' => 'movies',
+    'displayColumns' => ['name', 'release_year'],
     'fields' => [
         'name' => [
             'name' => 'name',
