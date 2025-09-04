@@ -1,9 +1,9 @@
 <?php
 
-namespace Tests\Unit\Api;
+namespace Tests\Unit\Exceptions;
 
 use PHPUnit\Framework\TestCase;
-use Gravitycar\Api\ParameterValidationException;
+use Gravitycar\Exceptions\ParameterValidationException;
 use Gravitycar\Exceptions\BadRequestException;
 
 class ParameterValidationExceptionTest extends TestCase
