@@ -494,8 +494,69 @@ class SchemaGenerator {
      * Update a column in a table based on field metadata
      */
     protected function updateColumnFromFieldMeta(Table $table, string $fieldName, array $fieldMeta): void {
-        // For now, just log that we're updating - full update logic can be added later
-        $this->logger->debug("Column '$fieldName' already exists, skipping update");
+        $type = $this->getDoctrineTypeFromFieldType($fieldMeta['type'] ?? 'TextField');
+        $options = $this->getColumnOptionsFromFieldMeta($fieldMeta);
+
+        // Get the existing column
+        $existingColumn = $table->getColumn($fieldName);
+        
+        // Check if type or options need to be changed
+        $needsUpdate = false;
+        
+        // Check type change
+        if ($existingColumn->getType()->getName() !== $type) {
+            $needsUpdate = true;
+            $this->logger->info("Column '$fieldName' type change: {$existingColumn->getType()->getName()} -> $type");
+        }
+        
+        // Check length change for string types
+        if (in_array($type, [Types::STRING]) && isset($options['length'])) {
+            if ($existingColumn->getLength() !== $options['length']) {
+                $needsUpdate = true;
+                $this->logger->info("Column '$fieldName' length change: {$existingColumn->getLength()} -> {$options['length']}");
+            }
+        }
+        
+        // Check nullable change
+        if (isset($options['notnull']) && $existingColumn->getNotnull() !== $options['notnull']) {
+            $needsUpdate = true;
+            $this->logger->info("Column '$fieldName' nullable change: " . 
+                ($existingColumn->getNotnull() ? 'NOT NULL' : 'NULL') . ' -> ' . 
+                ($options['notnull'] ? 'NOT NULL' : 'NULL'));
+        }
+        
+        // Check default value change
+        if (isset($options['default'])) {
+            if ($existingColumn->getDefault() !== $options['default']) {
+                $needsUpdate = true;
+                $this->logger->info("Column '$fieldName' default change: " . 
+                    ($existingColumn->getDefault() ?? 'NULL') . ' -> ' . 
+                    ($options['default'] ?? 'NULL'));
+            }
+        }
+        
+        // Check comment change
+        if (isset($options['comment'])) {
+            if ($existingColumn->getComment() !== $options['comment']) {
+                $needsUpdate = true;
+                $this->logger->info("Column '$fieldName' comment change");
+            }
+        }
+        
+        if ($needsUpdate) {
+            // For type changes, we need to drop and recreate the column
+            if ($existingColumn->getType()->getName() !== $type) {
+                $this->logger->info("Dropping and recreating column '$fieldName' due to type change");
+                $table->dropColumn($fieldName);
+                $this->addColumnFromFieldMeta($table, $fieldName, $fieldMeta);
+            } else {
+                // For other changes, use modifyColumn
+                $table->modifyColumn($fieldName, $options);
+            }
+            $this->logger->info("Scheduled column '$fieldName' for update");
+        } else {
+            $this->logger->debug("Column '$fieldName' is up to date, no changes needed");
+        }
     }
 
     /**
@@ -503,6 +564,7 @@ class SchemaGenerator {
      */
     protected function getDoctrineTypeFromFieldType(string $fieldType): string {
         $typeMap = [
+            // Original Field suffix versions
             'TextField' => Types::STRING,
             'BigTextField' => Types::TEXT,
             'IntegerField' => Types::INTEGER,
@@ -518,6 +580,20 @@ class SchemaGenerator {
             'MultiEnum' => Types::JSON,
             'RadioButtonSetField' => Types::STRING,
             'RelatedRecord' => Types::STRING,
+            
+            // Short versions used in metadata
+            'Text' => Types::STRING,
+            'BigText' => Types::TEXT,
+            'Integer' => Types::INTEGER,
+            'Float' => Types::FLOAT,
+            'Boolean' => Types::BOOLEAN,
+            'Date' => Types::DATE_MUTABLE,
+            'DateTime' => Types::DATETIME_MUTABLE,
+            'Email' => Types::STRING,
+            'Password' => Types::STRING,
+            'ID' => Types::STRING,
+            'Image' => Types::STRING,
+            'Video' => Types::STRING,
         ];
 
         return $typeMap[$fieldType] ?? Types::STRING;
@@ -537,22 +613,61 @@ class SchemaGenerator {
             $options['default'] = $fieldMeta['default'];
         }
 
-        // Set length for string fields
-        if (isset($fieldMeta['maxLength'])) {
-            $options['length'] = $fieldMeta['maxLength'];
-        } elseif ($fieldMeta['type'] === 'TextField') {
-            $options['length'] = 255; // Default length for text fields
-        } elseif ($fieldMeta['type'] === 'EmailField') {
-            $options['length'] = 255;
-        } elseif ($fieldMeta['type'] === 'IDField') {
-            $options['length'] = 36; // UUID length
-        } elseif ($fieldMeta['type'] === 'ImageField') {
-            $options['length'] = 500; // Path length
+        // Set length for string fields (but not TEXT fields)
+        $fieldType = $fieldMeta['type'] ?? 'Text';
+        $doctrineType = $this->getDoctrineTypeFromFieldType($fieldType);
+        
+        // Only set length for STRING types, not TEXT types
+        if ($doctrineType === Types::STRING) {
+            if (isset($fieldMeta['maxLength'])) {
+                $options['length'] = $fieldMeta['maxLength'];
+            } elseif (in_array($fieldType, ['TextField', 'Text'])) {
+                $options['length'] = 255; // Default length for text fields
+            } elseif (in_array($fieldType, ['EmailField', 'Email'])) {
+                $options['length'] = 255;
+            } elseif (in_array($fieldType, ['IDField', 'ID'])) {
+                $options['length'] = 36; // UUID length
+            } elseif (in_array($fieldType, ['ImageField', 'Image'])) {
+                $options['length'] = 500; // Path length
+            } elseif (in_array($fieldType, ['Video'])) {
+                $options['length'] = 500; // Video URL length
+            }
+        }
+        // For TEXT types (BigText), don't set length - they have their own size limits
+
+        // Set precision and scale for numeric fields
+        if (in_array($doctrineType, [Types::DECIMAL, Types::FLOAT])) {
+            if (isset($fieldMeta['precision'])) {
+                $options['precision'] = $fieldMeta['precision'];
+            }
+            if (isset($fieldMeta['scale'])) {
+                $options['scale'] = $fieldMeta['scale'];
+            }
+        }
+
+        // Set unsigned for integer fields if specified
+        if (in_array($doctrineType, [Types::INTEGER, Types::BIGINT, Types::SMALLINT]) && isset($fieldMeta['unsigned'])) {
+            $options['unsigned'] = $fieldMeta['unsigned'];
+        }
+
+        // Set fixed length for fixed-length string fields
+        if ($doctrineType === Types::STRING && isset($fieldMeta['fixed'])) {
+            $options['fixed'] = $fieldMeta['fixed'];
+        }
+
+        // Set autoincrement if specified (typically for ID fields)
+        if (isset($fieldMeta['autoincrement'])) {
+            $options['autoincrement'] = $fieldMeta['autoincrement'];
         }
 
         // Add comment if label is provided
         if (isset($fieldMeta['label'])) {
             $options['comment'] = $fieldMeta['label'];
+        }
+
+        // Add description as comment if no label but description exists
+        if (!isset($fieldMeta['label']) && isset($fieldMeta['description'])) {
+            $options['comment'] = $fieldMeta['description'];
         }
 
         return $options;
