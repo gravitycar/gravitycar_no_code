@@ -69,39 +69,17 @@ class MovieTMDBIntegrationService {
     public function enrichMovieData(int $tmdbId): array {
         $details = $this->tmdbService->getMovieDetails($tmdbId);
         
-        // Extract trailer URL from videos
-        $trailerUrl = null;
-        if (isset($details['videos']['results'])) {
-            foreach ($details['videos']['results'] as $video) {
-                if ($video['type'] === 'Trailer' && $video['site'] === 'YouTube') {
-                    $trailerUrl = 'https://www.youtube.com/watch?v=' . $video['key'];
-                    break;
-                }
-            }
-        }
-        
-        // Calculate obscurity score (inverse of popularity)
-        $obscurityScore = isset($details['popularity']) ? max(1, 100 - $details['popularity']) : 50;
-        
-        // Extract release year
-        $releaseYear = null;
-        if (isset($details['release_date'])) {
-            $releaseYear = (int) substr($details['release_date'], 0, 4);
-        }
-        
-        // Build poster URL
-        $posterUrl = null;
-        if (isset($details['poster_path'])) {
-            $posterUrl = 'https://image.tmdb.org/t/p/w500' . $details['poster_path'];
-        }
+        // The TMDBApiService already processes and formats most of the data
+        // So we can use the values directly instead of re-processing them
         
         return [
-            'tmdb_id' => $details['id'] ?? $tmdbId,
+            'tmdb_id' => $details['tmdb_id'] ?? $tmdbId,
             'synopsis' => $details['overview'] ?? '',
-            'poster_url' => $posterUrl,
-            'trailer_url' => $trailerUrl,
-            'obscurity_score' => $obscurityScore,
-            'release_year' => $releaseYear
+            'poster_url' => $details['poster_url'] ?? null,
+            'trailer_url' => $details['trailer_url'] ?? null,
+            'obscurity_score' => $details['obscurity_score'] ?? null,
+            'release_year' => $details['release_year'] ?? null,
+            'name' => $details['title'] ?? null
         ];
     }
     

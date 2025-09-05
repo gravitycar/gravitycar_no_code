@@ -31,6 +31,13 @@ class TMDBController extends ApiControllerBase {
                 'apiClass' => '\\Gravitycar\\Api\\Movies\\TMDBController',
                 'apiMethod' => 'enrich',
                 'parameterNames' => ['tmdbId']
+            ],
+            [
+                'method' => 'POST',
+                'path' => '/movies/?/tmdb/refresh',
+                'apiClass' => '\\Gravitycar\\Api\\Movies\\TMDBController',
+                'apiMethod' => 'refresh',
+                'parameterNames' => ['movieId']
             ]
         ];
     }
@@ -75,5 +82,71 @@ class TMDBController extends ApiControllerBase {
             'success' => true,
             'data' => $enrichmentData
         ];
+    }
+    
+    /**
+     * Refresh TMDB data for an existing movie
+     * POST /movies/{movie_id}/tmdb/refresh
+     */
+    public function refresh(string $movieId): array {
+        try {
+            // Load the movie
+            $movie = \Gravitycar\Core\ServiceLocator::createModel('\\Gravitycar\\Models\\movies\\Movies');
+            
+            if (!$movie->findById($movieId)) {
+                throw new GCException('Movie not found', ['movie_id' => $movieId]);
+            }
+            
+            // Check if movie has TMDB ID
+            $tmdbId = $movie->get('tmdb_id');
+            if (empty($tmdbId)) {
+                throw new GCException('Movie does not have a TMDB ID to refresh from', ['movie_id' => $movieId]);
+            }
+            
+            // Refresh TMDB data
+            $movie->refreshFromTMDB($tmdbId);
+            
+            // Save the updated movie
+            if (!$movie->update()) {
+                throw new GCException('Failed to save updated movie data');
+            }
+            
+            $this->jsonResponse([
+                'success' => true,
+                'message' => 'Movie data refreshed from TMDB successfully',
+                'data' => [
+                    'movie_id' => $movieId,
+                    'tmdb_id' => $tmdbId,
+                    'updated_fields' => [
+                        'synopsis' => $movie->get('synopsis'),
+                        'poster_url' => $movie->get('poster_url'),
+                        'trailer_url' => $movie->get('trailer_url'),
+                        'obscurity_score' => $movie->get('obscurity_score'),
+                        'release_year' => $movie->get('release_year')
+                    ]
+                ]
+            ]);
+            
+            return [
+                'success' => true,
+                'message' => 'Movie data refreshed from TMDB successfully',
+                'data' => [
+                    'movie_id' => $movieId,
+                    'tmdb_id' => $tmdbId
+                ]
+            ];
+            
+        } catch (\Exception $e) {
+            $this->jsonResponse([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'movie_id' => $movieId
+            ], 400);
+            
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
     }
 }

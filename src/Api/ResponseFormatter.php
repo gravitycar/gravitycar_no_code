@@ -238,6 +238,7 @@ class ResponseFormatter
     private function buildStandardPagination(array $pagination): array
     {
         return [
+            // Standard fields
             'page' => $pagination['page'] ?? 1,
             'pageSize' => $pagination['pageSize'] ?? 20,
             'total' => $pagination['total'] ?? 0,
@@ -245,7 +246,15 @@ class ResponseFormatter
             'hasNextPage' => $pagination['hasNextPage'] ?? false,
             'hasPreviousPage' => $pagination['hasPreviousPage'] ?? false,
             'offset' => $pagination['offset'] ?? 0,
-            'limit' => $pagination['limit'] ?? 20
+            'limit' => $pagination['limit'] ?? 20,
+            
+            // Frontend-compatible aliases
+            'current_page' => $pagination['page'] ?? 1,
+            'total_items' => $pagination['total'] ?? 0,
+            'total_pages' => $pagination['pageCount'] ?? 0,
+            'per_page' => $pagination['pageSize'] ?? 20,
+            'has_next_page' => $pagination['hasNextPage'] ?? false,
+            'has_previous_page' => $pagination['hasPreviousPage'] ?? false
         ];
     }
     

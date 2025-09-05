@@ -287,6 +287,9 @@ const RelatedRecordSelect: React.FC<EnhancedRelatedRecordProps> = ({
           const selected = recordOptions.find((option: {value: any, label: string}) => option.value === value);
           if (selected) {
             setSelectedOption(selected);
+          } else {
+            // Value not found in current options, fetch it specifically
+            fetchSpecificRecord(value);
           }
         }
       } else {
@@ -296,6 +299,89 @@ const RelatedRecordSelect: React.FC<EnhancedRelatedRecordProps> = ({
       console.error(`RelatedRecordSelect: Error fetching ${relatedModel} records:`, error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Fetch a specific record by ID when we have a value but it's not in current options
+  const fetchSpecificRecord = async (recordId: string) => {
+    if (!relatedModel || !recordId) return;
+    
+    try {
+      const response = await fetch(`http://localhost:8081/${relatedModel}/${recordId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
+        }
+      });
+      if (response.ok) {
+        const responseData = await response.json();
+        
+        // Handle nested response structure (response.data.data)
+        const record = responseData.data || responseData;
+        
+        // Determine the display label using the same logic as fetchRelatedRecords
+        let optionLabel = '';
+        
+        // Build display label from metadata displayColumns if available
+        if (relatedModelMetadata?.displayColumns && Array.isArray(relatedModelMetadata.displayColumns)) {
+          console.log(`RelatedRecordSelect: Using displayColumns from metadata:`, relatedModelMetadata.displayColumns);
+          
+          // Concatenate all displayColumns fields that have values
+          const displayParts = relatedModelMetadata.displayColumns
+            .map((fieldName: string) => record[fieldName])
+            .filter((value: any) => value && String(value).trim())
+            .map((value: any) => String(value).trim());
+          
+          if (displayParts.length > 0) {
+            optionLabel = displayParts.join(' ');
+          }
+          
+          console.log(`RelatedRecordSelect: Created label from displayColumns:`, {
+            displayColumns: relatedModelMetadata.displayColumns,
+            displayParts,
+            optionLabel
+          });
+        }
+        
+        if (!optionLabel && displayField && record[displayField]) {
+          optionLabel = record[displayField];
+        }
+        
+        if (!optionLabel) {
+          const possibleDisplayFields = ['name', 'title', 'username', 'email', 'first_name', 'label'];
+          for (const fieldName of possibleDisplayFields) {
+            if (record[fieldName]) {
+              optionLabel = record[fieldName];
+              break;
+            }
+          }
+        }
+        
+        if (!optionLabel) {
+          if (record.first_name && record.last_name) {
+            optionLabel = `${record.first_name} ${record.last_name}`;
+          } else if (record.username) {
+            optionLabel = record.username;
+          } else if (record.email) {
+            optionLabel = record.email;
+          } else {
+            optionLabel = `${relatedModel} #${record.id}`;
+          }
+        }
+        
+        const selectedOption = {
+          value: record.id,
+          label: optionLabel
+        };
+        
+        setSelectedOption(selectedOption);
+        console.log(`RelatedRecordSelect: Fetched specific record ${recordId}:`, selectedOption);
+      } else {
+        console.error(`RelatedRecordSelect: Failed to fetch specific ${relatedModel} record ${recordId}:`, response.statusText);
+      }
+    } catch (error) {
+      console.error(`RelatedRecordSelect: Error fetching specific ${relatedModel} record ${recordId}:`, error);
     }
   };
 

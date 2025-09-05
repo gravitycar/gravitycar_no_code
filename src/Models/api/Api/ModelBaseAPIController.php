@@ -154,12 +154,11 @@ class ModelBaseAPIController {
             // Use enhanced DatabaseConnector method with validated parameters
             $records = $databaseConnector->findWithReactParams($model, $validatedParams, false);
             
-            // Get total count for pagination metadata (if requested)
+            // Get total count for pagination metadata (always include for pagination)
             $totalCount = null;
             $responseFormat = $request->getResponseFormat();
-            if (in_array($responseFormat, ['ag-grid', 'mui', 'advanced']) || !empty($validatedParams['options']['includeTotal'])) {
-                $totalCount = $databaseConnector->getCountWithValidatedCriteria($model, $validatedParams, false);
-            }
+            // Always calculate total count for pagination to work properly
+            $totalCount = $databaseConnector->getCountWithValidatedCriteria($model, $validatedParams, false);
             
             // Build comprehensive metadata for ResponseFormatter
             $meta = [
@@ -1280,35 +1279,57 @@ class ModelBaseAPIController {
             throw new NotFoundException("Parent {$parentModelName} with ID {$parentId} not found");
         }
         
-        // Remove any existing relationships for this child
+        // Check if the relationship already exists with the same parent
         $existingRelations = $childModel->getRelated($relationshipName);
+        $relationshipAlreadyExists = false;
+        
         foreach ($existingRelations as $existingRelation) {
-            // Create parent model instance to remove relationship
-            $existingParent = ModelFactory::retrieve($parentModelName, $existingRelation['one_' . strtolower($parentModelName) . '_id']);
-            if ($existingParent) {
-                $childModel->removeRelation($relationshipName, $existingParent);
-                $this->logger->debug('Removed existing relationship', [
+            $existingParentId = $existingRelation['one_' . strtolower($parentModelName) . '_id'];
+            
+            if ($existingParentId === $parentId) {
+                // Relationship already exists with the same parent - no changes needed
+                $relationshipAlreadyExists = true;
+                $this->logger->debug('Relationship already exists with same parent, skipping', [
                     'child' => $childModel->getName(),
                     'childId' => $childModel->get('id'),
                     'parent' => $parentModelName,
-                    'parentId' => $existingRelation['one_' . strtolower($parentModelName) . '_id']
+                    'parentId' => $parentId
                 ]);
+                break;
             }
         }
         
-        // Add the new relationship
-        $success = $childModel->addRelation($relationshipName, $parentModel);
-        
-        if ($success) {
-            $this->logger->info('Relationship created successfully', [
-                'child' => $childModel->getName(),
-                'childId' => $childModel->get('id'),
-                'parent' => $parentModelName,
-                'parentId' => $parentId,
-                'relationship' => $relationshipName
-            ]);
-        } else {
-            throw new InternalServerErrorException('Failed to create relationship');
+        if (!$relationshipAlreadyExists) {
+            // Remove any existing relationships for this child (only if changing to different parent)
+            foreach ($existingRelations as $existingRelation) {
+                $existingParentId = $existingRelation['one_' . strtolower($parentModelName) . '_id'];
+                // Create parent model instance to remove relationship
+                $existingParent = ModelFactory::retrieve($parentModelName, $existingParentId);
+                if ($existingParent) {
+                    $childModel->removeRelation($relationshipName, $existingParent);
+                    $this->logger->debug('Removed existing relationship', [
+                        'child' => $childModel->getName(),
+                        'childId' => $childModel->get('id'),
+                        'parent' => $parentModelName,
+                        'parentId' => $existingParentId
+                    ]);
+                }
+            }
+            
+            // Add the new relationship
+            $success = $childModel->addRelation($relationshipName, $parentModel);
+            
+            if ($success) {
+                $this->logger->info('Relationship created successfully', [
+                    'child' => $childModel->getName(),
+                    'childId' => $childModel->get('id'),
+                    'parent' => $parentModelName,
+                    'parentId' => $parentId,
+                    'relationship' => $relationshipName
+                ]);
+            } else {
+                throw new InternalServerErrorException('Failed to create relationship');
+            }
         }
     }
 

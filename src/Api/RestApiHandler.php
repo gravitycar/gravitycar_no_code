@@ -252,6 +252,16 @@ class RestApiHandler {
             $response['count'] = count($response['data']);
         }
 
+        // Preserve pagination metadata if present
+        if (isset($result['pagination'])) {
+            $response['pagination'] = $result['pagination'];
+        }
+
+        // Preserve other metadata if present
+        if (isset($result['meta']) && is_array($result['meta'])) {
+            $response['meta'] = $result['meta'];
+        }
+
         http_response_code(200);
         echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 

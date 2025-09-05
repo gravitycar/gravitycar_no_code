@@ -237,6 +237,8 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
       return <span className="text-gray-400 italic">—</span>;
     }
 
+    const stringValue = String(value);
+
     switch (fieldMeta.type) {
       case 'Boolean':
         return (
@@ -246,6 +248,26 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
             {value ? 'Yes' : 'No'}
           </span>
         );
+
+      case 'Text':
+      case 'BigText':
+        // Handle long text content with truncation
+        if (stringValue.length > 100) {
+          return (
+            <div className="group relative">
+              <div className="text-gray-900 leading-relaxed">
+                {stringValue.substring(0, 97)}...
+              </div>
+              <div className="absolute z-50 invisible group-hover:visible bg-gray-900 text-white text-sm rounded-lg p-3 shadow-lg max-w-md -mt-2 ml-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <div className="max-h-48 overflow-y-auto">
+                  {stringValue}
+                </div>
+                <div className="absolute top-2 -left-1 w-2 h-2 bg-gray-900 transform rotate-45"></div>
+              </div>
+            </div>
+          );
+        }
+        return <span className="text-gray-900 leading-relaxed">{stringValue}</span>;
 
       case 'DateTime':
         try {
@@ -257,7 +279,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
 
       case 'Email':
         return (
-          <a href={`mailto:${value}`} className="text-blue-600 hover:text-blue-800">
+          <a href={`mailto:${value}`} className="text-blue-600 hover:text-blue-800 break-all">
             {value}
           </a>
         );
@@ -299,7 +321,15 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
         );
 
       default:
-        return <span className="text-gray-900">{String(value)}</span>;
+        // For other field types, handle long strings gracefully
+        if (stringValue.length > 50) {
+          return (
+            <span className="text-gray-900 break-words" title={stringValue}>
+              {stringValue.substring(0, 47)}...
+            </span>
+          );
+        }
+        return <span className="text-gray-900">{stringValue}</span>;
     }
   };
 
@@ -367,8 +397,17 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
                   <tr key={item.id} className="hover:bg-gray-50">
                     {listFields.map((fieldName) => {
                       const fieldMeta = metadata.fields?.[fieldName];
+                      const isTextOrBigText = fieldMeta?.type === 'Text' || fieldMeta?.type === 'BigText';
+                      
                       return (
-                        <td key={fieldName} className="px-6 py-4 whitespace-nowrap">
+                        <td 
+                          key={fieldName} 
+                          className={`px-6 py-4 ${
+                            isTextOrBigText 
+                              ? 'max-w-md break-words' // Allow wrapping for text fields
+                              : 'whitespace-nowrap'    // Keep nowrap for other fields
+                          }`}
+                        >
                           {fieldMeta ? renderFieldValue(fieldName, item[fieldName], fieldMeta) : String(item[fieldName] || '')}
                         </td>
                       );
