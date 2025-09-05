@@ -483,7 +483,7 @@ class DatabaseConnector {
             $this->buildSelectClause($queryBuilder, $model, $modelFields, $fields);
 
             // Apply WHERE conditions
-            $this->applyCriteria($queryBuilder, $criteria, $mainAlias, $modelFields);
+            $this->applyCriteria($queryBuilder, $criteria, $mainAlias, $modelFields, $model);
 
             // Apply query parameters (ORDER BY, LIMIT, OFFSET) using validated parameter approach
             $this->applyValidatedParameters($queryBuilder, $parameters, $mainAlias, $modelFields);
@@ -519,6 +519,37 @@ class DatabaseConnector {
     public function findById($model, $id): ?array {
         $results = $this->find($model, ['id' => $id], [], ['limit' => 1]);
         return empty($results) ? null : $results[0];
+    }
+
+    /**
+     * Get a random record matching criteria - supports relationship queries
+     * Returns single record ID or null if no records found
+     */
+    public function getRandomRecord($model, array $criteria = [], array $fields = ['id'], array $parameters = []): ?string {
+        try {
+            // Set parameters for random selection
+            $randomParams = array_merge($parameters, [
+                'orderBy' => 'RAND()',
+                'limit' => 1
+            ]);
+
+            $results = $this->find($model, $criteria, $fields, $randomParams);
+            
+            if (empty($results)) {
+                return null;
+            }
+
+            // Return the ID of the first (and only) result
+            return $results[0]['id'] ?? null;
+
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to get random record', [
+                'model_class' => is_string($model) ? $model : get_class($model),
+                'criteria' => $criteria,
+                'error' => $e->getMessage()
+            ]);
+            throw new GCException('Database getRandomRecord operation failed: ' . $e->getMessage(), [], 0, $e);
+        }
     }
 
     /**
@@ -858,9 +889,52 @@ class DatabaseConnector {
     }
 
     /**
-     * Apply WHERE criteria to the query
+     * Apply WHERE criteria to the query - enhanced with relationship support
      */
     protected function applyCriteria(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        array $criteria,
+        string $mainAlias,
+        array $modelFields = [],
+        ?ModelBase $model = null
+    ): void {
+        // Group criteria by type based on dot notation
+        $modelCriteria = [];         // Direct field criteria (no dots)
+        $relationshipCriteria = [];  // Relationship criteria (1 dot)
+        $relatedModelCriteria = [];  // Related model criteria (2+ dots)
+
+        foreach ($criteria as $field => $value) {
+            $dotCount = substr_count($field, '.');
+            
+            if ($dotCount === 0) {
+                $modelCriteria[$field] = $value;
+            } elseif ($dotCount === 1) {
+                $relationshipCriteria[$field] = $value;
+            } else {
+                $relatedModelCriteria[$field] = $value;
+            }
+        }
+
+        // Apply model criteria (existing logic)
+        if (!empty($modelCriteria)) {
+            $this->applyModelCriteria($queryBuilder, $modelCriteria, $mainAlias, $modelFields);
+        }
+
+        // Apply relationship criteria (new functionality)
+        if (!empty($relationshipCriteria) && $model !== null) {
+            $this->applyRelationshipCriteria($queryBuilder, $relationshipCriteria, $model, $mainAlias);
+        }
+
+        // Apply related model criteria (new functionality)
+        if (!empty($relatedModelCriteria) && $model !== null) {
+            $this->applyRelatedModelCriteria($queryBuilder, $relatedModelCriteria, $model, $mainAlias);
+        }
+    }
+
+    /**
+     * Apply direct model field criteria (existing logic extracted)
+     */
+    protected function applyModelCriteria(
         \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
         array $criteria,
         string $mainAlias,
@@ -892,6 +966,264 @@ class DatabaseConnector {
                 $queryBuilder->setParameter($field, $value);
             }
         }
+    }
+
+    /**
+     * Apply relationship criteria (1 dot notation: relationship.field)
+     * Groups criteria by relationship to prevent duplicate JOINs
+     */
+    protected function applyRelationshipCriteria(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        array $relationshipCriteria,
+        ModelBase $model,
+        string $mainAlias
+    ): void {
+        // Group criteria by relationship name to minimize JOINs
+        $groupedCriteria = [];
+        foreach ($relationshipCriteria as $field => $value) {
+            [$relationshipName, $fieldName] = explode('.', $field, 2);
+            $groupedCriteria[$relationshipName][$fieldName] = $value;
+        }
+
+        // Static tracking to prevent duplicate JOINs across method calls
+        static $joinedRelationships = [];
+
+        foreach ($groupedCriteria as $relationshipName => $criteria) {
+            try {
+                // Get relationship object from model
+                $relationship = $model->getRelationship($relationshipName);
+                if (!$relationship) {
+                    $this->logger->warning("Relationship not found for criteria", [
+                        'relationship_name' => $relationshipName,
+                        'model_class' => get_class($model)
+                    ]);
+                    continue;
+                }
+
+                // Generate unique alias for this relationship
+                $relationshipAlias = $relationshipName . '_rel_' . $this->joinCounter;
+                $joinKey = get_class($model) . '::' . $relationshipName;
+
+                // Add JOIN if not already added
+                if (!isset($joinedRelationships[$joinKey])) {
+                    $this->addRelationshipJoin($queryBuilder, $relationship, $model, $mainAlias, $relationshipAlias);
+                    $joinedRelationships[$joinKey] = $relationshipAlias;
+                    $this->joinCounter++;
+                } else {
+                    $relationshipAlias = $joinedRelationships[$joinKey];
+                }
+
+                // Apply WHERE conditions on relationship fields
+                foreach ($criteria as $fieldName => $value) {
+                    // Validate field exists on relationship
+                    if (!$relationship->hasField($fieldName)) {
+                        $this->logger->warning("Field not found on relationship", [
+                            'field_name' => $fieldName,
+                            'relationship_name' => $relationshipName
+                        ]);
+                        continue;
+                    }
+
+                    $paramName = $relationshipName . '_' . $fieldName . '_' . $this->joinCounter;
+                    
+                    if (is_array($value)) {
+                        $queryBuilder->andWhere("{$relationshipAlias}.{$fieldName} IN (:{$paramName})");
+                        $queryBuilder->setParameter($paramName, $value);
+                    } elseif ($value === null) {
+                        $queryBuilder->andWhere("{$relationshipAlias}.{$fieldName} IS NULL");
+                    } elseif (is_string($value) && $value === '__NOT_NULL__') {
+                        $queryBuilder->andWhere("{$relationshipAlias}.{$fieldName} IS NOT NULL");
+                    } else {
+                        $queryBuilder->andWhere("{$relationshipAlias}.{$fieldName} = :{$paramName}");
+                        $queryBuilder->setParameter($paramName, $value);
+                    }
+                }
+
+            } catch (\Exception $e) {
+                $this->logger->error("Failed to apply relationship criteria", [
+                    'relationship_name' => $relationshipName,
+                    'criteria' => $criteria,
+                    'error' => $e->getMessage()
+                ]);
+                throw new GCException("Failed to apply relationship criteria for {$relationshipName}: " . $e->getMessage(), [], 0, $e);
+            }
+        }
+    }
+
+    /**
+     * Apply related model criteria (2+ dots notation: relationship.model.field)
+     * Groups criteria by relationship and related model to prevent duplicate JOINs
+     */
+    protected function applyRelatedModelCriteria(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        array $relatedModelCriteria,
+        ModelBase $model,
+        string $mainAlias
+    ): void {
+        // Group criteria by relationship and related model to minimize JOINs
+        $groupedCriteria = [];
+        foreach ($relatedModelCriteria as $field => $value) {
+            $parts = explode('.', $field);
+            if (count($parts) >= 3) {
+                $relationshipName = $parts[0];
+                $relatedModelName = $parts[1];
+                $fieldName = implode('.', array_slice($parts, 2)); // Handle deeper nesting
+                $groupedCriteria[$relationshipName][$relatedModelName][$fieldName] = $value;
+            }
+        }
+
+        // Static tracking to prevent duplicate JOINs across method calls
+        static $joinedRelatedModels = [];
+
+        foreach ($groupedCriteria as $relationshipName => $relatedModels) {
+            try {
+                // Get relationship object from model
+                $relationship = $model->getRelationship($relationshipName);
+                if (!$relationship) {
+                    $this->logger->warning("Relationship not found for related model criteria", [
+                        'relationship_name' => $relationshipName,
+                        'model_class' => get_class($model)
+                    ]);
+                    continue;
+                }
+
+                foreach ($relatedModels as $relatedModelName => $criteria) {
+                    // Get the other model in the relationship
+                    $relatedModel = $relationship->getOtherModel($model);
+                    $actualRelatedModelName = basename(str_replace('\\', '/', get_class($relatedModel)));
+                    
+                    // Verify this is the expected related model
+                    if (strtolower($actualRelatedModelName) !== strtolower($relatedModelName)) {
+                        $this->logger->warning("Related model name mismatch", [
+                            'expected' => $relatedModelName,
+                            'actual' => $actualRelatedModelName,
+                            'relationship_name' => $relationshipName
+                        ]);
+                        continue;
+                    }
+
+                    // Generate unique aliases
+                    $relationshipAlias = $relationshipName . '_rel_' . $this->joinCounter;
+                    $relatedModelAlias = $relationshipName . '_' . $relatedModelName . '_' . $this->joinCounter;
+                    $joinKey = get_class($model) . '::' . $relationshipName . '::' . $relatedModelName;
+
+                    // Add JOINs if not already added
+                    if (!isset($joinedRelatedModels[$joinKey])) {
+                        $this->addRelatedModelJoin($queryBuilder, $relationship, $model, $relatedModel, $mainAlias, $relationshipAlias, $relatedModelAlias);
+                        $joinedRelatedModels[$joinKey] = $relatedModelAlias;
+                        $this->joinCounter++;
+                    } else {
+                        $relatedModelAlias = $joinedRelatedModels[$joinKey];
+                    }
+
+                    // Apply WHERE conditions on related model fields
+                    foreach ($criteria as $fieldName => $value) {
+                        // Validate field exists on related model
+                        if (!$relatedModel->hasField($fieldName)) {
+                            $this->logger->warning("Field not found on related model", [
+                                'field_name' => $fieldName,
+                                'related_model' => $relatedModelName,
+                                'relationship_name' => $relationshipName
+                            ]);
+                            continue;
+                        }
+
+                        $paramName = $relationshipName . '_' . $relatedModelName . '_' . $fieldName . '_' . $this->joinCounter;
+                        
+                        if (is_array($value)) {
+                            $queryBuilder->andWhere("{$relatedModelAlias}.{$fieldName} IN (:{$paramName})");
+                            $queryBuilder->setParameter($paramName, $value);
+                        } elseif ($value === null) {
+                            $queryBuilder->andWhere("{$relatedModelAlias}.{$fieldName} IS NULL");
+                        } elseif (is_string($value) && $value === '__NOT_NULL__') {
+                            $queryBuilder->andWhere("{$relatedModelAlias}.{$fieldName} IS NOT NULL");
+                        } else {
+                            $queryBuilder->andWhere("{$relatedModelAlias}.{$fieldName} = :{$paramName}");
+                            $queryBuilder->setParameter($paramName, $value);
+                        }
+                    }
+                }
+
+            } catch (\Exception $e) {
+                $this->logger->error("Failed to apply related model criteria", [
+                    'relationship_name' => $relationshipName,
+                    'criteria' => $relatedModels,
+                    'error' => $e->getMessage()
+                ]);
+                throw new GCException("Failed to apply related model criteria for {$relationshipName}: " . $e->getMessage(), [], 0, $e);
+            }
+        }
+    }
+
+    /**
+     * Add JOIN for relationship table
+     */
+    protected function addRelationshipJoin(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        \Gravitycar\Relationships\RelationshipBase $relationship,
+        ModelBase $model,
+        string $mainAlias,
+        string $relationshipAlias
+    ): void {
+        $relationshipTable = $relationship->getTableName();
+        $modelIdField = $relationship->getModelIdField($model);
+        
+        $queryBuilder->innerJoin(
+            $mainAlias,
+            $relationshipTable,
+            $relationshipAlias,
+            "{$mainAlias}.id = {$relationshipAlias}.{$modelIdField}"
+        );
+
+        $this->logger->debug("Added relationship JOIN", [
+            'relationship_table' => $relationshipTable,
+            'relationship_alias' => $relationshipAlias,
+            'model_id_field' => $modelIdField,
+            'main_alias' => $mainAlias
+        ]);
+    }
+
+    /**
+     * Add JOINs for both relationship table and related model table
+     */
+    protected function addRelatedModelJoin(
+        \Doctrine\DBAL\Query\QueryBuilder $queryBuilder,
+        \Gravitycar\Relationships\RelationshipBase $relationship,
+        ModelBase $model,
+        ModelBase $relatedModel,
+        string $mainAlias,
+        string $relationshipAlias,
+        string $relatedModelAlias
+    ): void {
+        $relationshipTable = $relationship->getTableName();
+        $relatedModelTable = $relatedModel->getTableName();
+        $modelIdField = $relationship->getModelIdField($model);
+        $relatedModelIdField = $relationship->getModelIdField($relatedModel);
+
+        // JOIN relationship table
+        $queryBuilder->innerJoin(
+            $mainAlias,
+            $relationshipTable,
+            $relationshipAlias,
+            "{$mainAlias}.id = {$relationshipAlias}.{$modelIdField}"
+        );
+
+        // JOIN related model table
+        $queryBuilder->innerJoin(
+            $relationshipAlias,
+            $relatedModelTable,
+            $relatedModelAlias,
+            "{$relationshipAlias}.{$relatedModelIdField} = {$relatedModelAlias}.id"
+        );
+
+        $this->logger->debug("Added related model JOINs", [
+            'relationship_table' => $relationshipTable,
+            'related_model_table' => $relatedModelTable,
+            'relationship_alias' => $relationshipAlias,
+            'related_model_alias' => $relatedModelAlias,
+            'model_id_field' => $modelIdField,
+            'related_model_id_field' => $relatedModelIdField
+        ]);
     }
 
     /**
@@ -1438,18 +1770,23 @@ class DatabaseConnector {
         $offset = $parameters['offset'] ?? null;
 
         // Add ORDER BY using main table alias
-        foreach ($orderBy as $field => $direction) {
-            // Validate that the field is a database field if modelFields are provided
-            if (!empty($modelFields) && isset($modelFields[$field])) {
-                if (!$modelFields[$field]->isDBField()) {
-                    $this->logger->warning("Skipping non-database field from ORDER BY", [
-                        'field_name' => $field,
-                        'field_type' => get_class($modelFields[$field])
-                    ]);
-                    continue;
+        if (is_string($orderBy) && $orderBy === 'RAND()') {
+            // Special case for random ordering
+            $queryBuilder->orderBy('RAND()');
+        } else {
+            foreach ($orderBy as $field => $direction) {
+                // Validate that the field is a database field if modelFields are provided
+                if (!empty($modelFields) && isset($modelFields[$field])) {
+                    if (!$modelFields[$field]->isDBField()) {
+                        $this->logger->warning("Skipping non-database field from ORDER BY", [
+                            'field_name' => $field,
+                            'field_type' => get_class($modelFields[$field])
+                        ]);
+                        continue;
+                    }
                 }
+                $queryBuilder->orderBy("{$mainAlias}.{$field}", $direction);
             }
-            $queryBuilder->orderBy("{$mainAlias}.{$field}", $direction);
         }
 
         // Add LIMIT and OFFSET

@@ -464,7 +464,7 @@ abstract class RelationshipBase extends ModelBase {
     /**
      * Get the field name for model ID in this relationship table
      */
-    protected function getModelIdField(ModelBase $model): string {
+    public function getModelIdField(ModelBase $model): string {
         $modelClass = get_class($model);
         $modelName = strtolower(basename(str_replace('\\', '/', $modelClass)));
 
@@ -491,6 +491,16 @@ abstract class RelationshipBase extends ModelBase {
     }
 
     // Abstract methods that must be implemented by specific relationship types
+
+    /**
+     * Get the other model in the relationship given one model
+     * Used to determine which model to join to when building relationship queries
+     * 
+     * @param ModelBase $model The source model
+     * @return ModelBase The other model in the relationship (as a new instance)
+     * @throws GCException If the model is not part of this relationship
+     */
+    abstract public function getOtherModel(ModelBase $model): ModelBase;
 
     /**
      * Get all related records for a given model instance
