@@ -11,8 +11,6 @@ return [
             'required' => true,
             'validationRules' => ['Required'],
         ],
-        // ❌ REMOVED: movie_id field (now handled through relationships)
-        // ❌ REMOVED: movie_name field (now handled through relationships)
         // End of model-specific fields
     ],
     'validationRules' => [],

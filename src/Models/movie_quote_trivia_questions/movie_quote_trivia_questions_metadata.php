@@ -87,16 +87,25 @@ return [
             'description' => 'Whether this question was answered correctly',
             'validationRules' => [],
         ],
+        'obscurity_score' => [
+            'name' => 'obscurity_score',
+            'type' => 'Integer',
+            'label' => 'Obscurity Score',
+            'minValue' => 1,
+            'maxValue' => 5,
+            'readOnly' => true,
+            'nullable' => true,
+            'description' => 'Film obscurity: 1=Very Popular, 5=Very Obscure',
+        ],
         // End of model-specific fields
     ],
     'validationRules' => [],
     'relationships' => [],
     'ui' => [
-        'listFields' => ['movie_quote_display', 'answered_correctly'],
+        'listFields' => ['movie_quote_display', 'answered_correctly', 'obscurity_score'],
         'createFields' => ['movie_quote_id', 'answers'],
         'editFields' => ['movie_quote_id', 'answers', 'answered_correctly'],
-        'hideInCreateForm' => ['correct_answer', 'answer_option_1', 'answer_option_2', 'answer_option_3'],
-        'hideInEditForm' => ['correct_answer', 'answer_option_1', 'answer_option_2', 'answer_option_3'],
-        'hideInListView' => ['correct_answer', 'answer_option_1', 'answer_option_2', 'answer_option_3'],
+        // Note: Fields not listed in createFields/editFields/listFields are automatically hidden
+        // The frontend uses positive inclusion rather than negative exclusion
     ],
 ];

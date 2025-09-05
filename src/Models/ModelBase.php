@@ -11,6 +11,7 @@ use Gravitycar\Fields\PasswordField;
 use Gravitycar\Metadata\CoreFieldsMetadata;
 use Gravitycar\Metadata\MetadataEngine;
 use Monolog\Logger;
+use Gravitycar\Factories\ModelFactory;
 
 /**
  * Abstract base class for all models in Gravitycar.
@@ -988,15 +989,62 @@ abstract class ModelBase {
         $records = $this->getRelated($relationshipName);
         $models = [];
 
-        // Determine the related model class from the relationship
+        // Get the relationship object
         $relationship = $this->getRelationship($relationshipName);
+        if (!$relationship) {
+            throw new GCException("Relationship '{$relationshipName}' not found", [
+                'relationship_name' => $relationshipName,
+                'model_class' => static::class
+            ]);
+        }
+
+        // Get the other model in the relationship
+        $otherModel = $relationship->getOtherModel($this);
+        
+        // Get the ID field name for the other model in the relationship table
+        $relatedModelIDColumn = $relationship->getModelIdField($otherModel);
+        
+        // Determine the related model name for ModelFactory
         $relatedModelClass = $this->getRelatedModelClass($relationship);
         $relatedModelName = basename(str_replace('\\', '/', $relatedModelClass));
 
         foreach ($records as $record) {
-            $instance = \Gravitycar\Factories\ModelFactory::new($relatedModelName);
-            $instance->populateFromRow($record);
-            $models[] = $instance;
+            // Extract the ID of the related model from the relationship record
+            if (!isset($record[$relatedModelIDColumn])) {
+                $this->logger->warning("Related model ID field not found in relationship record", [
+                    'relationship_name' => $relationshipName,
+                    'expected_field' => $relatedModelIDColumn,
+                    'available_fields' => array_keys($record),
+                    'model_class' => static::class
+                ]);
+                continue;
+            }
+            
+            $relatedModelId = $record[$relatedModelIDColumn];
+            
+            // Retrieve the actual related model using ModelFactory
+            try {
+                $instance = \Gravitycar\Factories\ModelFactory::retrieve($relatedModelName, $relatedModelId);
+                if ($instance) {
+                    $models[] = $instance;
+                } else {
+                    $this->logger->warning("Could not retrieve related model", [
+                        'relationship_name' => $relationshipName,
+                        'related_model_name' => $relatedModelName,
+                        'related_model_id' => $relatedModelId,
+                        'model_class' => static::class
+                    ]);
+                }
+            } catch (\Exception $e) {
+                $this->logger->error("Failed to retrieve related model", [
+                    'relationship_name' => $relationshipName,
+                    'related_model_name' => $relatedModelName,
+                    'related_model_id' => $relatedModelId,
+                    'model_class' => static::class,
+                    'error' => $e->getMessage()
+                ]);
+                // Continue with other records instead of failing completely
+            }
         }
 
         return $models;
