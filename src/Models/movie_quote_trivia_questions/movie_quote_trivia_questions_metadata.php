@@ -96,15 +96,82 @@ return [
             'readOnly' => true,
             'nullable' => true,
             'description' => 'Film obscurity: 1=Very Popular, 5=Very Obscure',
+            'validationRules' => [],
+        ],
+        
+        // NEW GAME SESSION FIELDS (added for trivia game support)
+        'game_id' => [
+            'name' => 'game_id',
+            'type' => 'UUID',
+            'label' => 'Game Session',
+            'required' => false, // Allow standalone questions and game-linked questions
+            'nullable' => true,
+            'readOnly' => true,
+            'description' => 'Links question to specific game session (null for standalone questions)',
+            'validationRules' => [],
+        ],
+        'question_order' => [
+            'name' => 'question_order',
+            'type' => 'Integer',
+            'label' => 'Question Order',
+            'required' => false,
+            'minValue' => 1,
+            'maxValue' => 15,
+            'nullable' => true,
+            'readOnly' => true,
+            'description' => 'Question sequence within game (1-15, null for standalone)',
+            'validationRules' => [],
+        ],
+        'user_selected_option' => [
+            'name' => 'user_selected_option',
+            'type' => 'Integer',
+            'label' => 'User Selected Option',
+            'required' => false,
+            'minValue' => 1,
+            'maxValue' => 3,
+            'nullable' => true,
+            'description' => 'Which option player selected (1, 2, or 3)',
+            'validationRules' => [],
+        ],
+        'answered_at' => [
+            'name' => 'answered_at',
+            'type' => 'DateTime',
+            'label' => 'Answered At',
+            'required' => false,
+            'nullable' => true,
+            'description' => 'Timestamp when question was answered',
+            'validationRules' => ['DateTime'],
+        ],
+        'time_taken_seconds' => [
+            'name' => 'time_taken_seconds',
+            'type' => 'Integer',
+            'label' => 'Time Taken (Seconds)',
+            'required' => false,
+            'minValue' => 0,
+            'nullable' => true,
+            'description' => 'Seconds taken to answer question (for scoring)',
+            'validationRules' => [],
         ],
         // End of model-specific fields
     ],
     'validationRules' => [],
     'relationships' => [],
     'ui' => [
-        'listFields' => ['movie_quote_display', 'answered_correctly', 'obscurity_score'],
-        'createFields' => ['movie_quote_id', 'answers'],
-        'editFields' => ['movie_quote_id', 'answers', 'answered_correctly'],
+        'listFields' => [
+            'movie_quote_display', 
+            'answered_correctly', 
+            'obscurity_score',
+            'question_order',           // NEW
+            'user_selected_option',     // NEW
+            'time_taken_seconds'        // NEW
+        ],
+        'createFields' => ['movie_quote_id', 'answers'], // Keep existing - standalone questions
+        'editFields' => [
+            'movie_quote_id', 
+            'answers', 
+            'answered_correctly',
+            'user_selected_option'      // NEW - allow updating answer selection
+        ],
         // Note: Fields not listed in createFields/editFields/listFields are automatically hidden
         // The frontend uses positive inclusion rather than negative exclusion
     ],
