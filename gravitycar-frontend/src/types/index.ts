@@ -146,6 +146,25 @@ export interface UIMetadata {
   relationshipFields?: Record<string, RelationshipFieldMetadata>;
   // NEW: Related items sections for detail/edit views
   relatedItemsSections?: Record<string, RelatedItemsSectionMetadata>;
+  // NEW: Custom edit buttons for model-specific actions
+  editButtons?: EditButtonMetadata[];
+}
+
+// NEW: Custom edit button metadata for model-specific actions
+export interface EditButtonMetadata {
+  name: string;
+  label: string;
+  type: string; // Button action type (e.g., 'tmdb_search', 'tmdb_clear')
+  variant?: string; // Styling variant (primary, secondary, danger, success, warning)
+  showWhen?: ButtonCondition; // Condition for when to show the button
+  description?: string; // Tooltip/help text
+}
+
+// NEW: Button visibility condition
+export interface ButtonCondition {
+  field: string; // Field name to evaluate
+  condition: 'has_value' | 'is_empty' | 'equals' | 'not_equals'; // Condition type
+  value?: any; // Value to compare against (for equals/not_equals)
 }
 
 // NEW: Relationship field metadata for form rendering

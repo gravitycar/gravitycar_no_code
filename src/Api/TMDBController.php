@@ -63,11 +63,6 @@ class TMDBController extends ApiControllerBase {
         
         $results = $this->tmdbService->searchMovie($title);
         
-        $this->jsonResponse([
-            'success' => true,
-            'data' => $results
-        ]);
-        
         return [
             'success' => true,
             'data' => $results
@@ -88,11 +83,6 @@ class TMDBController extends ApiControllerBase {
         
         $results = $this->tmdbService->searchMovie($title);
         
-        $this->jsonResponse([
-            'success' => true,
-            'data' => $results
-        ]);
-        
         return [
             'success' => true,
             'data' => $results
@@ -111,11 +101,6 @@ class TMDBController extends ApiControllerBase {
         }
         
         $enrichmentData = $this->tmdbService->enrichMovieData((int)$tmdbId);
-        
-        $this->jsonResponse([
-            'success' => true,
-            'data' => $enrichmentData
-        ]);
         
         return [
             'success' => true,
@@ -156,7 +141,7 @@ class TMDBController extends ApiControllerBase {
                 throw new GCException('Failed to save updated movie data');
             }
             
-            $this->jsonResponse([
+            return [
                 'success' => true,
                 'message' => 'Movie data refreshed from TMDB successfully',
                 'data' => [
@@ -170,27 +155,13 @@ class TMDBController extends ApiControllerBase {
                         'release_year' => $movie->get('release_year')
                     ]
                 ]
-            ]);
-            
-            return [
-                'success' => true,
-                'message' => 'Movie data refreshed from TMDB successfully',
-                'data' => [
-                    'movie_id' => $movieId,
-                    'tmdb_id' => $tmdbId
-                ]
             ];
             
         } catch (\Exception $e) {
-            $this->jsonResponse([
+            return [
                 'success' => false,
                 'error' => $e->getMessage(),
                 'movie_id' => $request->get('movieId') ?? 'unknown'
-            ], 400);
-            
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
             ];
         }
     }

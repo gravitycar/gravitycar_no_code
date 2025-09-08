@@ -61,8 +61,49 @@ export const MovieCreateForm: React.FC<MovieCreateFormProps> = ({
   
   const [errors, setErrors] = useState<Record<string, string>>({});
   
+  // Update form data when initialData changes (for switching between create/edit modes)
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        name: initialData.name || '',
+        synopsis: initialData.synopsis || '',
+        poster_url: initialData.poster_url || '',
+        trailer_url: initialData.trailer_url || '',
+        obscurity_score: initialData.obscurity_score,
+        tmdb_id: initialData.tmdb_id,
+        release_year: initialData.release_year
+      });
+      // Reset TMDB state when switching to edit mode
+      setTmdbState({
+        isSearching: false,
+        showSelector: false,
+        searchResults: [],
+        matchType: initialData.tmdb_id ? null : null, // Don't trigger search for existing movies
+        lastSearchTitle: initialData.name || ''
+      });
+    } else {
+      // Reset to empty form for create mode
+      setFormData({
+        name: '',
+        synopsis: '',
+        poster_url: '',
+        trailer_url: '',
+        obscurity_score: undefined,
+        tmdb_id: undefined,
+        release_year: undefined
+      });
+      setTmdbState({
+        isSearching: false,
+        showSelector: false,
+        searchResults: [],
+        matchType: null,
+        lastSearchTitle: ''
+      });
+    }
+  }, [initialData]);
+  
   // Debounced TMDB search
-  const searchTMDB = useCallback(async (title: string) => {
+  const searchTMDB = useCallback(async (title: string, forceShowSelector: boolean = false) => {
     if (title.length < 3 || title === tmdbState.lastSearchTitle) {
       return;
     }
@@ -73,17 +114,39 @@ export const MovieCreateForm: React.FC<MovieCreateFormProps> = ({
       const response = await apiService.searchTMDB(title);
       const { exact_match, partial_matches, match_type } = response.data;
       
-      if (match_type === 'exact' && exact_match) {
-        // Auto-apply exact match
+      if (match_type === 'exact' && exact_match && !forceShowSelector) {
+        // Auto-apply exact match only when not manually triggered
         await applyTMDBData(exact_match);
       } else if (match_type === 'multiple' && partial_matches.length > 0) {
-        // Show selection dialog
+        // Show selection dialog for multiple matches
         setTmdbState(prev => ({
           ...prev,
           isSearching: false,
           showSelector: true,
           searchResults: partial_matches,
           matchType: 'multiple'
+        }));
+      } else if (match_type === 'exact' && exact_match && forceShowSelector) {
+        // When manually triggered, show all available matches (exact + partial)
+        let allMatches = [exact_match];
+        if (partial_matches && partial_matches.length > 0) {
+          allMatches = allMatches.concat(partial_matches);
+        }
+        setTmdbState(prev => ({
+          ...prev,
+          isSearching: false,
+          showSelector: true,
+          searchResults: allMatches,
+          matchType: 'manual'
+        }));
+      } else if (forceShowSelector && partial_matches && partial_matches.length > 0) {
+        // Manual search with only partial matches
+        setTmdbState(prev => ({
+          ...prev,
+          isSearching: false,
+          showSelector: true,
+          searchResults: partial_matches,
+          matchType: 'manual'
         }));
       } else {
         // No matches found
@@ -100,16 +163,17 @@ export const MovieCreateForm: React.FC<MovieCreateFormProps> = ({
     }
   }, [tmdbState.lastSearchTitle]);
   
-  // Debounced effect for title changes
+  // Debounced effect for title changes (only for create mode or when user manually changes title)
   useEffect(() => {
-    if (formData.name && formData.name.length >= 3) {
+    // Don't auto-search if we already have TMDB data (edit mode) unless user is actively changing the title
+    if (formData.name && formData.name.length >= 3 && !formData.tmdb_id) {
       const timer = setTimeout(() => {
-        searchTMDB(formData.name!);
+        searchTMDB(formData.name!, false); // Auto-apply exact matches for automatic searches
       }, 500);
       
       return () => clearTimeout(timer);
     }
-  }, [formData.name, searchTMDB]);
+  }, [formData.name, searchTMDB, formData.tmdb_id]);
   
   const applyTMDBData = async (tmdbMovie: TMDBMovie) => {
     try {
@@ -189,6 +253,20 @@ export const MovieCreateForm: React.FC<MovieCreateFormProps> = ({
       lastSearchTitle: ''
     }));
   };
+
+  const handleManualTMDBSearch = () => {
+    console.log('🔍 Manual TMDB Search triggered');
+    console.log('Current formData.name:', formData.name);
+    console.log('Name length:', formData.name?.length);
+    
+    if (formData.name && formData.name.length >= 3) {
+      console.log('✅ Triggering TMDB search for:', formData.name);
+      // Trigger manual TMDB search and always show selector
+      searchTMDB(formData.name, true);
+    } else {
+      console.log('❌ Title too short or missing');
+    }
+  };
   
   return (
     <div className="max-w-2xl mx-auto">
@@ -220,23 +298,73 @@ export const MovieCreateForm: React.FC<MovieCreateFormProps> = ({
           )}
           
           {/* TMDB Status */}
+          {(() => {
+            console.log('🎬 TMDB Status Debug:', {
+              tmdb_id: formData.tmdb_id,
+              name: formData.name,
+              nameLength: formData.name?.length,
+              matchType: tmdbState.matchType,
+              isSearching: tmdbState.isSearching
+            });
+            return null;
+          })()}
           {formData.tmdb_id ? (
             <div className="mt-2 flex items-center justify-between p-2 bg-green-50 border border-green-200 rounded">
-              <p className="text-sm text-green-700">
-                ✓ Matched with TMDB (ID: {formData.tmdb_id})
-              </p>
-              <button
-                type="button"
-                onClick={clearTMDBData}
-                className="text-sm text-green-600 hover:text-green-800"
-              >
-                Clear TMDB Data
-              </button>
+              <div className="flex-1">
+                <p className="text-sm text-green-700">
+                  ✓ Matched with TMDB (ID: {formData.tmdb_id})
+                </p>
+              </div>
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={handleManualTMDBSearch}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                  disabled={tmdbState.isSearching}
+                >
+                  Choose Different Match
+                </button>
+                <button
+                  type="button"
+                  onClick={clearTMDBData}
+                  className="text-sm text-green-600 hover:text-green-800"
+                >
+                  Clear TMDB Data
+                </button>
+              </div>
             </div>
-          ) : tmdbState.matchType === 'none' && formData.name && formData.name.length >= 3 && !tmdbState.isSearching && (
-            <p className="mt-1 text-sm text-yellow-600">
-              No TMDB matches found. You can enter data manually.
-            </p>
+          ) : (
+            <div className="mt-2">
+              {tmdbState.matchType === 'none' && formData.name && formData.name.length >= 3 && !tmdbState.isSearching ? (
+                <div className="flex items-center justify-between p-2 bg-yellow-50 border border-yellow-200 rounded">
+                  <p className="text-sm text-yellow-600">
+                    No TMDB matches found. You can enter data manually.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleManualTMDBSearch}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                    disabled={tmdbState.isSearching}
+                  >
+                    Search TMDB Again
+                  </button>
+                </div>
+              ) : formData.name && formData.name.length >= 3 && !tmdbState.isSearching ? (
+                <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded">
+                  <p className="text-sm text-blue-600">
+                    No TMDB match selected. Choose one for automatic data enrichment.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleManualTMDBSearch}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                    disabled={tmdbState.isSearching}
+                  >
+                    Choose TMDB Match
+                  </button>
+                </div>
+              ) : null}
+            </div>
           )}
         </div>
         

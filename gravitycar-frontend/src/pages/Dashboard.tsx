@@ -175,7 +175,7 @@ const Dashboard = () => {
       {/* Quick Actions */}
       <div className="bg-white shadow rounded-lg p-6">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <a
             href="/users"
             className="block p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:shadow-md transition-all"
@@ -198,6 +198,14 @@ const Dashboard = () => {
           >
             <h4 className="font-medium text-gray-900">Manage Quotes</h4>
             <p className="text-sm text-gray-600 mt-1">View and edit movie quotes</p>
+          </a>
+          
+          <a
+            href="/trivia"
+            className="block p-4 border border-green-200 rounded-lg hover:border-green-500 hover:shadow-md transition-all bg-green-50"
+          >
+            <h4 className="font-medium text-green-900">🎬 Movie Trivia</h4>
+            <p className="text-sm text-green-700 mt-1">Test your movie knowledge!</p>
           </a>
         </div>
       </div>

@@ -100,6 +100,30 @@ return [
                 'editFields' => ['quote'],
             ]
         ],
+        'editButtons' => [
+            [
+                'name' => 'tmdb_search',
+                'label' => 'Choose TMDB Match',
+                'type' => 'tmdb_search',
+                'variant' => 'secondary',
+                'showWhen' => [
+                    'field' => 'name',
+                    'condition' => 'has_value'
+                ],
+                'description' => 'Search TMDB to find and select a different movie match'
+            ],
+            [
+                'name' => 'clear_tmdb',
+                'label' => 'Clear TMDB Data',
+                'type' => 'tmdb_clear',
+                'variant' => 'danger',
+                'showWhen' => [
+                    'field' => 'tmdb_id',
+                    'condition' => 'has_value'
+                ],
+                'description' => 'Remove TMDB association and auto-populated data'
+            ]
+        ],
     ],
 ];
 

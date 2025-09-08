@@ -45,18 +45,40 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
     }
     
     /**
+     * Get the movie quote model instance for this question (public getter)
+     * @return \Gravitycar\Models\ModelBase|null
+     */
+    public function getQuoteModel(): ?\Gravitycar\Models\ModelBase {
+        $movieQuoteId = $this->get('movie_quote_id');
+        if (!$movieQuoteId) {
+            return null;
+        }
+        return $this->getMovieQuoteModel($movieQuoteId);
+    }
+    
+    /**
+     * Get the movie quote ID for this question
+     * @return string|null
+     */
+    public function getMovieQuoteId(): ?string {
+        return $this->get('movie_quote_id');
+    }
+    
+    /**
      * Override create to implement automatic question generation
      * 
      * When creating a new trivia question, this method will:
-     * 1. Select a random movie quote (if not specified)
+     * 1. Select a random movie quote (if not specified), excluding already used quotes
      * 2. Get the movie associated with that quote (correct answer)
      * 3. Select 2 random movies as distractors
      * 4. Randomly assign the 3 movies to the answer options
+     * 
+     * @param array $excludedIds Array of movie quote IDs to exclude from selection
      */
-    public function create(): bool {
-        // If no movie quote is specified, select one randomly
+    public function create(array $excludedIds = []): bool {
+        // If no movie quote is specified, select one randomly excluding already used quotes
         if (!$this->get('movie_quote_id')) {
-            $randomQuoteId = $this->selectRandomMovieQuote();
+            $randomQuoteId = $this->selectRandomMovieQuote($excludedIds);
             if (!$randomQuoteId) {
                 throw new GCException("No movie quotes available for trivia question generation");
             }
@@ -64,9 +86,10 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
         }
         
         // Get the correct movie from the movie quote
-        $correctMovieId = $this->getMovieFromQuote($this->get('movie_quote_id'));
+        $movieQuoteId = $this->get('movie_quote_id');
+        $correctMovieId = $this->getMovieFromQuote($movieQuoteId);
         if (!$correctMovieId) {
-            throw new GCException("Movie quote does not have an associated movie");
+            throw new GCException("Movie quote does not have an associated movie. Movie Quote ID: {$movieQuoteId}");
         }
         
         // Generate random distractor movies
@@ -232,19 +255,36 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
             // Get the movie quote model first
             $movieQuoteModel = $this->getMovieQuoteModel($movieQuoteId);
             if (!$movieQuoteModel) {
-                return null;
-            }
-            
-            // Use the relationship system to get related movies
-            $relatedMovies = $movieQuoteModel->getRelatedModels('movies_movie_quotes');
-            
-            if (empty($relatedMovies)) {
-                $this->logger->debug("No related movies found for quote", [
+                $this->logger->warning("Movie quote model not found", [
                     'movie_quote_id' => $movieQuoteId,
                     'method' => 'getMovieModel'
                 ]);
                 return null;
             }
+            
+            $this->logger->debug("Retrieved movie quote model, checking relationships", [
+                'movie_quote_id' => $movieQuoteId,
+                'method' => 'getMovieModel'
+            ]);
+            
+            // Use the relationship system to get related movies
+            $relatedMovies = $movieQuoteModel->getRelatedModels('movies_movie_quotes');
+            
+            if (empty($relatedMovies)) {
+                $this->logger->warning("No related movies found for quote", [
+                    'movie_quote_id' => $movieQuoteId,
+                    'quote_model_class' => get_class($movieQuoteModel),
+                    'relationship_name' => 'movies_movie_quotes',
+                    'method' => 'getMovieModel'
+                ]);
+                return null;
+            }
+            
+            $this->logger->debug("Found related movies", [
+                'movie_quote_id' => $movieQuoteId,
+                'related_movies_count' => count($relatedMovies),
+                'method' => 'getMovieModel'
+            ]);
             
             // For OneToMany relationship, should be exactly one movie
             $this->movieModel = $relatedMovies[0];
@@ -270,24 +310,77 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
     /**
      * Select a random movie quote that has a valid movie relationship
      * 
+     * @param array $excludedIds Array of movie quote IDs to exclude from selection
      * @return string|null The quote ID or null if none found
      */
-    private function selectRandomMovieQuote(): ?string {
+    private function selectRandomMovieQuote(array $excludedIds = []): ?string {
         $db = ServiceLocator::getDatabaseConnector();
         
         // Use ModelFactory to get a MovieQuote model instance
         $movieQuoteModel = ModelFactory::new('Movie_Quotes');
-        $rel = $movieQuoteModel->getRelationship('movies_movie_quotes');
-        $movieQuoteModelField = $rel->getModelIdField($movieQuoteModel);
-
-        // Define criteria using the new relationship format
-        $criteria = [
-            'deleted_at' => null,                           // Direct field: movie quote not deleted
-            'movies_movie_quotes.' . $movieQuoteModelField => '__NOT_NULL__',                   // Direct field: has a movie relationship
-        ];
         
-        // Use the new getRandomRecord method with relationship support
-        return $db->getRandomRecord($movieQuoteModel, $criteria);
+        // If we have excluded IDs, use the new validated filters approach
+        if (!empty($excludedIds)) {
+            // First, get all quotes that have movie relationships using the relationship approach
+            $rel = $movieQuoteModel->getRelationship('movies_movie_quotes');
+            $movieQuoteModelField = $rel->getModelIdField($movieQuoteModel);
+
+            // Define criteria using the relationship format to ensure the quote has a movie
+            $criteria = [
+                'deleted_at' => null,
+                'movies_movie_quotes.' . $movieQuoteModelField => '__NOT_NULL__',
+            ];
+            
+            // Get all valid quotes with movies first
+            $allValidQuotes = $db->find($movieQuoteModel, $criteria, ['id'], []);
+            
+            if (empty($allValidQuotes)) {
+                return null;
+            }
+            
+            // Filter out excluded IDs
+            $validQuoteIds = [];
+            foreach ($allValidQuotes as $quote) {
+                $quoteId = $quote['id'];
+                if (!in_array($quoteId, $excludedIds)) {
+                    $validQuoteIds[] = $quoteId;
+                }
+            }
+            
+            if (empty($validQuoteIds)) {
+                return null; // No valid quotes remaining after exclusions
+            }
+            
+            // Now build validated filters to get a random quote from the remaining valid IDs
+            $validatedFilters = [
+                [
+                    'field' => 'deleted_at',
+                    'operator' => 'isNull',
+                    'value' => null
+                ],
+                [
+                    'field' => 'id',
+                    'operator' => 'in',
+                    'value' => $validQuoteIds
+                ]
+            ];
+            
+            // Use the new method that supports filtering
+            return $db->getRandomRecordWithValidatedFilters($movieQuoteModel, $validatedFilters);
+        } else {
+            // For backward compatibility, use the existing relationship-based approach
+            $rel = $movieQuoteModel->getRelationship('movies_movie_quotes');
+            $movieQuoteModelField = $rel->getModelIdField($movieQuoteModel);
+
+            // Define criteria using the new relationship format
+            $criteria = [
+                'deleted_at' => null,                           // Direct field: movie quote not deleted
+                'movies_movie_quotes.' . $movieQuoteModelField => '__NOT_NULL__',                   // Direct field: has a movie relationship
+            ];
+            
+            // Use the existing getRandomRecord method with relationship support
+            return $db->getRandomRecord($movieQuoteModel, $criteria);
+        }
     }
     
     /**
@@ -298,11 +391,16 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
      */
     private function getMovieFromQuote(string $movieQuoteId): ?string {
         try {
+            $this->logger->debug("Getting movie from quote", [
+                'movie_quote_id' => $movieQuoteId,
+                'method' => 'getMovieFromQuote'
+            ]);
+            
             // Use the cached movie model
             $movieModel = $this->getMovieModel($movieQuoteId);
             
             if (!$movieModel) {
-                $this->logger->warning("Could not retrieve movie model", [
+                $this->logger->warning("Could not retrieve movie model for quote", [
                     'movie_quote_id' => $movieQuoteId,
                     'method' => 'getMovieFromQuote'
                 ]);
@@ -322,6 +420,7 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
             $this->logger->error("Exception in getMovieFromQuote", [
                 'movie_quote_id' => $movieQuoteId,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
                 'method' => 'getMovieFromQuote'
             ]);
             return null;

@@ -135,8 +135,8 @@ class APIPathScorer
         if ($clientComponent === $registeredComponent) {
             // Exact match
             return $positionWeight * 2;
-        } elseif ($registeredComponent === '?') {
-            // Wildcard match
+        } elseif ($registeredComponent === '?' || (str_starts_with($registeredComponent, '{') && str_ends_with($registeredComponent, '}'))) {
+            // Wildcard match (either ? or {paramName})
             return $positionWeight * 1;
         } else {
             // No match
