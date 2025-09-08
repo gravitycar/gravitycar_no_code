@@ -498,6 +498,52 @@ class ApiService {
       };
     }
   }
+
+  // Trivia game API methods
+  async startTriviaGame(): Promise<any> {
+    try {
+      const response = await this.api.post('/trivia/start-game');
+      return response.data;
+    } catch (error: any) {
+      console.error('Failed to start trivia game:', error);
+      throw new Error(error.response?.data?.message || 'Failed to start trivia game');
+    }
+  }
+
+  async submitTriviaAnswer(gameId: string, questionId: string, selectedOption: number, timeTaken: number): Promise<any> {
+    try {
+      const response = await this.api.put('/trivia/answer', {
+        game_id: gameId,
+        question_id: questionId,
+        selected_option: selectedOption,
+        time_taken: timeTaken
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error('Failed to submit trivia answer:', error);
+      throw new Error(error.response?.data?.message || 'Failed to submit answer');
+    }
+  }
+
+  async completeTriviaGame(gameId: string): Promise<any> {
+    try {
+      const response = await this.api.put(`/trivia/complete-game/${gameId}`);
+      return response.data;
+    } catch (error: any) {
+      console.error('Failed to complete trivia game:', error);
+      throw new Error(error.response?.data?.message || 'Failed to complete game');
+    }
+  }
+
+  async getTriviaHighScores(): Promise<any> {
+    try {
+      const response = await this.api.get('/trivia/high-scores');
+      return response.data;
+    } catch (error: any) {
+      console.error('Failed to get trivia high scores:', error);
+      throw new Error(error.response?.data?.message || 'Failed to get high scores');
+    }
+  }
 }
 
 // Export singleton instance

@@ -3,6 +3,7 @@ import { useModelMetadata } from '../../hooks/useModelMetadata';
 import FieldComponent from '../fields/FieldComponent';
 import RelatedRecordSelect from '../fields/RelatedRecordSelect';
 import { TMDBMovieSelector } from '../movies/TMDBMovieSelector';
+import Modal from '../ui/Modal';
 import type { FieldMetadata } from '../../types';
 import { apiService } from '../../services/api';
 import { ApiError } from '../../utils/errors';
@@ -33,6 +34,13 @@ const ModelForm: React.FC<ModelFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(false);
+
+  // State for create new record modal
+  const [createModalState, setCreateModalState] = useState({
+    isOpen: false,
+    relatedModel: '',
+    relationshipField: null as any
+  });
 
   // TMDB-specific state for Movies model
   const [tmdbState, setTmdbState] = useState({
@@ -156,6 +164,49 @@ const ModelForm: React.FC<ModelFormProps> = ({
       default:
         console.warn(`Unknown button type: ${button.type}`);
     }
+  };
+
+  // Handle create new related record
+  const handleCreateNew = (relationshipField: any) => {
+    setCreateModalState({
+      isOpen: true,
+      relatedModel: relationshipField.relatedModel,
+      relationshipField
+    });
+  };
+
+  const handleCreateModalClose = () => {
+    setCreateModalState({
+      isOpen: false,
+      relatedModel: '',
+      relationshipField: null
+    });
+  };
+
+  const handleCreateModalSuccess = (newRecord: any) => {
+    // Update the form data with the newly created record
+    const { relationshipField } = createModalState;
+    if (relationshipField) {
+      // Find the field name by iterating through relationship fields
+      // to find which one matches this relationship
+      const relationshipFields = metadata?.ui?.relationshipFields || {};
+      let fieldName = '';
+      
+      for (const [fieldKey, field] of Object.entries(relationshipFields)) {
+        if ((field as any).relatedModel === relationshipField.relatedModel) {
+          fieldName = fieldKey;
+          break;
+        }
+      }
+      
+      if (fieldName) {
+        setFormData(prev => ({
+          ...prev,
+          [fieldName]: newRecord.id
+        }));
+      }
+    }
+    handleCreateModalClose();
   };
 
   // TMDB Search functionality
@@ -452,8 +503,7 @@ const ModelForm: React.FC<ModelFormProps> = ({
           allowDirectEdit={true}
           showPreview={true}
           onCreateNew={() => {
-            console.log(`Create new ${relationshipField.relatedModel} requested`);
-            // TODO: Implement GenericCreateModal
+            handleCreateNew(relationshipField);
           }}
         />
       </div>
@@ -546,6 +596,22 @@ const ModelForm: React.FC<ModelFormProps> = ({
             movies={tmdbState.searchResults}
             title={formData.name || ''}
           />
+        )}
+
+        {/* Create New Related Record Modal */}
+        {createModalState.isOpen && (
+          <Modal
+            isOpen={createModalState.isOpen}
+            onClose={handleCreateModalClose}
+            title={`Create New ${createModalState.relatedModel.slice(0, -1)}`}
+            size="2xl"
+          >
+            <ModelForm
+              modelName={createModalState.relatedModel}
+              onSuccess={handleCreateModalSuccess}
+              onCancel={handleCreateModalClose}
+            />
+          </Modal>
         )}
     </div>
   );

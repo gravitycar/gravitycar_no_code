@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import type { TriviaGame, TriviaQuestion, TriviaMovieOption, TriviaHighScore } from '../components/trivia/types';
+import { apiService } from '../services/api';
+import type { TriviaGame, TriviaQuestion, TriviaHighScore } from '../components/trivia/types';
 
 interface GameStateHookReturn {
   // Game State
@@ -24,8 +25,8 @@ interface GameStateHookReturn {
   fetchHighScores: () => Promise<void>;
 }
 
-// API Configuration
-const API_BASE_URL = 'http://localhost:8081';
+// API Configuration - now using centralized API service
+// const API_BASE_URL = 'http://localhost:8081'; // No longer needed
 
 /**
  * Custom Hook for Managing Trivia Game State
@@ -40,34 +41,14 @@ export const useGameState = (): GameStateHookReturn => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [highScores, setHighScores] = useState<TriviaHighScore[]>([]);
 
-  // Utility function to make API calls
-  const apiCall = async (endpoint: string, options: RequestInit = {}) => {
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
-      ...options,
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    return response.json();
-  };
-
   // Start a new trivia game
   const startNewGame = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // Call the start game API
-      const gameData = await apiCall('/trivia/start-game', {
-        method: 'POST'
-      });
+      // Call the start game API using authenticated service
+      const gameData = await apiService.startTriviaGame();
 
       // Transform API response to our TriviaGame format
       const newGame: TriviaGame = {
@@ -119,16 +100,13 @@ export const useGameState = (): GameStateHookReturn => {
 
       const question = currentGame.questions[questionIndex];
       
-      // Call the submit answer API
-      const result = await apiCall('/trivia/answer', {
-        method: 'PUT',
-        body: JSON.stringify({
-          game_id: currentGame.id,
-          question_id: question.id,
-          selected_option: selectedOption + 1, // Convert 0-based index to 1-based option number
-          time_taken: 0 // TODO: Calculate actual time taken
-        })
-      });
+      // Call the submit answer API using authenticated service
+      const result = await apiService.submitTriviaAnswer(
+        currentGame.id,
+        question.id,
+        selectedOption + 1, // Convert 0-based index to 1-based option number
+        0 // TODO: Calculate actual time taken
+      );
 
       // Update the game state with the result
       const updatedQuestions = [...currentGame.questions];
@@ -177,35 +155,16 @@ export const useGameState = (): GameStateHookReturn => {
       setIsLoading(true);
       setError(null);
 
-      // Call the complete game API
-      const result = await apiCall(`/trivia/complete-game/${currentGame.id}`, {
-        method: 'PUT'
-      });
-
-      // Fetch the completed game data to get actual timing information
-      const gameData = await apiCall(`/trivia/game/${currentGame.id}`, {
-        method: 'GET'
-      });
+      // Call the complete game API using authenticated service
+      const result = await apiService.completeTriviaGame(currentGame.id);
 
       // Transform the completed game data
       const completedGame: TriviaGame = {
         ...currentGame,
         score: result.data.final_score || currentGame.score,
-        startTime: gameData.data.game_started_at || currentGame.startTime,
-        endTime: gameData.data.game_completed_at || new Date().toISOString(),
+        endTime: new Date().toISOString(),
         isComplete: true,
-        questions: currentGame.questions.map(q => {
-          const serverQuestion = gameData.data.questions.find((sq: any) => sq.id === q.id);
-          if (serverQuestion) {
-            return {
-              ...q,
-              answered: serverQuestion.user_selected_option !== null,
-              correct: !!serverQuestion.answered_correctly,
-              timeTaken: serverQuestion.time_taken_seconds || 0
-            };
-          }
-          return q;
-        })
+        questions: currentGame.questions // Keep existing question data as-is
       };
 
       setCurrentGame(completedGame);
@@ -225,7 +184,7 @@ export const useGameState = (): GameStateHookReturn => {
       setIsLoading(true);
       setError(null);
 
-      const scoresData = await apiCall('/trivia/high-scores');
+      const scoresData = await apiService.getTriviaHighScores();
       
       // Sort by score in descending order (highest first)
       const sortedScores = [...scoresData.data].sort((a, b) => b.score - a.score);
