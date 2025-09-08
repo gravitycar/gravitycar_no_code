@@ -102,6 +102,14 @@ return [
         'image_base_url' => 'https://image.tmdb.org/t/p'
     ],
 
+    // Google Books API Configuration
+    'google_books' => [
+        'api_key' => $_ENV['GOOGLE_BOOKS_API_KEY'] ?? null,
+        'base_url' => 'https://www.googleapis.com/books/v1',
+        'max_results' => 40,
+        'timeout' => 30
+    ],
+
     // Google OAuth Configuration
     'google' => [
         'client_id' => $_ENV['GOOGLE_CLIENT_ID'] ?? 'test-client-id',
