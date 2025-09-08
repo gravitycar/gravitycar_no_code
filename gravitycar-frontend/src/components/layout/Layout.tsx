@@ -77,6 +77,12 @@ const Layout = ({ children }: LayoutProps) => {
                 Movie Quotes
               </a>
               <a
+                href="/trivia"
+                className="text-green-600 hover:text-green-900 px-3 py-2 rounded-md text-sm font-medium font-semibold"
+              >
+                🎬 Movie Trivia
+              </a>
+              <a
                 href="/movies-quotes-demo"
                 className="text-purple-600 hover:text-purple-900 px-3 py-2 rounded-md text-sm font-medium font-semibold"
               >

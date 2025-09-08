@@ -553,6 +553,53 @@ class DatabaseConnector {
     }
 
     /**
+     * Get a random record using validated filters (supports 'notIn' operator)
+     * This method leverages the findWithReactParams system for advanced filtering
+     */
+    public function getRandomRecordWithValidatedFilters($model, array $validatedFilters = []): ?string {
+        try {
+            // Handle this differently - use a combination of validated filters and direct SQL for random ordering
+            $conn = $this->getConnection();
+            $queryBuilder = $conn->createQueryBuilder();
+            $tableName = $model->getTableName();
+            $mainAlias = $model->getAlias();
+
+            // Start with main table using model's alias
+            $queryBuilder
+                ->select("{$mainAlias}.id")
+                ->from($tableName, $mainAlias);
+
+            // Apply soft delete filter
+            if ($model->hasField('deleted_at')) {
+                $queryBuilder->where("{$mainAlias}.deleted_at IS NULL");
+            }
+
+            // Apply validated filters using the existing method
+            if (!empty($validatedFilters)) {
+                $this->applyValidatedFilters($queryBuilder, $validatedFilters, $mainAlias, $model);
+            }
+
+            // Add random ordering and limit
+            $queryBuilder
+                ->orderBy('RAND()')
+                ->setMaxResults(1);
+
+            $result = $queryBuilder->executeQuery();
+            $row = $result->fetchAssociative();
+            
+            return $row ? $row['id'] : null;
+
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to get random record with validated filters', [
+                'model_class' => is_string($model) ? $model : get_class($model),
+                'filters' => $validatedFilters,
+                'error' => $e->getMessage()
+            ]);
+            throw new GCException('Database getRandomRecordWithValidatedFilters operation failed: ' . $e->getMessage(), [], 0, $e);
+        }
+    }
+
+    /**
      * Extract database field data from a model
      */
     protected function extractDBFieldData($model, bool $includeNulls = false): array {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useModelMetadata } from '../../hooks/useModelMetadata';
 import FieldComponent from '../fields/FieldComponent';
 import RelatedRecordSelect from '../fields/RelatedRecordSelect';
+import { TMDBMovieSelector } from '../movies/TMDBMovieSelector';
 import type { FieldMetadata } from '../../types';
 import { apiService } from '../../services/api';
 import { ApiError } from '../../utils/errors';
@@ -32,6 +33,13 @@ const ModelForm: React.FC<ModelFormProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [loadingRecord, setLoadingRecord] = useState(false);
+
+  // TMDB-specific state for Movies model
+  const [tmdbState, setTmdbState] = useState({
+    showSelector: false,
+    searchResults: [] as any[],
+    isSearching: false
+  });
 
   // Load existing record data if recordId is provided
   useEffect(() => {
@@ -92,6 +100,157 @@ const ModelForm: React.FC<ModelFormProps> = ({
         delete newErrors[fieldName];
         return newErrors;
       });
+    }
+  };
+
+  // Evaluate button visibility conditions
+  const evaluateShowCondition = (condition: any): boolean => {
+    if (!condition || !condition.field) return true;
+    
+    const fieldValue = formData[condition.field];
+    
+    switch (condition.condition) {
+      case 'has_value':
+        return fieldValue !== undefined && fieldValue !== null && fieldValue !== '';
+      case 'is_empty':
+        return fieldValue === undefined || fieldValue === null || fieldValue === '';
+      case 'equals':
+        return fieldValue === condition.value;
+      case 'not_equals':
+        return fieldValue !== condition.value;
+      default:
+        return true;
+    }
+  };
+
+  // Get button variant styling
+  const getButtonVariantClasses = (variant?: string): string => {
+    switch (variant) {
+      case 'primary':
+        return 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 focus:ring-blue-500';
+      case 'secondary':
+        return 'bg-white text-blue-600 border-blue-600 hover:bg-blue-50 focus:ring-blue-500';
+      case 'danger':
+        return 'bg-white text-red-600 border-red-600 hover:bg-red-50 focus:ring-red-500';
+      case 'success':
+        return 'bg-white text-green-600 border-green-600 hover:bg-green-50 focus:ring-green-500';
+      case 'warning':
+        return 'bg-white text-yellow-600 border-yellow-600 hover:bg-yellow-50 focus:ring-yellow-500';
+      default:
+        // Default secondary style
+        return 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 focus:ring-gray-500';
+    }
+  };
+
+  // Handle custom button clicks
+  const handleCustomButtonClick = async (button: any) => {
+    console.log(`🔘 Custom button clicked:`, button);
+    
+    switch (button.type) {
+      case 'tmdb_search':
+        await handleTMDBSearch();
+        break;
+      case 'tmdb_clear':
+        handleTMDBClear();
+        break;
+      default:
+        console.warn(`Unknown button type: ${button.type}`);
+    }
+  };
+
+  // TMDB Search functionality
+  const handleTMDBSearch = async () => {
+    if (!formData.name || formData.name.length < 3) {
+      console.warn('Movie title too short for TMDB search');
+      return;
+    }
+
+    setTmdbState(prev => ({ ...prev, isSearching: true }));
+
+    try {
+      let response = await apiService.searchTMDB(formData.name);
+      
+      // Parse the JSON string response to get the actual response object
+      if (typeof response === 'string') {
+        response = JSON.parse(response);
+      }
+      
+      if (!response.success || !response.data) {
+        console.error('TMDB search failed:', response.message);
+        setTmdbState(prev => ({ ...prev, isSearching: false }));
+        return;
+      }
+      
+      // Extract the TMDB search results from the parsed response
+      const { exact_match, partial_matches } = response.data;
+      
+      // Combine all available matches
+      let allMatches = [];
+      if (exact_match) allMatches.push(exact_match);
+      if (partial_matches && partial_matches.length > 0) {
+        allMatches = allMatches.concat(partial_matches);
+      }
+
+      setTmdbState(prev => ({
+        ...prev,
+        isSearching: false,
+        showSelector: true,
+        searchResults: allMatches
+      }));
+    } catch (error) {
+      console.error('TMDB search failed:', error);
+      setTmdbState(prev => ({ ...prev, isSearching: false }));
+    }
+  };
+
+  // Clear TMDB data
+  const handleTMDBClear = () => {
+    setFormData(prev => ({
+      ...prev,
+      tmdb_id: undefined,
+      synopsis: '',
+      poster_url: '',
+      trailer_url: '',
+      obscurity_score: undefined,
+      release_year: undefined
+    }));
+  };
+
+  // Apply TMDB movie selection
+  const handleTMDBMovieSelect = async (tmdbMovie: any) => {
+    try {
+      // Enrich movie data using TMDB API
+      let enrichmentResponse = await apiService.enrichMovieWithTMDB(tmdbMovie.tmdb_id.toString());
+      
+      // Parse the JSON string response to get the actual response object
+      if (typeof enrichmentResponse === 'string') {
+        enrichmentResponse = JSON.parse(enrichmentResponse);
+      }
+      
+      if (!enrichmentResponse.success || !enrichmentResponse.data) {
+        console.error('TMDB enrichment failed:', enrichmentResponse.message);
+        setTmdbState(prev => ({ ...prev, showSelector: false }));
+        return;
+      }
+      
+      const enrichmentData = enrichmentResponse.data;
+      
+      setFormData(prev => ({
+        ...prev,
+        tmdb_id: enrichmentData.tmdb_id,
+        synopsis: enrichmentData.synopsis,
+        poster_url: enrichmentData.poster_url,
+        trailer_url: enrichmentData.trailer_url,
+        obscurity_score: enrichmentData.obscurity_score,
+        release_year: enrichmentData.release_year,
+        // Keep user-entered title
+        name: prev.name
+      }));
+      
+      setTmdbState(prev => ({ ...prev, showSelector: false }));
+    } catch (error) {
+      console.error('TMDB enrichment failed:', error);
+      setTmdbState(prev => ({ ...prev, showSelector: false }));
     }
   };
 
@@ -351,6 +510,23 @@ const ModelForm: React.FC<ModelFormProps> = ({
               </button>
             )}
             
+            {/* Custom edit buttons from metadata */}
+            {recordId && metadata.ui?.editButtons && metadata.ui.editButtons
+              .filter((button: any) => evaluateShowCondition(button.showWhen))
+              .map((button: any) => (
+                <button
+                  key={button.name}
+                  type="button"
+                  onClick={() => handleCustomButtonClick(button)}
+                  disabled={isSubmitting || (button.type === 'tmdb_search' && tmdbState.isSearching)}
+                  className={`px-4 py-2 text-sm font-medium border rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${getButtonVariantClasses(button.variant)}`}
+                  title={button.description}
+                >
+                  {button.type === 'tmdb_search' && tmdbState.isSearching ? 'Searching...' : button.label}
+                </button>
+              ))
+            }
+            
             <button
               type="submit"
               disabled={isSubmitting}
@@ -360,6 +536,17 @@ const ModelForm: React.FC<ModelFormProps> = ({
             </button>
           </div>
         </form>
+
+        {/* TMDB Movie Selector Modal - only for Movies model */}
+        {modelName === 'Movies' && (
+          <TMDBMovieSelector
+            isOpen={tmdbState.showSelector}
+            onClose={() => setTmdbState(prev => ({ ...prev, showSelector: false }))}
+            onSelect={handleTMDBMovieSelect}
+            movies={tmdbState.searchResults}
+            title={formData.name || ''}
+          />
+        )}
     </div>
   );
 };

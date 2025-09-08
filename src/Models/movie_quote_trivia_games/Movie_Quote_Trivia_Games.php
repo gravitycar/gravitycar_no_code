@@ -12,6 +12,11 @@ use Gravitycar\Models\users\Users;
 class Movie_Quote_Trivia_Games extends ModelBase
 {
     /**
+     * Track selected quote IDs to prevent duplicates
+     * @var array
+     */
+    private array $selectedQuoteIds = [];
+    /**
      * Generate a unique game name based on the player
      */
     public function generateGameName($user = null): void
@@ -35,36 +40,30 @@ class Movie_Quote_Trivia_Games extends ModelBase
      */
     public function generateQuestions(): array
     {
-        $databaseConnector = ServiceLocator::getDatabaseConnector();
-        
-        // Get all available quotes to ensure uniqueness
-        $movieQuotesModel = ModelFactory::new('Movie_Quotes');
-        $allQuotes = $movieQuotesModel->findAll();
-        
-        if (count($allQuotes) < 15) {
-            throw new \Exception('Insufficient movie quotes available. Need at least 15 quotes for a game.');
-        }
-        
-        // Shuffle and take first 15 to ensure randomness and uniqueness
-        shuffle($allQuotes);
-        $selectedQuotes = array_slice($allQuotes, 0, 15);
-        
         $questions = [];
         $gameId = $this->get('id');
+        $this->selectedQuoteIds = []; // Reset selected quotes
         
-        foreach ($selectedQuotes as $index => $quote) {
-            // Create a new trivia question
+        // Generate 15 questions
+        for ($i = 0; $i < 15; $i++) {
+            // Create a new trivia question using ModelFactory
             $question = ModelFactory::new('Movie_Quote_Trivia_Questions');
-            
-            // Set the quote
-            $question->set('movie_quote_id', $quote->get('id'));
             
             // Set game session fields before creation
             $question->set('game_id', $gameId);
-            $question->set('question_order', $index + 1);
+            $question->set('question_order', $i + 1);
             
-            // Save the question (this will auto-generate the question content via the create() override)
-            $question->create();
+            // Create the question with excluded quote IDs to prevent duplicates
+            // The create() method will automatically select a random quote and generate options
+            if (!$question->create($this->selectedQuoteIds)) {
+                throw new \Exception("Failed to create trivia question " . ($i + 1));
+            }
+            
+            // Add the selected quote ID to our tracking array
+            $quoteId = $question->getMovieQuoteId();
+            if ($quoteId) {
+                $this->selectedQuoteIds[] = $quoteId;
+            }
             
             $questions[] = $question;
         }

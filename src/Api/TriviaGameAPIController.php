@@ -129,9 +129,14 @@ class TriviaGameAPIController extends ApiControllerBase
      * Get a game with its questions
      * GET /trivia/game/{gameId}
      */
-    public function getGameWithQuestions(string $gameId): array
+    public function getGameWithQuestions(Request $request): array
     {
         try {
+            $gameId = $request->get('gameId');
+            if (!$gameId) {
+                throw new GCException('Game ID is required');
+            }
+
             /** @var Movie_Quote_Trivia_Games $game */
             $game = ModelFactory::new('Movie_Quote_Trivia_Games');
             if (!$game->findById($gameId)) {
@@ -178,10 +183,10 @@ class TriviaGameAPIController extends ApiControllerBase
      * Submit an answer for a trivia question
      * PUT /trivia/answer
      */
-    public function submitAnswer(): array
+    public function submitAnswer(Request $request): array
     {
         try {
-            $input = $this->getRequestData();
+            $input = $request->getRequestData();
             
             // Validate required fields
             $required = ['game_id', 'question_id', 'selected_option', 'time_taken'];
@@ -250,9 +255,14 @@ class TriviaGameAPIController extends ApiControllerBase
      * Complete a trivia game session
      * PUT /trivia/complete-game/{gameId}
      */
-    public function completeGame(string $gameId): array
+    public function completeGame(Request $request): array
     {
         try {
+            $gameId = $request->get('gameId');
+            if (!$gameId) {
+                throw new GCException('Game ID is required');
+            }
+
             /** @var Movie_Quote_Trivia_Games $game */
             $game = ModelFactory::new('Movie_Quote_Trivia_Games');
             if (!$game->findById($gameId)) {

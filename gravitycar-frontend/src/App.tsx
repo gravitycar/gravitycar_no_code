@@ -11,6 +11,7 @@ import UsersPage from './pages/UsersPage';
 import MoviesPage from './pages/MoviesPage';
 import MovieQuotesPage from './pages/MovieQuotesPage';
 import MoviesQuotesRelationshipDemo from './pages/MoviesQuotesRelationshipDemo';
+import TriviaPage from './pages/TriviaPage';
 import './App.css';
 
 // Protected Route Component
@@ -131,6 +132,18 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <Layout>
               <MoviesQuotesRelationshipDemo />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      {/* Movie Quote Trivia Game Route */}
+      <Route
+        path="/trivia"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <TriviaPage />
             </Layout>
           </ProtectedRoute>
         }
