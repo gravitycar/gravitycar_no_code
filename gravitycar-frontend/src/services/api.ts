@@ -544,6 +544,55 @@ class ApiService {
       throw new Error(error.response?.data?.message || 'Failed to get high scores');
     }
   }
+
+  // Google Books API methods
+  async searchGoogleBooks(title: string): Promise<ApiResponse<any>> {
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.get(
+        `/google-books/search?title=${encodeURIComponent(title)}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Google Books search failed:', error);
+      return {
+        success: false,
+        data: null,
+        message: 'Failed to search Google Books'
+      };
+    }
+  }
+  
+  async searchGoogleBooksByISBN(isbn: string): Promise<ApiResponse<any>> {
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.get(
+        `/google-books/search-isbn?isbn=${encodeURIComponent(isbn)}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Google Books ISBN search failed:', error);
+      return {
+        success: false,
+        data: null,
+        message: 'Failed to search Google Books by ISBN'
+      };
+    }
+  }
+  
+  async enrichBookWithGoogleBooks(googleBooksId: string): Promise<ApiResponse<any>> {
+    try {
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.get(
+        `/google-books/enrich/${googleBooksId}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Google Books enrichment failed:', error);
+      return {
+        success: false,
+        data: null,
+        message: 'Failed to enrich book with Google Books data'
+      };
+    }
+  }
 }
 
 // Export singleton instance

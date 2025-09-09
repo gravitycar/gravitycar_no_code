@@ -71,6 +71,12 @@ const Layout = ({ children }: LayoutProps) => {
                 Movies
               </a>
               <a
+                href="/books"
+                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
+              >
+                Books
+              </a>
+              <a
                 href="/quotes"
                 className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
               >

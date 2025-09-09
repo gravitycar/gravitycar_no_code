@@ -54,6 +54,13 @@ class GoogleBooksController extends ApiControllerBase
                 'parameterNames' => ['volumeId']
             ],
             [
+                'method' => 'GET',
+                'path' => '/google-books/enrich/?',
+                'apiClass' => self::class,
+                'apiMethod' => 'enrichBookDataGet',
+                'parameterNames' => ['googleBooksId']
+            ],
+            [
                 'method' => 'POST',
                 'path' => '/google-books/enrich',
                 'apiClass' => self::class,
@@ -90,13 +97,34 @@ class GoogleBooksController extends ApiControllerBase
             if ($title) {
                 $results = $this->integrationService->searchBook($title, $author);
                 
+                // Combine exact match and partial matches, with exact match first
+                $allBooks = [];
+                if (!empty($results['exact_match'])) {
+                    $allBooks[] = $results['exact_match'];
+                }
+                if (!empty($results['partial_matches'])) {
+                    // Add partial matches, but avoid duplicating the exact match
+                    foreach ($results['partial_matches'] as $book) {
+                        $isDuplicate = false;
+                        if (!empty($results['exact_match'])) {
+                            $isDuplicate = ($book['google_books_id'] === $results['exact_match']['google_books_id']);
+                        }
+                        if (!$isDuplicate) {
+                            $allBooks[] = $book;
+                        }
+                    }
+                }
+                
+                // Limit to first 10 results
+                $allBooks = array_slice($allBooks, 0, 10);
+                
                 return [
                     'success' => true,
                     'data' => [
-                        'books' => $results['partial_matches'],
+                        'books' => $allBooks,
                         'exact_match' => $results['exact_match'],
                         'match_type' => $results['match_type'],
-                        'total_results' => $results['total_results'],
+                        'total_results' => count($allBooks),
                         'query' => $title . ($author ? " by {$author}" : '')
                     ]
                 ];
@@ -224,6 +252,49 @@ class GoogleBooksController extends ApiControllerBase
         }
     }
     
+    /**
+     * Enrich book data from Google Books (GET method with ID in path)
+     * 
+     * @param Request $request HTTP request object
+     * @return array API response
+     */
+    public function enrichBookDataGet(Request $request): array
+    {
+        try {
+            $googleBooksId = $request->get('googleBooksId');
+            
+            if (empty($googleBooksId)) {
+                throw new GCException('Google Books ID is required');
+            }
+            
+            $enrichedData = $this->integrationService->enrichBookData($googleBooksId);
+            
+            return [
+                'success' => true,
+                'data' => [
+                    'enriched_data' => $enrichedData,
+                    'google_books_id' => $googleBooksId
+                ]
+            ];
+            
+        } catch (GCException $e) {
+            $this->logger->error('Google Books data enrichment failed (GET)', [
+                'google_books_id' => $request->get('googleBooksId'),
+                'error' => $e->getMessage()
+            ]);
+            
+            throw $e;
+            
+        } catch (\Exception $e) {
+            $this->logger->error('Unexpected error during Google Books data enrichment (GET)', [
+                'google_books_id' => $request->get('googleBooksId'),
+                'error' => $e->getMessage()
+            ]);
+            
+            throw new GCException('An unexpected error occurred during book data enrichment');
+        }
+    }
+
     /**
      * Enrich book data from Google Books
      * 

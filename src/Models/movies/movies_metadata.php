@@ -100,6 +100,15 @@ return [
                 'editFields' => ['quote'],
             ]
         ],
+        'createButtons' => [
+            [
+                'name' => 'tmdb_search',
+                'label' => 'Search YOUR TMDB',
+                'type' => 'tmdb_search',
+                'variant' => 'secondary',
+                'description' => 'Search TMDB to find and select a movie match'
+            ]
+        ],
         'editButtons' => [
             [
                 'name' => 'tmdb_search',
