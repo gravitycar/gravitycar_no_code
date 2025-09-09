@@ -9,6 +9,7 @@ import MetadataTestPage from './pages/MetadataTestPage';
 import TestRelatedRecord from './pages/TestRelatedRecord';
 import UsersPage from './pages/UsersPage';
 import MoviesPage from './pages/MoviesPage';
+import BooksPage from './pages/BooksPage';
 import MovieQuotesPage from './pages/MovieQuotesPage';
 import MoviesQuotesRelationshipDemo from './pages/MoviesQuotesRelationshipDemo';
 import TriviaPage from './pages/TriviaPage';
@@ -110,6 +111,17 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <Layout>
               <MoviesPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/books"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <BooksPage />
             </Layout>
           </ProtectedRoute>
         }

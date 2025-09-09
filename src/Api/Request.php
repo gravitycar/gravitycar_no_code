@@ -66,7 +66,8 @@ class Request
      */
     public function get(string $paramName): ?string
     {
-        return $this->extractedParameters[$paramName] ?? null;
+        // Path parameters take precedence over query parameters
+        return $this->extractedParameters[$paramName] ?? $this->requestData[$paramName] ?? null;
     }
 
     /**
@@ -77,7 +78,7 @@ class Request
      */
     public function has(string $paramName): bool
     {
-        return isset($this->extractedParameters[$paramName]);
+        return isset($this->extractedParameters[$paramName]) || isset($this->requestData[$paramName]);
     }
 
     /**

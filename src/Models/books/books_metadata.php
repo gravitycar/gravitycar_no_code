@@ -128,6 +128,15 @@ return [
         'listFields' => ['cover_image_url', 'title', 'authors', 'publication_date'],
         'createFields' => ['title'],
         'editFields' => ['title', 'subtitle', 'authors', 'publisher', 'publication_date', 'page_count', 'genres', 'language', 'synopsis', 'cover_image_url', 'isbn_13', 'isbn_10'],
+        'createButtons' => [
+            [
+                'name' => 'google_books_search',
+                'label' => 'Find Google Books Match',
+                'type' => 'google_books_search',
+                'variant' => 'secondary',
+                'description' => 'Search Google Books to find and select a book match'
+            ]
+        ],
         'editButtons' => [
             [
                 'name' => 'google_books_search',

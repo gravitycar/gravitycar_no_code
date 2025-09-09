@@ -146,8 +146,9 @@ export interface UIMetadata {
   relationshipFields?: Record<string, RelationshipFieldMetadata>;
   // NEW: Related items sections for detail/edit views
   relatedItemsSections?: Record<string, RelatedItemsSectionMetadata>;
-  // NEW: Custom edit buttons for model-specific actions
-  editButtons?: EditButtonMetadata[];
+  // NEW: Custom buttons for model-specific actions
+  createButtons?: EditButtonMetadata[]; // Custom buttons for create mode
+  editButtons?: EditButtonMetadata[]; // Custom buttons for edit mode
 }
 
 // NEW: Custom edit button metadata for model-specific actions

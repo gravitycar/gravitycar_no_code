@@ -8,7 +8,6 @@ import ModelForm from '../forms/ModelForm';
 import Modal from '../ui/Modal';
 import { getErrorMessage } from '../../utils/errors';
 import type { PaginatedResponse, ModelMetadata, FieldMetadata } from '../../types';
-import TMDBEnhancedCreateForm from '../movies/TMDBEnhancedCreateForm';
 
 interface GenericCrudPageProps {
   modelName: string;
@@ -742,19 +741,11 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
               title={`Create New ${modelName.slice(0, -1)}`}
               size="2xl"
             >
-              {modelName === 'Movies' ? (
-                <TMDBEnhancedCreateForm
-                  metadata={metadata}
-                  onSuccess={handleFormSuccess}
-                  onCancel={handleFormCancel}
-                />
-              ) : (
-                <ModelForm
-                  modelName={modelName}
-                  onSuccess={handleFormSuccess}
-                  onCancel={handleFormCancel}
-                />
-              )}
+              <ModelForm
+                modelName={modelName}
+                onSuccess={handleFormSuccess}
+                onCancel={handleFormCancel}
+              />
             </Modal>
           )}
 

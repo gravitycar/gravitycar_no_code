@@ -3,6 +3,7 @@ import { useModelMetadata } from '../../hooks/useModelMetadata';
 import FieldComponent from '../fields/FieldComponent';
 import RelatedRecordSelect from '../fields/RelatedRecordSelect';
 import { TMDBMovieSelector } from '../movies/TMDBMovieSelector';
+import { GoogleBooksSelector } from '../books/GoogleBooksSelector';
 import Modal from '../ui/Modal';
 import type { FieldMetadata } from '../../types';
 import { apiService } from '../../services/api';
@@ -44,6 +45,13 @@ const ModelForm: React.FC<ModelFormProps> = ({
 
   // TMDB-specific state for Movies model
   const [tmdbState, setTmdbState] = useState({
+    showSelector: false,
+    searchResults: [] as any[],
+    isSearching: false
+  });
+
+  // Google Books-specific state for Books model
+  const [googleBooksState, setGoogleBooksState] = useState({
     showSelector: false,
     searchResults: [] as any[],
     isSearching: false
@@ -160,6 +168,12 @@ const ModelForm: React.FC<ModelFormProps> = ({
         break;
       case 'tmdb_clear':
         handleTMDBClear();
+        break;
+      case 'google_books_search':
+        await handleGoogleBooksSearch();
+        break;
+      case 'google_books_clear':
+        handleGoogleBooksClear();
         break;
       default:
         console.warn(`Unknown button type: ${button.type}`);
@@ -302,6 +316,140 @@ const ModelForm: React.FC<ModelFormProps> = ({
     } catch (error) {
       console.error('TMDB enrichment failed:', error);
       setTmdbState(prev => ({ ...prev, showSelector: false }));
+    }
+  };
+
+  // Google Books Search functionality
+  const handleGoogleBooksSearch = async () => {
+    if (!formData.title || formData.title.length < 3) {
+      console.warn('Book title too short for Google Books search');
+      return;
+    }
+
+    setGoogleBooksState(prev => ({ ...prev, isSearching: true }));
+
+    try {
+      let response = await apiService.searchGoogleBooks(formData.title);
+      
+      // Parse the JSON string response to get the actual response object
+      if (typeof response === 'string') {
+        response = JSON.parse(response);
+      }
+      
+      if (!response.success || !response.data) {
+        console.error('Google Books search failed:', response.message);
+        setGoogleBooksState(prev => ({ ...prev, isSearching: false }));
+        return;
+      }
+      
+      // Extract the Google Books search results from the parsed response
+      const { books, exact_match, partial_matches } = response.data;
+      
+      // Use the books array if available (new format), otherwise fall back to old format
+      let allMatches = [];
+      if (books && books.length > 0) {
+        // New format: all books are in the books array, already sorted with best match first
+        allMatches = books;
+      } else {
+        // Old format: combine exact_match and partial_matches
+        if (exact_match) allMatches.push(exact_match);
+        if (partial_matches && partial_matches.length > 0) {
+          allMatches = allMatches.concat(partial_matches);
+        }
+      }
+
+      setGoogleBooksState(prev => ({
+        ...prev,
+        isSearching: false,
+        showSelector: true,
+        searchResults: allMatches
+      }));
+    } catch (error) {
+      console.error('Google Books search failed:', error);
+      setGoogleBooksState(prev => ({ ...prev, isSearching: false }));
+    }
+  };
+
+  // Clear Google Books data
+  const handleGoogleBooksClear = () => {
+    setFormData(prev => ({
+      ...prev,
+      google_books_id: undefined,
+      subtitle: '',
+      authors: '',
+      publisher: '',
+      publication_date: undefined,
+      page_count: undefined,
+      synopsis: '',
+      cover_image_url: '',
+      isbn_13: '',
+      isbn_10: '',
+      language: 'en',
+      genres: '',
+      average_rating: undefined,
+      ratings_count: undefined,
+      maturity_rating: undefined
+    }));
+  };
+
+  // Apply Google Books book selection
+  const handleGoogleBooksSelect = async (googleBook: any) => {
+    try {
+      console.log('🔍 Starting Google Books enrichment for:', googleBook.google_books_id);
+      
+      // Enrich book data using Google Books API
+      let enrichmentResponse = await apiService.enrichBookWithGoogleBooks(googleBook.google_books_id.toString());
+      
+      console.log('📡 Enrichment API response:', enrichmentResponse);
+      
+      // Parse the JSON string response to get the actual response object
+      if (typeof enrichmentResponse === 'string') {
+        enrichmentResponse = JSON.parse(enrichmentResponse);
+      }
+      
+      if (!enrichmentResponse.success || !enrichmentResponse.data) {
+        console.error('Google Books enrichment failed:', enrichmentResponse.message);
+        setGoogleBooksState(prev => ({ ...prev, showSelector: false }));
+        return;
+      }
+      
+      // Extract the enriched data from the nested structure
+      const enrichmentData = enrichmentResponse.data.enriched_data;
+      
+      if (!enrichmentData) {
+        console.error('No enriched data found in response:', enrichmentResponse.data);
+        setGoogleBooksState(prev => ({ ...prev, showSelector: false }));
+        return;
+      }
+      
+      console.log('✅ Successfully extracted enrichment data:', enrichmentData);
+      
+      setFormData(prev => ({
+        ...prev,
+        google_books_id: enrichmentData.google_books_id,
+        subtitle: enrichmentData.subtitle || '',
+        authors: enrichmentData.authors || '',
+        publisher: enrichmentData.publisher || '',
+        publication_date: enrichmentData.publication_date,
+        page_count: enrichmentData.page_count,
+        synopsis: enrichmentData.synopsis || '',
+        cover_image_url: enrichmentData.cover_image_url || '',
+        isbn_13: enrichmentData.isbn_13 || '',
+        isbn_10: enrichmentData.isbn_10 || '',
+        language: enrichmentData.language || 'en',
+        genres: enrichmentData.genres || '',
+        average_rating: enrichmentData.average_rating,
+        ratings_count: enrichmentData.ratings_count,
+        maturity_rating: enrichmentData.maturity_rating,
+        // Keep user-entered title
+        title: prev.title
+      }));
+      
+      console.log('🎉 Form data updated successfully with Google Books data');
+      setGoogleBooksState(prev => ({ ...prev, showSelector: false }));
+    } catch (error) {
+      console.error('Google Books enrichment failed:', error);
+      setGoogleBooksState(prev => ({ ...prev, showSelector: false }));
     }
   };
 
@@ -560,6 +708,27 @@ const ModelForm: React.FC<ModelFormProps> = ({
               </button>
             )}
             
+            {/* Custom create buttons from metadata */}
+            {!recordId && metadata.ui?.createButtons && metadata.ui.createButtons
+              .filter((button: any) => evaluateShowCondition(button.showWhen))
+              .map((button: any) => (
+                <button
+                  key={button.name}
+                  type="button"
+                  onClick={() => handleCustomButtonClick(button)}
+                  disabled={isSubmitting || 
+                    (button.type === 'tmdb_search' && tmdbState.isSearching) ||
+                    (button.type === 'google_books_search' && googleBooksState.isSearching)}
+                  className={`px-4 py-2 text-sm font-medium border rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${getButtonVariantClasses(button.variant)}`}
+                  title={button.description}
+                >
+                  {(button.type === 'tmdb_search' && tmdbState.isSearching) ? 'Searching...' : 
+                   (button.type === 'google_books_search' && googleBooksState.isSearching) ? 'Searching...' : 
+                   button.label}
+                </button>
+              ))
+            }
+            
             {/* Custom edit buttons from metadata */}
             {recordId && metadata.ui?.editButtons && metadata.ui.editButtons
               .filter((button: any) => evaluateShowCondition(button.showWhen))
@@ -568,11 +737,15 @@ const ModelForm: React.FC<ModelFormProps> = ({
                   key={button.name}
                   type="button"
                   onClick={() => handleCustomButtonClick(button)}
-                  disabled={isSubmitting || (button.type === 'tmdb_search' && tmdbState.isSearching)}
+                  disabled={isSubmitting || 
+                    (button.type === 'tmdb_search' && tmdbState.isSearching) ||
+                    (button.type === 'google_books_search' && googleBooksState.isSearching)}
                   className={`px-4 py-2 text-sm font-medium border rounded-md focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed ${getButtonVariantClasses(button.variant)}`}
                   title={button.description}
                 >
-                  {button.type === 'tmdb_search' && tmdbState.isSearching ? 'Searching...' : button.label}
+                  {(button.type === 'tmdb_search' && tmdbState.isSearching) ? 'Searching...' : 
+                   (button.type === 'google_books_search' && googleBooksState.isSearching) ? 'Searching...' : 
+                   button.label}
                 </button>
               ))
             }
@@ -595,6 +768,17 @@ const ModelForm: React.FC<ModelFormProps> = ({
             onSelect={handleTMDBMovieSelect}
             movies={tmdbState.searchResults}
             title={formData.name || ''}
+          />
+        )}
+
+        {/* Google Books Selector Modal - only for Books model */}
+        {modelName === 'Books' && (
+          <GoogleBooksSelector
+            isOpen={googleBooksState.showSelector}
+            onClose={() => setGoogleBooksState(prev => ({ ...prev, showSelector: false }))}
+            onSelect={handleGoogleBooksSelect}
+            books={googleBooksState.searchResults}
+            title={formData.title || ''}
           />
         )}
 
