@@ -72,11 +72,11 @@ class TriviaGameAPIController extends ApiControllerBase
     {
         try {
             // Get current user (if authenticated) or null for guest
-            $currentUser = ServiceLocator::getCurrentUser();
+            $currentUser = $this->getCurrentUser();
             
-            // Create new game
+            // Create new game using inherited ModelFactory
             /** @var Movie_Quote_Trivia_Games $game */
-            $game = ModelFactory::new('Movie_Quote_Trivia_Games');
+            $game = $this->modelFactory->new('Movie_Quote_Trivia_Games');
             
             // Generate game name based on user type
             $game->generateGameName($currentUser);
@@ -138,7 +138,7 @@ class TriviaGameAPIController extends ApiControllerBase
             }
 
             /** @var Movie_Quote_Trivia_Games $game */
-            $game = ModelFactory::new('Movie_Quote_Trivia_Games');
+            $game = $this->modelFactory->new('Movie_Quote_Trivia_Games');
             if (!$game->findById($gameId)) {
                 throw new GCException('Game not found');
             }
@@ -197,7 +197,7 @@ class TriviaGameAPIController extends ApiControllerBase
             }
             
             // Get the question
-            $question = ModelFactory::new('Movie_Quote_Trivia_Questions');
+            $question = $this->modelFactory->new('Movie_Quote_Trivia_Questions');
             if (!$question->findById($input['question_id'])) {
                 throw new GCException('Question not found');
             }
@@ -209,7 +209,7 @@ class TriviaGameAPIController extends ApiControllerBase
             
             // Get the game
             /** @var Movie_Quote_Trivia_Games $game */
-            $game = ModelFactory::new('Movie_Quote_Trivia_Games');
+            $game = $this->modelFactory->new('Movie_Quote_Trivia_Games');
             if (!$game->findById($input['game_id'])) {
                 throw new GCException('Game not found');
             }
@@ -264,7 +264,7 @@ class TriviaGameAPIController extends ApiControllerBase
             }
 
             /** @var Movie_Quote_Trivia_Games $game */
-            $game = ModelFactory::new('Movie_Quote_Trivia_Games');
+            $game = $this->modelFactory->new('Movie_Quote_Trivia_Games');
             if (!$game->findById($gameId)) {
                 throw new GCException('Game not found');
             }
@@ -304,15 +304,14 @@ class TriviaGameAPIController extends ApiControllerBase
     public function getHighScores(): array
     {
         try {
-            $db = ServiceLocator::getDatabaseConnector();
-            $gameModel = ModelFactory::new('Movie_Quote_Trivia_Games');
+            $gameModel = $this->modelFactory->new('Movie_Quote_Trivia_Games');
             
             // Find top 10 completed games ordered by score
             $criteria = [
                 'game_completed_at' => '__NOT_NULL__'  // Only completed games
             ];
             $orderBy = ['score' => 'DESC'];
-            $results = $db->find($gameModel, $criteria, [], [], $orderBy, 10);
+            $results = $this->databaseConnector->find($gameModel, $criteria, [], [], $orderBy, 10);
             
             $highScores = [];
             foreach ($results as $row) {
@@ -342,7 +341,7 @@ class TriviaGameAPIController extends ApiControllerBase
      */
     private function getQuoteText(string $quoteId): string
     {
-        $quote = ModelFactory::new('Movie_Quotes');
+        $quote = $this->modelFactory->new('Movie_Quotes');
         if ($quote->findById($quoteId)) {
             return $quote->get('quote') ?? '';
         }
@@ -360,7 +359,7 @@ class TriviaGameAPIController extends ApiControllerBase
         for ($i = 1; $i <= 3; $i++) {
             $movieId = $question->get("answer_option_{$i}");
             if ($movieId) {
-                $movie = ModelFactory::new('Movies');
+                $movie = $this->modelFactory->new('Movies');
                 if ($movie->findById($movieId)) {
                     $options[] = [
                         'option_number' => $i,
@@ -394,7 +393,7 @@ class TriviaGameAPIController extends ApiControllerBase
     {
         $correctMovieId = $question->get('correct_answer');
         if ($correctMovieId) {
-            $movie = ModelFactory::new('Movies');
+            $movie = $this->modelFactory->new('Movies');
             if ($movie->findById($correctMovieId)) {
                 return $movie->get('name') ?? 'Unknown Movie';
             }
@@ -407,8 +406,7 @@ class TriviaGameAPIController extends ApiControllerBase
      */
     private function calculateGameRank(int $score): int
     {
-        $db = ServiceLocator::getDatabaseConnector();
-        $gameModel = ModelFactory::new('Movie_Quote_Trivia_Games');
+        $gameModel = $this->modelFactory->new('Movie_Quote_Trivia_Games');
         
         // Count completed games with higher scores
         $criteria = [
@@ -416,7 +414,7 @@ class TriviaGameAPIController extends ApiControllerBase
             'score' => ['operator' => '>', 'value' => $score]
         ];
         
-        $higherScoreGames = $db->find($gameModel, $criteria);
+        $higherScoreGames = $this->databaseConnector->find($gameModel, $criteria);
         
         return count($higherScoreGames) + 1; // +1 because rank is 1-based
     }

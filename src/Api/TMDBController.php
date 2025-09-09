@@ -5,12 +5,23 @@ use Gravitycar\Api\ApiControllerBase;
 use Gravitycar\Api\Request;
 use Gravitycar\Services\MovieTMDBIntegrationService;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Core\Config;
+use Monolog\Logger;
 
 class TMDBController extends ApiControllerBase {
     private MovieTMDBIntegrationService $tmdbService;
     
-    public function __construct() {
-        parent::__construct();
+    public function __construct(
+        Logger $logger = null,
+        ModelFactory $modelFactory = null,
+        DatabaseConnectorInterface $databaseConnector = null,
+        MetadataEngineInterface $metadataEngine = null,
+        Config $config = null
+    ) {
+        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config);
         $this->tmdbService = new MovieTMDBIntegrationService();
     }
     
@@ -121,7 +132,8 @@ class TMDBController extends ApiControllerBase {
             }
             
             // Load the movie
-            $movie = \Gravitycar\Core\ServiceLocator::createModel('\\Gravitycar\\Models\\movies\\Movies');
+            /** @var \Gravitycar\Models\movies\Movies $movie */
+            $movie = $this->modelFactory->new('Movies');
             
             if (!$movie->findById($movieId)) {
                 throw new GCException('Movie not found', ['movie_id' => $movieId]);

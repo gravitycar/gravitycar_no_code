@@ -8,8 +8,9 @@ use Gravitycar\Exceptions\GCException;
 class MovieTMDBIntegrationService {
     private TMDBApiService $tmdbService;
     
-    public function __construct() {
-        $this->tmdbService = new TMDBApiService();
+    public function __construct(TMDBApiService $tmdbService = null) {
+        // Backward compatibility: create TMDBApiService if not provided
+        $this->tmdbService = $tmdbService ?? new TMDBApiService();
     }
     
     /**

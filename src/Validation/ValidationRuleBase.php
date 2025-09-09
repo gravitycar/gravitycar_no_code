@@ -38,9 +38,16 @@ abstract class ValidationRuleBase {
     protected Logger $logger;
 
     public function __construct(string $name = '', string $errorMessage = '') {
-        $this->logger = ServiceLocator::getLogger();
+        $this->logger = $this->getLogger();
         $this->name = $name ?: static::class;
         $this->errorMessage = $errorMessage;
+    }
+
+    /**
+     * Get logger instance lazily to avoid circular dependencies
+     */
+    protected function getLogger(): Logger {
+        return \Gravitycar\Core\ServiceLocator::getLogger();
     }
 
     /**

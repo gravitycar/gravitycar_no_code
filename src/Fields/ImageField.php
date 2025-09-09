@@ -30,8 +30,8 @@ class ImageField extends FieldBase {
     /** @var array Image fields have very limited filtering capabilities */
     protected array $operators = ['equals', 'notEquals', 'isNull', 'isNotNull'];
 
-    public function __construct(array $metadata) {
-        parent::__construct($metadata);
+    public function __construct(array $metadata, ?Logger $logger = null) {
+        parent::__construct($metadata, $logger);
         // ingestMetadata() in parent constructor now handles all property assignments
     }
     

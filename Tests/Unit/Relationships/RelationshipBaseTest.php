@@ -523,6 +523,12 @@ class TestableRelationship extends RelationshipBase
         return true;
     }
 
+    public function getOtherModel(ModelBase $model): ModelBase
+    {
+        // Mock implementation - just return the same model for testing
+        return $model;
+    }
+
     // Override methods that depend on ServiceLocator for testing
     protected function getDatabaseConnector(): DatabaseConnector
     {

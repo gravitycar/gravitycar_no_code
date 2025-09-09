@@ -10,6 +10,8 @@ use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Fields\PasswordField;
 use Gravitycar\Metadata\CoreFieldsMetadata;
 use Gravitycar\Metadata\MetadataEngine;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Monolog\Logger;
 use Gravitycar\Factories\ModelFactory;
 
@@ -32,8 +34,10 @@ abstract class ModelBase {
     protected Logger $logger;
     /** @var array */
     protected array $metadata;
-    /** @var MetadataEngine */
-    protected MetadataEngine $metadataEngine;
+    /** @var MetadataEngineInterface */
+    protected MetadataEngineInterface $metadataEngine;
+    /** @var DatabaseConnectorInterface|null */
+    protected ?DatabaseConnectorInterface $databaseConnector = null;
     /** @var bool */
     protected bool $metadataLoaded = false;
     /** @var bool */
@@ -47,15 +51,68 @@ abstract class ModelBase {
     /** @var string|null */
     protected ?string $deletedBy = null;
 
-    public function __construct() {
-        $this->logger = ServiceLocator::getLogger();
-        $this->metadataEngine = ServiceLocator::getMetadataEngine();
+    public function __construct(?Logger $logger = null, ?MetadataEngineInterface $metadataEngine = null) {
+        // Use dependency injection if provided, otherwise fall back to ServiceLocator during transition
+        $this->logger = $logger ?? ServiceLocator::getLogger();
+        $this->metadataEngine = $metadataEngine ?? ServiceLocator::getMetadataEngine();
         
         // Load metadata immediately during construction
         $this->loadMetadata();
-        
+        $this->initializeFields();
         // Keep fields/relationships lazy since they depend on metadata
         $this->metadata = $this->metadata ?? []; // Ensure array is set
+    }
+
+    /**
+     * Set database connector via setter injection (optional dependency)
+     */
+    public function setDatabaseConnector(DatabaseConnectorInterface $connector): void {
+        $this->databaseConnector = $connector;
+    }
+
+    /**
+     * Get database connector (with fallback to ServiceLocator during transition)
+     */
+    protected function getDatabaseConnector(): DatabaseConnectorInterface {
+        if ($this->databaseConnector === null) {
+            // Fallback to ServiceLocator during transition period
+            $this->databaseConnector = ServiceLocator::getDatabaseConnector();
+        }
+        return $this->databaseConnector;
+    }
+
+    /**
+     * Get field factory (with fallback to ServiceLocator during transition)
+     */
+    protected function getFieldFactory(): FieldFactory {
+        // Try to get FieldFactory from container first, fall back to creating new one
+        if (\Gravitycar\Core\ServiceLocator::hasService('field_factory')) {
+            return \Gravitycar\Core\ServiceLocator::get('field_factory');
+        } else {
+            // Create FieldFactory instance using DI system
+            return \Gravitycar\Core\ServiceLocator::createFieldFactory($this);
+        }
+    }
+
+    /**
+     * Get relationship factory (with fallback to ServiceLocator during transition)
+     */
+    protected function getRelationshipFactory() {
+        return ServiceLocator::createRelationshipFactory($this);
+    }
+
+    /**
+     * Get model factory (with fallback to ServiceLocator during transition)
+     */
+    protected function getModelFactory(): ModelFactory {
+        return \Gravitycar\Core\ServiceLocator::getModelFactory();
+    }
+
+    /**
+     * Get current user (with fallback to ServiceLocator during transition)
+     */
+    protected function getCurrentUserService() {
+        return ServiceLocator::getCurrentUser();
     }
 
     /**
@@ -128,14 +185,8 @@ abstract class ModelBase {
                 ['model_class' => static::class, 'metadata' => $this->metadata]);
         }
 
-        // Try to get FieldFactory from container first, fall back to creating new one
-        $fieldFactory = null;
-        if (\Gravitycar\Core\ServiceLocator::hasService('field_factory')) {
-            $fieldFactory = \Gravitycar\Core\ServiceLocator::get('field_factory');
-        } else {
-            // Create FieldFactory instance using DI system
-            $fieldFactory = \Gravitycar\Core\ServiceLocator::createFieldFactory($this);
-        }
+        // Get FieldFactory using lazy getter
+        $fieldFactory = $this->getFieldFactory();
 
         foreach ($this->metadata['fields'] as $fieldName => $fieldMeta) {
             $field = $this->createSingleField($fieldName, $fieldMeta, $fieldFactory);
@@ -194,7 +245,7 @@ abstract class ModelBase {
         }
 
         // Create RelationshipFactory instance using DI system
-        $relationshipFactory = ServiceLocator::createRelationshipFactory($this);
+        $relationshipFactory = $this->getRelationshipFactory();
 
         foreach ($this->metadata['relationships'] as $relName) {
             try {
@@ -287,7 +338,7 @@ abstract class ModelBase {
         $this->setAuditFieldsForSoftDelete();
 
         // Delegate to DatabaseConnector for soft delete
-        $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
+        $dbConnector = $this->getDatabaseConnector();
         return $dbConnector->softDelete($this);
     }
 
@@ -303,7 +354,7 @@ abstract class ModelBase {
         }
 
         // Delegate to DatabaseConnector for hard delete
-        $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
+        $dbConnector = $this->getDatabaseConnector();
         return $dbConnector->hardDelete($this);
     }
 
@@ -589,7 +640,7 @@ abstract class ModelBase {
      * Persist model to database using the specified operation
      */
     protected function persistToDatabase(string $operation): bool {
-        $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
+        $dbConnector = $this->getDatabaseConnector();
 
         return match($operation) {
             'create' => $dbConnector->create($this),
@@ -605,7 +656,7 @@ abstract class ModelBase {
      * Find records by criteria using this model instance (performance optimized)
      */
     public function find(array $criteria = [], array $fields = [], array $parameters = []): array {
-        $dbConnector = ServiceLocator::getDatabaseConnector();
+        $dbConnector = $this->getDatabaseConnector();
         $rows = $dbConnector->find($this, $criteria, $fields, $parameters);
         return $this->fromRows($rows);
     }
@@ -614,7 +665,7 @@ abstract class ModelBase {
      * Find a single record by ID and populate this instance (performance optimized)
      */
     public function findById($id, array $fields = []) {
-        $dbConnector = ServiceLocator::getDatabaseConnector();
+        $dbConnector = $this->getDatabaseConnector();
         $rows = $dbConnector->find($this, ['id' => $id], $fields, ['limit' => 1]);
         if (empty($rows)) {
             return null;
@@ -654,7 +705,7 @@ abstract class ModelBase {
      * Find records by criteria and return raw database rows (performance optimized)
      */
     public function findRaw(array $criteria = [], array $fields = [], array $parameters = []): array {
-        $dbConnector = ServiceLocator::getDatabaseConnector();
+        $dbConnector = $this->getDatabaseConnector();
         return $dbConnector->find($this, $criteria, $fields, $parameters);
     }
 
@@ -768,7 +819,18 @@ abstract class ModelBase {
      * Check if a field should be included in database operations
      */
     public function hasField(string $fieldName): bool {
-        return isset($this->fields[$fieldName]);
+        $hasField = isset($this->fields[$fieldName]);
+        
+        if (!$hasField) {
+            $this->logger->debug('Field not found in model', [
+                'model_class' => get_class($this),
+                'field_name' => $fieldName,
+                'available_fields' => array_keys($this->fields),
+                'fields_initialized' => $this->fieldsInitialized
+            ]);
+        }
+        
+        return $hasField;
     }
 
     /**
@@ -796,7 +858,7 @@ abstract class ModelBase {
      */
     protected function getCurrentUserId(): ?string {
         try {
-            $currentUser = ServiceLocator::getCurrentUser();
+            $currentUser = $this->getCurrentUserService();
             return $currentUser ? $currentUser->get('id') : null;
         } catch (\Exception $e) {
             $this->logger->debug('Failed to get current user ID for audit fields', [
@@ -817,7 +879,7 @@ abstract class ModelBase {
      */
     public function getCurrentUser(): ?\Gravitycar\Models\ModelBase {
         try {
-            return ServiceLocator::getCurrentUser();
+            return $this->getCurrentUserService();
         } catch (\Exception $e) {
             $this->logger->debug('Failed to get current user model', [
                 'error' => $e->getMessage(),
@@ -934,7 +996,7 @@ abstract class ModelBase {
     public function fromRows(array $rows): array {
         $instances = [];
         foreach ($rows as $row) {
-            $instance = \Gravitycar\Factories\ModelFactory::new(basename(str_replace('\\', '/', static::class)));
+            $instance = $this->getModelFactory()->new(basename(str_replace('\\', '/', static::class)));
             $instance->populateFromRow($row);
             $instances[] = $instance;
         }
@@ -1024,7 +1086,7 @@ abstract class ModelBase {
             
             // Retrieve the actual related model using ModelFactory
             try {
-                $instance = \Gravitycar\Factories\ModelFactory::retrieve($relatedModelName, $relatedModelId);
+                $instance = $this->getModelFactory()->retrieve($relatedModelName, $relatedModelId);
                 if ($instance) {
                     $models[] = $instance;
                 } else {

@@ -220,7 +220,7 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
         
         // Retrieve and cache the movie quote model
         try {
-            $this->movieQuoteModel = ModelFactory::retrieve('Movie_Quotes', $movieQuoteId);
+            $this->movieQuoteModel = $this->getModelFactory()->retrieve('Movie_Quotes', $movieQuoteId);
             $this->cachedMovieQuoteId = $movieQuoteId;
             
             return $this->movieQuoteModel;
@@ -314,10 +314,10 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
      * @return string|null The quote ID or null if none found
      */
     private function selectRandomMovieQuote(array $excludedIds = []): ?string {
-        $db = ServiceLocator::getDatabaseConnector();
+        $db = $this->getDatabaseConnector();
         
         // Use ModelFactory to get a MovieQuote model instance
-        $movieQuoteModel = ModelFactory::new('Movie_Quotes');
+        $movieQuoteModel = $this->getModelFactory()->new('Movie_Quotes');
         
         // If we have excluded IDs, use the new validated filters approach
         if (!empty($excludedIds)) {
@@ -436,10 +436,10 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
      */
     private function selectRandomDistractorMovies(string $excludeMovieId, int $count): array {
         try {
-            $db = ServiceLocator::getDatabaseConnector();
+            $db = $this->getDatabaseConnector();
             
             // Use ModelFactory to get a Movies model instance for query building
-            $movieModel = ModelFactory::new('Movies');
+            $movieModel = $this->getModelFactory()->new('Movies');
             
             $this->logger->debug("Selecting random distractor movies", [
                 'exclude_movie_id' => $excludeMovieId,
@@ -519,7 +519,7 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
      */
     private function getMovieTitle(string $movieId): string {
         // Use ModelFactory to retrieve the specific movie record
-        $movieModel = ModelFactory::retrieve('Movies', $movieId);
+        $movieModel = $this->getModelFactory()->retrieve('Movies', $movieId);
         
         return $movieModel ? ($movieModel->get('name') ?? 'Unknown Movie') : 'Unknown Movie';
     }

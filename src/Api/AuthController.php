@@ -11,25 +11,78 @@ use Gravitycar\Exceptions\BadRequestException;
 use Gravitycar\Exceptions\UnauthorizedException;
 use Gravitycar\Exceptions\InternalServerErrorException;
 use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
 use Monolog\Logger;
 use Exception;
 
 /**
  * Authentication Controller
  * Handles Google OAuth and traditional authentication endpoints
+ * Phase 15: Enhanced with dependency injection support
  */
 class AuthController extends ApiControllerBase
 {
-    private Config $config;
-    private AuthenticationService $authService;
-    private GoogleOAuthService $googleOAuthService;
+    private ?AuthenticationService $authService = null;
+    private ?GoogleOAuthService $googleOAuthService = null;
 
-    public function __construct()
-    {
-        parent::__construct();
-        $this->config = ServiceLocator::get(Config::class);
-        $this->authService = ServiceLocator::get(AuthenticationService::class);
-        $this->googleOAuthService = ServiceLocator::get(GoogleOAuthService::class);
+    public function __construct(
+        Logger $logger = null,
+        ModelFactory $modelFactory = null,
+        DatabaseConnectorInterface $databaseConnector = null,
+        MetadataEngineInterface $metadataEngine = null,
+        Config $config = null,
+        AuthenticationService $authService = null,
+        GoogleOAuthService $googleOAuthService = null
+    ) {
+        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config);
+        
+        // Store service instances if provided
+        $this->authService = $authService;
+        $this->googleOAuthService = $googleOAuthService;
+    }
+    
+    /**
+     * Get authentication service (lazy initialization)
+     */
+    protected function getAuthService(): AuthenticationService {
+        if ($this->authService === null) {
+            try {
+                $this->authService = ServiceLocator::get(AuthenticationService::class);
+            } catch (\Exception $e) {
+                // Fallback to manual instantiation if auto-wiring fails
+                // Create GoogleOAuthService first with proper dependencies
+                $config = ServiceLocator::getConfig();
+                $logger = ServiceLocator::getLogger();
+                $googleOAuthService = new GoogleOAuthService($config, $logger);
+                
+                $this->authService = new AuthenticationService(
+                    null, // database - will use ServiceLocator
+                    null, // logger - will use ServiceLocator
+                    null, // config - will use ServiceLocator
+                    null, // modelFactory - will use ServiceLocator
+                    $googleOAuthService // provide this to avoid auto-wiring
+                );
+            }
+        }
+        return $this->authService;
+    }
+    
+    /**
+     * Get Google OAuth service (lazy initialization)
+     */
+    protected function getGoogleOAuthService(): GoogleOAuthService {
+        if ($this->googleOAuthService === null) {
+            try {
+                $this->googleOAuthService = ServiceLocator::get(GoogleOAuthService::class);
+            } catch (\Exception $e) {
+                // Fallback to manual instantiation if auto-wiring fails
+                $config = ServiceLocator::getConfig();
+                $logger = ServiceLocator::getLogger();
+                $this->googleOAuthService = new GoogleOAuthService($config, $logger);
+            }
+        }
+        return $this->googleOAuthService;
     }
 
     /**
@@ -82,7 +135,7 @@ class AuthController extends ApiControllerBase
                 'method' => 'GET',
                 'path' => '/auth/me',
                 'apiClass' => self::class,
-                'apiMethod' => 'getCurrentUser',
+                'apiMethod' => 'getMe',
                 'parameterNames' => [],
                 'allowedRoles' => ['all'] // JWT authentication only, no specific roles required
             ],
@@ -112,7 +165,7 @@ class AuthController extends ApiControllerBase
     {
         try {
             $state = bin2hex(random_bytes(16)); // Generate random state
-            $authUrl = $this->googleOAuthService->getAuthorizationUrl(['state' => $state]);
+            $authUrl = $this->getGoogleOAuthService()->getAuthorizationUrl(['state' => $state]);
 
             $this->logger->info('Google OAuth authorization URL generated', [
                 'state' => $state
@@ -155,7 +208,7 @@ class AuthController extends ApiControllerBase
             $state = $requestData['state'] ?? '';
 
             // Authenticate with Google OAuth
-            $authResult = $this->authService->authenticateWithGoogle($googleToken);
+            $authResult = $this->getAuthService()->authenticateWithGoogle($googleToken);
 
             if (!$authResult || !isset($authResult['user']) || !$authResult['user']) {
                 throw new UnauthorizedException('Google authentication failed');
@@ -234,7 +287,7 @@ class AuthController extends ApiControllerBase
             }
 
             // Authenticate with username/password
-            $authResult = $this->authService->authenticateTraditional($username, $password);
+            $authResult = $this->getAuthService()->authenticateTraditional($username, $password);
 
             if (!$authResult) {
                 return [
@@ -308,7 +361,7 @@ class AuthController extends ApiControllerBase
             $refreshToken = $requestData['refresh_token'];
 
             // Refresh the JWT token
-            $authResult = $this->authService->refreshJwtToken($refreshToken);
+            $authResult = $this->getAuthService()->refreshJwtToken($refreshToken);
 
             $this->logger->info('JWT token refreshed successfully', [
                 'user_id' => $authResult['user']->get('id')
@@ -359,14 +412,14 @@ class AuthController extends ApiControllerBase
     {
         try {
             // Get current user from context (set by authorization middleware)
-            $currentUser = ServiceLocator::getCurrentUser();
+            $currentUser = $this->getCurrentUser();
 
             if (!$currentUser) {
                 throw new GCException('User not authenticated');
             }
 
             // Logout the user (invalidate refresh tokens)
-            $this->authService->logout($currentUser);
+            $this->getAuthService()->logout($currentUser);
 
             $this->logger->info('User logged out successfully', [
                 'user_id' => $currentUser->get('id')
@@ -408,10 +461,10 @@ class AuthController extends ApiControllerBase
             }
 
             // Register new user
-            $user = $this->authService->registerUser($requestData);
+            $user = $this->getAuthService()->registerUser($requestData);
 
             // Generate JWT tokens for the new user
-            $authResult = $this->authService->generateTokensForUser($user);
+            $authResult = $this->getAuthService()->generateTokensForUser($user);
 
             $this->logger->info('User registered successfully', [
                 'user_id' => $user->get('id'),
@@ -478,7 +531,7 @@ class AuthController extends ApiControllerBase
      * @return array
      * @throws GCException
      */
-    public function getCurrentUser(Request $request): array
+    public function getMe(Request $request): array
     {
         try {
             // Get the JWT token from the Authorization header
@@ -500,7 +553,7 @@ class AuthController extends ApiControllerBase
             $token = substr($authHeader, 7); // Remove "Bearer " prefix
             
             // Validate and decode the JWT token
-            $user = $this->authService->validateJwtToken($token);
+            $user = $this->getAuthService()->validateJwtToken($token);
             
             if (!$user) {
                 throw new UnauthorizedException('Invalid or expired token', [
@@ -537,7 +590,7 @@ class AuthController extends ApiControllerBase
                 'original_error' => $e->getMessage()
             ], $e);
         } catch (Exception $e) {
-            $this->logger->error('Unexpected error in getCurrentUser', [
+            $this->logger->error('Unexpected error in getMe', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);

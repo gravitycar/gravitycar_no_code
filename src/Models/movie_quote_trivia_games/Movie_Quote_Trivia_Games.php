@@ -47,7 +47,7 @@ class Movie_Quote_Trivia_Games extends ModelBase
         // Generate 15 questions
         for ($i = 0; $i < 15; $i++) {
             // Create a new trivia question using ModelFactory
-            $question = ModelFactory::new('Movie_Quote_Trivia_Questions');
+            $question = $this->getModelFactory()->new('Movie_Quote_Trivia_Questions');
             
             // Set game session fields before creation
             $question->set('game_id', $gameId);
@@ -109,12 +109,12 @@ class Movie_Quote_Trivia_Games extends ModelBase
      */
     public function getQuestionsInOrder(): array
     {
-        $databaseConnector = ServiceLocator::getDatabaseConnector();
+        $databaseConnector = $this->getDatabaseConnector();
         
         $gameId = $this->get('id');
         
         // Create a model instance for querying
-        $questionModel = ModelFactory::new('Movie_Quote_Trivia_Questions');
+        $questionModel = $this->getModelFactory()->new('Movie_Quote_Trivia_Questions');
         
         // Use the find method with criteria and ordering
         $criteria = ['game_id' => $gameId];
@@ -123,7 +123,7 @@ class Movie_Quote_Trivia_Games extends ModelBase
         
         $questions = [];
         foreach ($result as $row) {
-            $question = ModelFactory::new('Movie_Quote_Trivia_Questions');
+            $question = $this->getModelFactory()->new('Movie_Quote_Trivia_Questions');
             $question->populateFromRow($row);
             $questions[] = $question;
         }

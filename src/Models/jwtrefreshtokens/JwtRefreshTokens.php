@@ -15,7 +15,7 @@ class JwtRefreshTokens extends ModelBase
      */
     public function cleanupExpiredTokens(): int
     {
-        $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
+        $dbConnector = $this->getDatabaseConnector();
         $conn = $dbConnector->getConnection();
         $queryBuilder = $conn->createQueryBuilder();
         
@@ -33,7 +33,7 @@ class JwtRefreshTokens extends ModelBase
      */
     public function revokeUserTokens(int $userId): int
     {
-        $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
+        $dbConnector = $this->getDatabaseConnector();
         $conn = $dbConnector->getConnection();
         $queryBuilder = $conn->createQueryBuilder();
         

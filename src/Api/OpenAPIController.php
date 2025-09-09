@@ -3,7 +3,12 @@ namespace Gravitycar\Api;
 
 use Gravitycar\Services\OpenAPIGenerator;
 use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Core\Config;
 use Psr\Log\LoggerInterface;
+use Monolog\Logger;
 
 /**
  * OpenAPIController: Provides OpenAPI specification endpoint
@@ -11,8 +16,14 @@ use Psr\Log\LoggerInterface;
 class OpenAPIController extends ApiControllerBase {
     private OpenAPIGenerator $openAPIGenerator;
     
-    public function __construct() {
-        parent::__construct();
+    public function __construct(
+        Logger $logger = null,
+        ModelFactory $modelFactory = null,
+        DatabaseConnectorInterface $databaseConnector = null,
+        MetadataEngineInterface $metadataEngine = null,
+        Config $config = null
+    ) {
+        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config);
         $this->openAPIGenerator = new OpenAPIGenerator();
     }
     

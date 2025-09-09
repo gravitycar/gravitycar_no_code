@@ -20,11 +20,25 @@ class GuestUserManager
     private const GUEST_USERNAME = 'guest@gravitycar.com';
     
     private Logger $logger;
+    private ?ModelFactory $modelFactory = null;
     private static ?ModelBase $cachedGuestUser = null;
     
-    public function __construct()
+    public function __construct(Logger $logger = null, ModelFactory $modelFactory = null)
     {
-        $this->logger = ServiceLocator::getLogger();
+        // Use dependency injection if provided, otherwise fall back to ServiceLocator during transition
+        $this->logger = $logger ?? ServiceLocator::getLogger();
+        $this->modelFactory = $modelFactory;
+    }
+
+    /**
+     * Get model factory (lazy getter for transition support)
+     */
+    protected function getModelFactory(): ModelFactory {
+        if ($this->modelFactory === null) {
+            // Fallback to ServiceLocator during transition period
+            $this->modelFactory = ServiceLocator::getModelFactory();
+        }
+        return $this->modelFactory;
     }
     
     /**
@@ -83,7 +97,7 @@ class GuestUserManager
     private function findExistingGuestUser(): ?ModelBase
     {
         try {
-            $userModel = ModelFactory::new('Users');
+            $userModel = $this->getModelFactory()->new('Users');
             $guestUsers = $userModel->find(['email' => self::GUEST_EMAIL], [], ['limit' => 1]);
             
             if (!empty($guestUsers)) {
@@ -109,7 +123,7 @@ class GuestUserManager
     private function createGuestUser(): ModelBase
     {
         try {
-            $guestUser = ModelFactory::new('Users');
+            $guestUser = $this->getModelFactory()->new('Users');
             
             // Set guest user fields
             $guestUser->set('username', self::GUEST_USERNAME);

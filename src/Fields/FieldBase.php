@@ -34,8 +34,8 @@ abstract class FieldBase {
     /** @var string React component name for rendering this field type */
     protected string $reactComponent = 'TextInput';
 
-    public function __construct(array $metadata) {
-        $this->logger = ServiceLocator::getLogger();
+    public function __construct(array $metadata, ?Logger $logger = null) {
+        $this->logger = $logger ?? $this->getLogger();
 
         // Use ingestMetadata to automatically populate properties from metadata
         $this->ingestMetadata($metadata);
@@ -50,6 +50,20 @@ abstract class FieldBase {
         $defaultValue = $metadata['defaultValue'] ?? null;
         $this->setValueFromTrustedSource($defaultValue);
         $this->originalValue = $this->value;
+    }
+
+    /**
+     * Get logger instance lazily to avoid circular dependencies
+     */
+    protected function getLogger(): Logger {
+        return \Gravitycar\Core\ServiceLocator::getLogger();
+    }
+
+    /**
+     * Get validation rule factory lazily to avoid circular dependencies
+     */
+    protected function getValidationRuleFactory(): \Gravitycar\Factories\ValidationRuleFactory {
+        return \Gravitycar\Core\ServiceLocator::getValidationRuleFactory();
     }
 
 
@@ -128,7 +142,7 @@ abstract class FieldBase {
             return;
         }
 
-        $validationRuleFactory = \Gravitycar\Core\ServiceLocator::getValidationRuleFactory();
+        $validationRuleFactory = $this->getValidationRuleFactory();
         $instantiatedRules = [];
 
         foreach ($this->validationRules as $index => $rule) {

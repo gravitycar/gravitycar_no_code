@@ -2,6 +2,7 @@
 namespace Gravitycar\Core;
 
 use Aura\Di\Container;
+use Gravitycar\Contracts\LoggerInterface;
 use Monolog\Logger;
 use Exception;
 use \Exception as BaseException;
@@ -199,15 +200,9 @@ class ServiceLocator {
 
     /**
      * Get the ModelFactory service for convenient model creation
-     * 
-     * Note: ModelFactory uses static methods, so this is primarily for
-     * consistency with other factory services. The factory itself doesn't
-     * require instance state.
      */
     public static function getModelFactory(): \Gravitycar\Factories\ModelFactory {
-        // ModelFactory is stateless and uses static methods, but we can
-        // return a new instance for consistency with other factory patterns
-        return new \Gravitycar\Factories\ModelFactory();
+        return self::getContainer()->get('model_factory');
     }
 
     /**

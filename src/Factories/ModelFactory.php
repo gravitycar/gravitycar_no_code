@@ -4,270 +4,278 @@ namespace Gravitycar\Factories;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Database\DatabaseConnector;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Metadata\MetadataEngine;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Aura\Di\Container;
 use Monolog\Logger;
+use Psr\Log\LoggerInterface;
 
 /**
  * Factory for creating and retrieving model instances.
- * Provides a centralized way to instantiate ModelBase subclasses using simple model names.
- * 
- * Usage:
- *   $user = ModelFactory::new('Users');
- *   $user = ModelFactory::retrieve('Users', '123');
+ * Phase 6.1 - Instance-based factory with full DI container integration
  */
 class ModelFactory {
-    
+    private LoggerInterface $logger;
+    private DatabaseConnectorInterface $dbConnector;
+    private MetadataEngineInterface $metadataEngine;
+    private Container $container;
+
+    /**
+     * Constructor with dependency injection
+     */
+    public function __construct(
+        Container $container,
+        LoggerInterface $logger, 
+        DatabaseConnectorInterface $dbConnector,
+        MetadataEngineInterface $metadataEngine
+    ) {
+        $this->container = $container;
+        $this->logger = $logger;
+        $this->dbConnector = $dbConnector;
+        $this->metadataEngine = $metadataEngine;
+    }
+
     /**
      * Create a new, empty model instance from model name
-     * 
-     * @param string $modelName Simple model name (e.g., 'Users', 'Movies')
-     * @return ModelBase New model instance ready for use
-     * @throws GCException If model class doesn't exist or instantiation fails
-     * 
-     * @example
-     * $user = ModelFactory::new('Users');
-     * $user->set('username', 'john@example.com');
-     * $user->create();
      */
-    public static function new(string $modelName): ModelBase {
-        $logger = self::getLogger();
-        
+    public function new(string $modelName): ModelBase {
         try {
-            $modelClass = self::resolveModelClass($modelName);
-            self::validateModelClass($modelClass);
+            $modelClass = $this->resolveModelClass($modelName);
+            $this->validateModelClass($modelClass);
             
-            $logger->debug('Creating new model instance', [
+            $this->logger->debug('Creating new model instance via DI container', [
                 'model_name' => $modelName,
                 'model_class' => $modelClass
             ]);
             
-            // Use ServiceLocator to create model with proper DI
-            $model = ServiceLocator::createModel($modelClass);
-            
-            $logger->info('Model instance created successfully', [
-                'model_name' => $modelName,
-                'model_class' => $modelClass,
-                'model_id' => $model->get('id') ?? 'new'
-            ]);
+            // First try to get model from DI container (with proper dependency injection)
+            try {
+                $model = $this->container->get($modelClass);
+                $this->logger->debug('Model created via DI container', [
+                    'model_name' => $modelName,
+                    'model_class' => $modelClass,
+                    'instance_id' => spl_object_id($model)
+                ]);
+            } catch (\Exception $containerException) {
+                // Fallback to manual instantiation with dependency injection
+                $this->logger->debug('DI container failed, using manual instantiation', [
+                    'model_name' => $modelName,
+                    'container_error' => $containerException->getMessage()
+                ]);
+                
+                $model = new $modelClass($this->logger, $this->metadataEngine);
+                
+                // Inject database connector via setter
+                $model->setDatabaseConnector($this->dbConnector);
+                
+                $this->logger->debug('Model created via manual instantiation', [
+                    'model_name' => $modelName,
+                    'model_class' => $modelClass,
+                    'instance_id' => spl_object_id($model)
+                ]);
+            }
             
             return $model;
             
         } catch (\Exception $e) {
-            $logger->error('Failed to create model instance', [
+            $this->logger->error('Failed to create model instance', [
                 'model_name' => $modelName,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
             
-            // Re-throw as GCException if not already
-            if ($e instanceof GCException) {
-                throw $e;
-            }
-            
             throw new GCException(
-                "Failed to create model instance for '$modelName': " . $e->getMessage(),
-                [
-                    'model_name' => $modelName,
-                    'original_error' => $e->getMessage()
-                ],
-                0,
+                "Failed to create model instance for '{$modelName}': " . $e->getMessage(),
+                [], 500,
                 $e
             );
         }
     }
-    
+
     /**
      * Retrieve and populate a model instance from database by ID
-     * 
-     * @param string $modelName Simple model name (e.g., 'Users', 'Movies')
-     * @param string $id Record ID to retrieve
-     * @return ModelBase|null Populated model instance or null if not found
-     * @throws GCException If model class doesn't exist or database error occurs
-     * 
-     * @example
-     * $user = ModelFactory::retrieve('Users', '123');
-     * if ($user) {
-     *     echo $user->get('username');
-     * }
      */
-    public static function retrieve(string $modelName, string $id): ?ModelBase {
-        $logger = self::getLogger();
-        
+    public function retrieve(string $modelName, string $id): ?ModelBase {
         try {
-            $modelClass = self::resolveModelClass($modelName);
-            self::validateModelClass($modelClass);
-            
-            $logger->debug('Retrieving model from database', [
+            $this->logger->debug('Retrieving model by ID', [
                 'model_name' => $modelName,
-                'model_class' => $modelClass,
                 'id' => $id
             ]);
             
-            // Get DatabaseConnector through ServiceLocator
-            $dbConnector = ServiceLocator::getDatabaseConnector();
+            // Create empty instance first
+            $model = $this->new($modelName);
             
-            // Create a temporary model instance for the query (performance optimized)
-            $tempModel = new $modelClass();
+            // Try to load data from database using the model instance
+            $dbData = $this->dbConnector->findById($model, $id);
+
             
-            // Find record by ID using DatabaseConnector with model instance
-            $row = $dbConnector->findById($tempModel, $id);
-            
-            if ($row === null) {
-                $logger->info('Model record not found', [
+            if ($dbData === null) {
+                $this->logger->debug('Model not found in database', [
                     'model_name' => $modelName,
-                    'model_class' => $modelClass,
                     'id' => $id
                 ]);
                 return null;
             }
             
-            // Create model instance using our new() method
-            $model = self::new($modelName);
-            
             // Populate model with database data
-            $model->populateFromRow($row);
+            $model->populateFromAPI($dbData);
             
-            $logger->info('Model retrieved and populated successfully', [
+            $this->logger->debug('Model retrieved and populated successfully', [
                 'model_name' => $modelName,
-                'model_class' => $modelClass,
                 'id' => $id,
-                'populated_fields' => array_keys($row)
+                'data_keys' => array_keys($dbData)
             ]);
             
             return $model;
             
         } catch (\Exception $e) {
-            $logger->error('Failed to retrieve model from database', [
+            $this->logger->error('Failed to retrieve model', [
                 'model_name' => $modelName,
                 'id' => $id,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
             
-            // Re-throw as GCException if not already
-            if ($e instanceof GCException) {
-                throw $e;
-            }
-            
             throw new GCException(
-                "Failed to retrieve model '$modelName' with ID '$id': " . $e->getMessage(),
-                [
-                    'model_name' => $modelName,
-                    'id' => $id,
-                    'original_error' => $e->getMessage()
-                ],
-                0,
+                "Failed to retrieve {$modelName} with ID '{$id}': " . $e->getMessage(),
+                [], 500,
                 $e
             );
         }
     }
-    
+
+    /**
+     * Create a new model instance populated with data
+     */
+    public function createNew(string $modelName, array $data = []): ModelBase {
+        $model = $this->new($modelName);
+        if ($data) {
+            $model->populateFromAPI($data);
+        }
+        return $model;
+    }
+
+    /**
+     * Find existing model or create new one
+     */
+    public function findOrNew(string $modelName, string $id): ModelBase {
+        return $this->retrieve($modelName, $id) ?? $this->new($modelName);
+    }
+
+    /**
+     * Create and save model in one call
+     */
+    public function create(string $modelName, array $data): ModelBase {
+        $model = $this->createNew($modelName, $data);
+        $model->create();
+        return $model;
+    }
+
+    /**
+     * Update existing record
+     */
+    public function update(string $modelName, string $id, array $data): ?ModelBase {
+        $model = $this->retrieve($modelName, $id);
+        if (!$model) return null;
+        
+        $model->populateFromAPI($data);
+        $model->update();
+        return $model;
+    }
+
+    // === PRIVATE HELPER METHODS ===
+
     /**
      * Resolve simple model name to full namespaced class name
-     * 
-     * Converts model names like 'Users' to 'Gravitycar\Models\users\Users'
-     * following the framework's directory structure convention.
-     * 
-     * @param string $modelName Simple model name
-     * @return string Full namespaced class name
-     * @throws GCException If model name is invalid
      */
-    private static function resolveModelClass(string $modelName): string {
+    private function resolveModelClass(string $modelName): string {
         // Validate model name format
         if (empty($modelName) || !is_string($modelName)) {
-            throw new GCException('Model name must be a non-empty string', [
-                'provided_model_name' => $modelName,
-                'type' => gettype($modelName)
-            ]);
+            throw new GCException("Invalid model name provided: must be non-empty string");
         }
         
-        // Remove any whitespace and validate characters
-        $modelName = trim($modelName);
-        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $modelName)) {
-            throw new GCException('Model name contains invalid characters', [
-                'model_name' => $modelName,
-                'allowed_pattern' => '^[A-Za-z_][A-Za-z0-9_]*$'
-            ]);
-        }
+        // Convert to proper case and build class name
+        $modelName = ucfirst($modelName);
+        $modelClass = "Gravitycar\\Models\\{$modelName}\\{$modelName}";
         
-        // Convert to framework naming convention
-        // 'Users' -> 'Gravitycar\Models\users\Users'
-        // 'Movie_Quotes' -> 'Gravitycar\Models\movie_quotes\Movie_Quotes'
-        $lowerModelName = strtolower($modelName);
-        $fullClassName = "Gravitycar\\Models\\{$lowerModelName}\\{$modelName}";
-        
-        self::getLogger()->debug('Resolved model class name', [
-            'input_model_name' => $modelName,
-            'resolved_class' => $fullClassName,
-            'directory_path' => "src/Models/{$lowerModelName}/"
-        ]);
-        
-        return $fullClassName;
+        return $modelClass;
     }
-    
+
     /**
-     * Validate that the resolved model class exists and is instantiable
-     * 
-     * @param string $modelClass Full namespaced class name
-     * @throws GCException If class doesn't exist or is not valid
+     * Validate that a model class exists and can be instantiated
      */
-    private static function validateModelClass(string $modelClass): void {
+    private function validateModelClass(string $modelClass): void {
         if (!class_exists($modelClass)) {
-            // Extract model name from class for better error message
-            $modelName = basename(str_replace('\\', '/', $modelClass));
-            $expectedPath = str_replace('\\', '/', $modelClass);
-            $expectedPath = str_replace('Gravitycar/Models/', 'src/Models/', $expectedPath) . '.php';
-            
-            throw new GCException("Model class not found: {$modelClass}", [
-                'model_class' => $modelClass,
-                'model_name' => $modelName,
-                'expected_file_path' => $expectedPath,
-                'suggestion' => "Ensure the model class exists at {$expectedPath}"
-            ]);
+            throw new GCException("Model class does not exist: {$modelClass}");
         }
         
-        // Validate that it extends ModelBase
         if (!is_subclass_of($modelClass, ModelBase::class)) {
-            throw new GCException("Class must extend ModelBase: {$modelClass}", [
-                'model_class' => $modelClass,
-                'required_parent' => ModelBase::class,
-                'actual_parents' => class_parents($modelClass)
-            ]);
+            throw new GCException("Model class must extend ModelBase: {$modelClass}");
         }
         
-        // Validate that it's not abstract
         $reflection = new \ReflectionClass($modelClass);
-        if ($reflection->isAbstract()) {
-            throw new GCException("Cannot instantiate abstract model class: {$modelClass}", [
-                'model_class' => $modelClass,
-                'is_abstract' => true
-            ]);
+        if (!$reflection->isInstantiable()) {
+            throw new GCException("Model class is not instantiable: {$modelClass}");
         }
-        
-        self::getLogger()->debug('Model class validation passed', [
-            'model_class' => $modelClass,
-            'extends_model_base' => true,
-            'is_instantiable' => true
-        ]);
     }
-    
-    /**
-     * Get logger instance from ServiceLocator
-     * 
-     * @return Logger
-     */
-    private static function getLogger(): Logger {
-        return ServiceLocator::getLogger();
-    }
-    
+
+    // === INSTANCE METHODS ===
+
     /**
      * Get list of available model names by scanning the Models directory
-     * 
-     * This is a utility method for debugging and development purposes.
-     * 
-     * @return array Array of available model names
      */
-    public static function getAvailableModels(): array {
-        $logger = self::getLogger();
+    public function getAvailableModels(): array {
+        $modelsDir = __DIR__ . '/../Models';
+        $availableModels = [];
+        
+        if (!is_dir($modelsDir)) {
+            $this->logger->warning('Models directory not found', [
+                'expected_path' => $modelsDir
+            ]);
+            return [];
+        }
+        
+        try {
+            $directories = scandir($modelsDir);
+            
+            foreach ($directories as $dir) {
+                if ($dir === '.' || $dir === '..' || !is_dir($modelsDir . '/' . $dir)) {
+                    continue;
+                }
+                
+                // Check if directory contains a model class file
+                $potentialModelFile = $modelsDir . '/' . $dir . '/' . ucfirst($dir) . '.php';
+                if (file_exists($potentialModelFile)) {
+                    $availableModels[] = ucfirst($dir);
+                }
+            }
+            
+            $this->logger->debug('Available models discovered', [
+                'models_directory' => $modelsDir,
+                'available_models' => $availableModels,
+                'count' => count($availableModels)
+            ]);
+            
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to scan models directory', [
+                'models_directory' => $modelsDir,
+                'error' => $e->getMessage()
+            ]);
+        }
+        
+        return $availableModels;
+    }
+
+    // === STATIC LEGACY METHODS (For backward compatibility) ===
+
+    /**
+     * @deprecated Use instance method getAvailableModels() instead
+     * Get list of available model names by scanning the Models directory
+     */
+    public static function getAvailableModelsStatic(): array {
+        $logger = ServiceLocator::getLogger();
         $modelsDir = __DIR__ . '/../Models';
         $availableModels = [];
         

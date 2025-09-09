@@ -19,8 +19,8 @@ class VideoField extends FieldBase {
     protected int $width = 560;
     protected int $height = 315;
     
-    public function __construct(array $metadata) {
-        parent::__construct($metadata);
+    public function __construct(array $metadata, ?Logger $logger = null) {
+        parent::__construct($metadata, $logger);
     }
     
     /**

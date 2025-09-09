@@ -36,8 +36,8 @@ class RelatedRecordField extends FieldBase {
         'equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull'
     ];
 
-    public function __construct(array $metadata) {
-        parent::__construct($metadata);
+    public function __construct(array $metadata, ?Logger $logger = null) {
+        parent::__construct($metadata, $logger);
         $this->validateRelatedRecordMetadata(empty($metadata));
         
         // Initialize properties from metadata if available
@@ -89,7 +89,7 @@ class RelatedRecordField extends FieldBase {
         $modelName = $this->getRelatedModelName();
 
         try {
-            return ModelFactory::new($modelName);
+            return \Gravitycar\Core\ServiceLocator::getModelFactory()->new($modelName);
         } catch (\Exception $e) {
             throw new GCException("Could not create instance of related model: {$modelName}", [
                 'field_name' => $this->name,

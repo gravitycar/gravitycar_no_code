@@ -22,8 +22,8 @@ class PasswordField extends FieldBase {
     /** @var array Very limited operators for security - no search/contains operations */
     protected array $operators = ['isNull', 'isNotNull'];
 
-    public function __construct(array $metadata) {
-        parent::__construct($metadata);
+    public function __construct(array $metadata, ?Logger $logger = null) {
+        parent::__construct($metadata, $logger);
         // ingestMetadata() in parent constructor now handles all property assignments
     }
 }

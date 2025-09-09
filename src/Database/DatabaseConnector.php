@@ -7,31 +7,38 @@ use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Fields\FieldBase;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Models\ModelBase;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Core\Config;
+use Gravitycar\Factories\ModelFactory;
 use Monolog\Logger;
 use Psr\Log\LoggerInterface;
 
 /**
  * DatabaseConnector provides DBAL connection and utility methods for Gravitycar.
  */
-class DatabaseConnector {
+class DatabaseConnector implements DatabaseConnectorInterface {
     /** @var array */
     protected array $dbParams;
-    /** @var LoggerInterface */
-    protected LoggerInterface $logger;
+    /** @var LoggerInterface|Logger */
+    protected $logger;
+    /** @var Config */
+    protected Config $config;
     /** @var Connection|null */
     protected ?Connection $connection = null;
     /** @var int */
     protected int $joinCounter = 0;
 
-    public function __construct(?LoggerInterface $logger = null, ?array $dbParams = null) {
-        $this->logger = $logger ?? ServiceLocator::getLogger();
-        
-        if ($dbParams !== null) {
-            $this->dbParams = $dbParams;
-        } else {
-            $config = ServiceLocator::getConfig();
-            $this->dbParams = $config->get('database') ?? [];
-        }
+    public function __construct($logger, Config $config, ?array $dbParams = null) {
+        $this->logger = $logger;
+        $this->config = $config;
+        $this->dbParams = $dbParams ?? $config->get('database') ?? [];
+    }
+
+    /**
+     * Get ModelFactory lazily to avoid circular dependency
+     */
+    protected function getModelFactory(): ModelFactory {
+        return ServiceLocator::getModelFactory();
     }
 
     /**
@@ -428,7 +435,7 @@ class DatabaseConnector {
      * Setup query builder for a model - used by tests and internal operations
      */
     protected function setupQueryBuilder(string $modelClass): array {
-        $model = ServiceLocator::get($modelClass);
+        $model = $this->getModelFactory()->new($modelClass);
         $tableName = $model->getTableName();
         $mainAlias = $model->getAlias();
         $modelFields = $model->getFields();
@@ -460,7 +467,7 @@ class DatabaseConnector {
         try {
             // Handle both string class names and model instances
             if (is_string($model)) {
-                $model = ServiceLocator::get($model);
+                $model = $this->getModelFactory()->new($model);
             }
             
             // Check if the model has the required methods (duck typing for tests)
@@ -491,15 +498,6 @@ class DatabaseConnector {
             // Execute query and return raw rows
             $result = $queryBuilder->executeQuery();
             $rows = $result->fetchAllAssociative();
-
-            $this->logger->debug('Database find operation completed', [
-                'model_class' => get_class($model),
-                'criteria' => $criteria,
-                'selected_fields' => $fields,
-                'main_alias' => $mainAlias,
-                'row_count' => count($rows),
-                'joins_applied' => $this->joinCounter
-            ]);
 
             return $rows;
 
@@ -962,6 +960,13 @@ class DatabaseConnector {
             }
         }
 
+        $this->logger->debug("Applying criteria", [
+            'model_criteria' => $modelCriteria,
+            'relationship_criteria' => $relationshipCriteria,
+            'related_model_criteria' => $relatedModelCriteria,
+            'main_alias' => $mainAlias
+        ]);
+
         // Apply model criteria (existing logic)
         if (!empty($modelCriteria)) {
             $this->applyModelCriteria($queryBuilder, $modelCriteria, $mainAlias, $modelFields);
@@ -989,6 +994,11 @@ class DatabaseConnector {
     ): void {
         // Add WHERE conditions using main table alias
         foreach ($criteria as $field => $value) {
+            $this->logger->debug("Applying model criteria", [
+                'field' => $field,
+                'value' => $value,
+                'main_alias' => $mainAlias
+            ]);
             // Validate that the field is a database field if modelFields are provided
             if (!empty($modelFields) && isset($modelFields[$field])) {
                 if (!$modelFields[$field]->isDBField()) {
@@ -1843,6 +1853,48 @@ class DatabaseConnector {
         if ($offset !== null) {
             $queryBuilder->setFirstResult($offset);
         }
+    }
+
+    /**
+     * Find multiple records matching criteria (implementation of DatabaseConnectorInterface)
+     */
+    public function findWhere(ModelBase $model, array $criteria = [], int $limit = 0): array {
+        $tableName = $this->getTableName($model);
+        $queryBuilder = $this->getConnection()->createQueryBuilder();
+        $queryBuilder->select('*')->from($tableName);
+        
+        foreach ($criteria as $field => $value) {
+            $queryBuilder->andWhere($queryBuilder->expr()->eq($field, $queryBuilder->createNamedParameter($value)));
+        }
+        
+        if ($limit > 0) {
+            $queryBuilder->setMaxResults($limit);
+        }
+        
+        $result = $queryBuilder->executeQuery();
+        return $result->fetchAllAssociative();
+    }
+
+    /**
+     * Get table name for a model (implementation of DatabaseConnectorInterface)
+     */
+    public function getTableName(ModelBase $model): string {
+        return $model->getTableName();
+    }
+
+    /**
+     * Execute raw SQL query (implementation of DatabaseConnectorInterface)
+     */
+    public function executeQuery(string $sql, array $params = []): array {
+        $result = $this->getConnection()->executeQuery($sql, $params);
+        return $result->fetchAllAssociative();
+    }
+
+    /**
+     * Check if connection is healthy (implementation of DatabaseConnectorInterface)
+     */
+    public function isHealthy(): bool {
+        return $this->testConnection();
     }
 
 }

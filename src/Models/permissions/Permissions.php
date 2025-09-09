@@ -28,7 +28,7 @@ class Permissions extends ModelBase
      */
     public function getRoles(): array
     {
-        $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
+        $dbConnector = $this->getDatabaseConnector();
         $conn = $dbConnector->getConnection();
         $queryBuilder = $conn->createQueryBuilder();
         

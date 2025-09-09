@@ -4,6 +4,7 @@ namespace Gravitycar\Schema;
 use Gravitycar\Core\Config;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Database\DatabaseConnector;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Relationships\RelationshipBase;
 use Gravitycar\Metadata\CoreFieldsMetadata;
@@ -19,24 +20,36 @@ use Doctrine\DBAL\Types\Types;
 class SchemaGenerator {
     /** @var Config */
     protected Config $config;
-    /** @var DatabaseConnector */
-    protected DatabaseConnector $dbConnector;
+    /** @var DatabaseConnectorInterface */
+    protected DatabaseConnectorInterface $dbConnector;
     /** @var Logger */
     protected Logger $logger;
     /** @var CoreFieldsMetadata */
     protected CoreFieldsMetadata $coreFieldsMetadata;
 
-    public function __construct() {
-        $this->logger = ServiceLocator::getLogger();
-        $this->dbConnector = ServiceLocator::getDatabaseConnector();
-        $this->coreFieldsMetadata = ServiceLocator::getCoreFieldsMetadata();
+    public function __construct(
+        Logger $logger = null,
+        DatabaseConnectorInterface $dbConnector = null,
+        CoreFieldsMetadata $coreFieldsMetadata = null
+    ) {
+        // Backward compatibility: use ServiceLocator if dependencies not provided
+        $this->logger = $logger ?? ServiceLocator::getLogger();
+        $this->dbConnector = $dbConnector ?? ServiceLocator::getDatabaseConnector();
+        $this->coreFieldsMetadata = $coreFieldsMetadata ?? ServiceLocator::getCoreFieldsMetadata();
     }
 
     /**
      * Create the database if it does not exist (for installation)
      */
     public function createDatabaseIfNotExists(): bool {
-        return $this->dbConnector->createDatabaseIfNotExists();
+        // Use concrete DatabaseConnector for this method since it's not in the interface yet
+        if ($this->dbConnector instanceof DatabaseConnector) {
+            return $this->dbConnector->createDatabaseIfNotExists();
+        }
+        
+        // Fallback: assume database exists if using interface-only implementation
+        $this->logger->warning('createDatabaseIfNotExists() not available via interface, assuming database exists');
+        return true;
     }
 
     /**

@@ -67,8 +67,7 @@ class Movies extends ModelBase {
                 $this->refreshFromTMDB($currentTmdbId);
             } catch (\Exception $e) {
                 // Log the error but don't fail the update - just proceed without TMDB refresh
-                $logger = ServiceLocator::getLogger();
-                $logger->warning('Failed to refresh TMDB data during movie update', [
+                $this->logger->warning('Failed to refresh TMDB data during movie update', [
                     'movie_id' => $this->get('id'),
                     'tmdb_id' => $currentTmdbId,
                     'error' => $e->getMessage()

@@ -5,6 +5,9 @@ namespace Gravitycar\Services;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\UserContextInterface;
+use Gravitycar\Services\UserContext;
 use Monolog\Logger;
 
 /**
@@ -14,10 +17,21 @@ use Monolog\Logger;
 class AuthorizationService
 {
     private Logger $logger;
+    private ModelFactory $modelFactory;
+    private DatabaseConnectorInterface $databaseConnector;
+    private UserContextInterface $userContext;
     
-    public function __construct()
-    {
-        $this->logger = ServiceLocator::getLogger();
+    public function __construct(
+        Logger $logger = null,
+        ModelFactory $modelFactory = null,
+        DatabaseConnectorInterface $databaseConnector = null,
+        UserContextInterface $userContext = null
+    ) {
+        // Backward compatibility: use ServiceLocator if dependencies not provided
+        $this->logger = $logger ?? $this->logger;
+        $this->modelFactory = $modelFactory ?? ServiceLocator::getModelFactory();
+        $this->databaseConnector = $databaseConnector ?? $this->databaseConnector;
+        $this->userContext = $userContext ?? new UserContext();
     }
     
     /**
@@ -27,7 +41,7 @@ class AuthorizationService
     {
         // Auto-resolve current user if not provided
         if ($user === null) {
-            $user = ServiceLocator::getCurrentUser();
+            $user = $this->userContext->getCurrentUser();
             if (!$user) {
                 $this->logger->debug('No current user found for permission check');
                 return false;
@@ -133,7 +147,7 @@ class AuthorizationService
     {
         try {
             // Get current user
-            $currentUser = ServiceLocator::getCurrentUser();
+            $currentUser = $this->userContext->getCurrentUser();
             
             // Check if route has permission configuration
             if (!isset($route['allowedRoles'])) {
@@ -186,7 +200,7 @@ class AuthorizationService
     {
         try {
             // Get user roles through many-to-many relationship
-            $dbConnector = ServiceLocator::getDatabaseConnector();
+            $dbConnector = $this->databaseConnector;
             $connection = $dbConnector->getConnection();
             
             $sql = "
@@ -202,7 +216,7 @@ class AuthorizationService
             
             $roles = [];
             foreach ($roleRows as $roleRow) {
-                $role = ModelFactory::new('Roles');
+                $role = $this->modelFactory->new('Roles');
                 $role->populateFromRow($roleRow);
                 $roles[] = $role;
             }
@@ -226,7 +240,7 @@ class AuthorizationService
     {
         try {
             // Get role permissions through many-to-many relationship
-            $dbConnector = ServiceLocator::getDatabaseConnector();
+            $dbConnector = $this->databaseConnector;
             $connection = $dbConnector->getConnection();
             
             $sql = "
@@ -260,7 +274,7 @@ class AuthorizationService
     public function assignRoleToUser(\Gravitycar\Models\ModelBase $user, \Gravitycar\Models\ModelBase $role): bool
     {
         try {
-            $dbConnector = ServiceLocator::getDatabaseConnector();
+            $dbConnector = $this->databaseConnector;
             $connection = $dbConnector->getConnection();
             
             // Check if assignment already exists
@@ -305,7 +319,7 @@ class AuthorizationService
     public function getDefaultOAuthRole(): ?\Gravitycar\Models\ModelBase
     {
         try {
-            $roleModel = ModelFactory::new('Roles');
+            $roleModel = $this->modelFactory->new('Roles');
             $roles = $roleModel->find(['is_oauth_default' => true]);
             
             return !empty($roles) ? $roles[0] : null;
@@ -360,7 +374,7 @@ class AuthorizationService
         ];
         
         foreach ($defaultRoles as $roleData) {
-            $roleModel = ModelFactory::new('Roles');
+            $roleModel = $this->modelFactory->new('Roles');
             $existing = $roleModel->find(['name' => $roleData['name']]);
             
             if (empty($existing)) {
@@ -402,7 +416,7 @@ class AuthorizationService
         ];
         
         foreach ($defaultPermissions as $permissionData) {
-            $permissionModel = ModelFactory::new('Permissions');
+            $permissionModel = $this->modelFactory->new('Permissions');
             $existing = $permissionModel->find([
                 'action' => $permissionData['name'],
                 'model' => $permissionData['model']
@@ -468,7 +482,7 @@ class AuthorizationService
     private function assignPermissionsToRole(string $roleName, array $permissions): void
     {
         try {
-            $roleModel = ModelFactory::new('Roles');
+            $roleModel = $this->modelFactory->new('Roles');
             $roles = $roleModel->find(['name' => $roleName]);
             
             if (empty($roles)) {
@@ -479,7 +493,7 @@ class AuthorizationService
             }
             
             $role = $roles[0];
-            $dbConnector = ServiceLocator::getDatabaseConnector();
+            $dbConnector = $this->databaseConnector;
             $connection = $dbConnector->getConnection();
             
             foreach ($permissions as $permission) {
@@ -489,7 +503,7 @@ class AuthorizationService
                 $model = $parts[1] ?? '';
                 
                 // Find permission
-                $permissionModel = ModelFactory::new('Permissions');
+                $permissionModel = $this->modelFactory->new('Permissions');
                 $permissionInstances = $permissionModel->find([
                     'action' => $permissionName,
                     'model' => $model

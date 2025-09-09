@@ -13,6 +13,8 @@ use Gravitycar\Exceptions\ConflictException;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Relationships\RelationshipBase;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
 use Monolog\Logger;
 
 /**
@@ -23,9 +25,21 @@ use Monolog\Logger;
 class ModelBaseAPIController {
     
     protected Logger $logger;
+    protected ModelFactory $modelFactory;
+    protected DatabaseConnectorInterface $databaseConnector;
+    protected MetadataEngineInterface $metadataEngine;
 
-    public function __construct(Logger $logger = null) {
+    public function __construct(
+        Logger $logger = null,
+        ModelFactory $modelFactory = null,
+        DatabaseConnectorInterface $databaseConnector = null,
+        MetadataEngineInterface $metadataEngine = null
+    ) {
+        // Backward compatibility: use ServiceLocator if dependencies not provided
         $this->logger = $logger ?? ServiceLocator::getLogger();
+        $this->modelFactory = $modelFactory ?? ServiceLocator::getModelFactory();
+        $this->databaseConnector = $databaseConnector ?? ServiceLocator::get('database_connector');
+        $this->metadataEngine = $metadataEngine ?? ServiceLocator::get('metadata_engine');
     }
 
     /**
@@ -146,19 +160,16 @@ class ModelBaseAPIController {
             $search = $validatedParams['search'] ?? [];
             
             // Create model instance
-            $model = ModelFactory::new($modelName);
-            
-            // Get database connector
-            $databaseConnector = ServiceLocator::getDatabaseConnector();
+            $model = $this->modelFactory->new($modelName);
             
             // Use enhanced DatabaseConnector method with validated parameters
-            $records = $databaseConnector->findWithReactParams($model, $validatedParams, false);
+            $records = $this->databaseConnector->findWithReactParams($model, $validatedParams, false);
             
             // Get total count for pagination metadata (always include for pagination)
             $totalCount = null;
             $responseFormat = $request->getResponseFormat();
             // Always calculate total count for pagination to work properly
-            $totalCount = $databaseConnector->getCountWithValidatedCriteria($model, $validatedParams, false);
+            $totalCount = $this->databaseConnector->getCountWithValidatedCriteria($model, $validatedParams, false);
             
             // Build comprehensive metadata for ResponseFormatter
             $meta = [
@@ -246,8 +257,8 @@ class ModelBaseAPIController {
         $this->logger->info('Retrieving record', ['model' => $modelName, 'id' => $id]);
         
         try {
-            // Use ModelFactory::retrieve() for direct database retrieval
-            $model = ModelFactory::retrieve($modelName, $id);
+            // Use ModelFactory retrieve for direct database retrieval
+            $model = $this->modelFactory->retrieve($modelName, $id);
             
             if (!$model) {
                 throw new NotFoundException('Record not found', [
@@ -301,19 +312,16 @@ class ModelBaseAPIController {
             $search = $validatedParams['search'] ?? [];
             
             // Create model instance
-            $model = ModelFactory::new($modelName);
-            
-            // Get database connector
-            $databaseConnector = ServiceLocator::getDatabaseConnector();
+            $model = $this->modelFactory->new($modelName);
             
             // Use enhanced DatabaseConnector method with validated parameters for soft-deleted records
-            $records = $databaseConnector->findWithReactParams($model, $validatedParams, true); // includeDeleted = true
+            $records = $this->databaseConnector->findWithReactParams($model, $validatedParams, true); // includeDeleted = true
             
             // Get total count for pagination metadata (if requested)
             $totalCount = null;
             $responseFormat = $request->getResponseFormat();
             if (in_array($responseFormat, ['ag-grid', 'mui', 'advanced']) || !empty($validatedParams['options']['includeTotal'])) {
-                $totalCount = $databaseConnector->getCountWithValidatedCriteria($model, $validatedParams, true); // includeDeleted = true
+                $totalCount = $this->databaseConnector->getCountWithValidatedCriteria($model, $validatedParams, true); // includeDeleted = true
             }
             
             // Build comprehensive metadata for ResponseFormatter
@@ -382,7 +390,7 @@ class ModelBaseAPIController {
         $this->logger->info('Creating record', ['model' => $modelName, 'data' => $data]);
         
         try {
-            $model = ModelFactory::new($modelName);
+            $model = $this->modelFactory->new($modelName);
             
             // NEW: Separate relationship fields from regular model fields
             $relationshipData = $this->extractRelationshipFields($modelName, $data);
@@ -580,7 +588,7 @@ class ModelBaseAPIController {
         
         try {
             // Create query instance using ModelFactory
-            $queryInstance = ModelFactory::new($modelName);
+            $queryInstance = $this->modelFactory->new($modelName);
             
             // Find record (including soft-deleted ones)
             $models = $queryInstance->find(['id' => $id, 'deleted_at !=' => null]);
@@ -788,7 +796,7 @@ class ModelBaseAPIController {
             $relatedModelName = $this->extractModelNameFromClass($relatedModelClass);
             
             // Create new related model instance
-            $relatedModel = ModelFactory::new($relatedModelName);
+            $relatedModel = \Gravitycar\Core\ServiceLocator::getModelFactory()->new($relatedModelName);
             $relatedModel->populateFromAPI($data);
             
             // Create the related record first
@@ -873,8 +881,8 @@ class ModelBaseAPIController {
             $relatedModelClass = $model->getRelatedModelClass($relationship);
             $relatedModelName = $this->extractModelNameFromClass($relatedModelClass);
             
-            // Use ModelFactory::retrieve() for direct database retrieval
-            $relatedModel = ModelFactory::retrieve($relatedModelName, $idToLink);
+            // Use \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve() for direct database retrieval
+            $relatedModel = \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve($relatedModelName, $idToLink);
             
             if (!$relatedModel) {
                 throw new GCException('Related record not found', [
@@ -955,8 +963,8 @@ class ModelBaseAPIController {
             $relatedModelClass = $model->getRelatedModelClass($relationship);
             $relatedModelName = $this->extractModelNameFromClass($relatedModelClass);
             
-            // Use ModelFactory::retrieve() for direct database retrieval
-            $relatedModel = ModelFactory::retrieve($relatedModelName, $idToUnlink);
+            // Use \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve() for direct database retrieval
+            $relatedModel = \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve($relatedModelName, $idToUnlink);
             
             if (!$relatedModel) {
                 throw new GCException('Related record not found', [
@@ -1026,9 +1034,9 @@ class ModelBaseAPIController {
             ]);
         }
         
-        // Check if model exists using ModelFactory
+        // Check if model exists using ModelFactory instance
         try {
-            $availableModels = ModelFactory::getAvailableModels();
+            $availableModels = $this->modelFactory->getAvailableModels();
             if (!in_array($modelName, $availableModels)) {
                 throw new NotFoundException('Model not found', [
                     'model_name' => $modelName,
@@ -1038,7 +1046,7 @@ class ModelBaseAPIController {
         } catch (\Exception $e) {
             // If we can't get available models, try to create an instance
             try {
-                ModelFactory::new($modelName);
+                $this->modelFactory->new($modelName);
             } catch (\Exception $createException) {
                 throw new NotFoundException('Model not found or cannot be instantiated', [
                     'model_name' => $modelName,
@@ -1086,8 +1094,8 @@ class ModelBaseAPIController {
      */
     protected function getValidModel(string $modelName, string $id): ModelBase {
         try {
-            // Use ModelFactory::retrieve() for direct database retrieval
-            $model = ModelFactory::retrieve($modelName, $id);
+            // Use \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve() for direct database retrieval
+            $model = \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve($modelName, $id);
             
             if (!$model) {
                 throw new GCException('Record not found', [
@@ -1273,7 +1281,7 @@ class ModelBaseAPIController {
         
         // Get the parent model
         $parentModelName = $config['relatedModel'];
-        $parentModel = ModelFactory::retrieve($parentModelName, $parentId);
+        $parentModel = \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve($parentModelName, $parentId);
         
         if (!$parentModel) {
             throw new NotFoundException("Parent {$parentModelName} with ID {$parentId} not found");
@@ -1304,7 +1312,7 @@ class ModelBaseAPIController {
             foreach ($existingRelations as $existingRelation) {
                 $existingParentId = $existingRelation['one_' . strtolower($parentModelName) . '_id'];
                 // Create parent model instance to remove relationship
-                $existingParent = ModelFactory::retrieve($parentModelName, $existingParentId);
+                $existingParent = \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve($parentModelName, $existingParentId);
                 if ($existingParent) {
                     $childModel->removeRelation($relationshipName, $existingParent);
                     $this->logger->debug('Removed existing relationship', [

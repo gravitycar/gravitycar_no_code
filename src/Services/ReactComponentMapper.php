@@ -4,6 +4,7 @@ namespace Gravitycar\Services;
 use Gravitycar\Metadata\MetadataEngine;
 use Gravitycar\Core\ServiceLocator;
 use Psr\Log\LoggerInterface;
+use Monolog\Logger;
 
 /**
  * ReactComponentMapper: Maps field types to React components and validation rules
@@ -13,10 +14,24 @@ class ReactComponentMapper {
     private LoggerInterface $logger;
     private array $fieldComponentMap;
     
-    public function __construct() {
-        $this->metadataEngine = MetadataEngine::getInstance();
-        $this->logger = ServiceLocator::getLogger();
+    public function __construct(?MetadataEngine $metadataEngine = null, ?Logger $logger = null) {
+        $this->metadataEngine = $metadataEngine ?? $this->getMetadataEngine();
+        $this->logger = $logger ?? ServiceLocator::getLogger();
         $this->initializeFieldComponentMap();
+    }
+
+    /**
+     * Get metadata engine instance lazily to avoid circular dependencies
+     */
+    protected function getMetadataEngine(): MetadataEngine {
+        return MetadataEngine::getInstance();
+    }
+
+    /**
+     * Get logger instance lazily to avoid circular dependencies
+     */
+    protected function getLogger(): LoggerInterface {
+        return $this->logger;
     }
     
     /**

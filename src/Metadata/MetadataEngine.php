@@ -4,14 +4,18 @@ namespace Gravitycar\Metadata;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Metadata\CoreFieldsMetadata;
 use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\LoggerInterface;
+use Gravitycar\Core\Config;
 use Monolog\Logger;
 
 /**
- * MetadataEngine: Centralized singleton for loading, validating, and caching metadata for models and relationships.
+ * MetadataEngine: Centralized for loading, validating, and caching metadata for models and relationships.
  * Provides lazy-loading pattern to eliminate repeated file I/O during model/relationship instantiation.
+ * Now uses proper DI instead of singleton pattern.
  */
-class MetadataEngine {
-    /** @var MetadataEngine|null Singleton instance */
+class MetadataEngine implements MetadataEngineInterface {
+    /** @var MetadataEngine|null Singleton instance (deprecated - kept for backward compatibility) */
     private static ?MetadataEngine $instance = null;
     
     /** @var string */
@@ -22,19 +26,40 @@ class MetadataEngine {
     protected string $fieldsDirPath = 'src/Fields';
     /** @var string */
     protected string $cacheDirPath = 'cache/';
-    /** @var Logger|null */
-    protected ?Logger $logger = null;
+    /** @var LoggerInterface|Logger */
+    protected $logger;
+    /** @var Config */
+    protected Config $config;
     /** @var array */
     protected array $metadataCache = [];
     /** @var array */
     protected array $coreFieldsCache = [];
-    /** @var CoreFieldsMetadata|null */
-    protected ?CoreFieldsMetadata $coreFieldsMetadata = null;
+    /** @var CoreFieldsMetadata */
+    protected CoreFieldsMetadata $coreFieldsMetadata;
 
     /**
-     * Private constructor for singleton pattern
+     * Constructor with proper dependency injection
      */
-    private function __construct() {
+    public function __construct($logger, Config $config, ?CoreFieldsMetadata $coreFieldsMetadata = null) {
+        $this->logger = $logger;
+        $this->config = $config;
+        $this->coreFieldsMetadata = $coreFieldsMetadata ?? new CoreFieldsMetadata();
+        
+        // Initialize paths from config
+        $this->modelsDirPath = $config->get('metadata.models_dir_path', 'src/Models');
+        $this->relationshipsDirPath = $config->get('metadata.relationships_dir_path', 'src/Relationships');
+        $this->fieldsDirPath = $config->get('metadata.fields_dir_path', 'src/Fields');
+        $this->cacheDirPath = $config->get('metadata.cache_dir_path', 'cache/');
+        
+        // Load cached metadata
+        $this->metadataCache = $this->getCachedMetadata();
+    }
+
+    /**
+     * Private constructor for legacy singleton pattern (deprecated)
+     * @deprecated Use dependency injection instead
+     */
+    private function constructSingleton() {
         // Initialize with default values to avoid circular dependency
         // Services will be injected later when needed
         $this->modelsDirPath = 'src/Models';
@@ -46,31 +71,29 @@ class MetadataEngine {
     }
 
     /**
-     * Initialize services (called lazily to avoid circular dependency)
+     * Create a field instance for getting React component information
      */
-    private function initializeServices(): void {
-        if ($this->logger === null) {
-            $this->logger = ServiceLocator::getLogger();
-            $config = ServiceLocator::getConfig();
-            $this->modelsDirPath = $config->get('metadata.models_dir_path', 'src/Models');
-            $this->relationshipsDirPath = $config->get('metadata.relationships_dir_path', 'src/Relationships');
-            $this->fieldsDirPath = $config->get('metadata.fields_dir_path', 'src/Fields');
-            $this->cacheDirPath = $config->get('metadata.cache_dir_path', 'cache/');
-        }
+    private function createFieldInstance(string $fieldClassName, array $metadata = []): object {
+        return new $fieldClassName($metadata);
     }
 
     /**
-     * Get singleton instance
+     * Get singleton instance (deprecated - use DI instead)
+     * @deprecated Use dependency injection instead of singleton pattern
      */
     public static function getInstance(): MetadataEngine {
         if (self::$instance === null) {
-            self::$instance = new self();
+            // Create instance using ServiceLocator for backward compatibility
+            $logger = ServiceLocator::getLogger();
+            $config = ServiceLocator::getConfig();
+            self::$instance = new self($logger, $config);
         }
         return self::$instance;
     }
 
     /**
      * Reset singleton instance (useful for testing)
+     * @deprecated Use dependency injection instead of singleton pattern
      */
     public static function reset(): void {
         self::$instance = null;
@@ -108,7 +131,6 @@ class MetadataEngine {
      * Throws exception if exact model name is not found in cache
      */
     public function getModelMetadata(string $modelName): array {
-        $this->initializeServices(); // Ensure services are initialized
         $resolvedName = $this->resolveModelName($modelName);
         
         // Check if already cached - must be exact match (case-sensitive)
@@ -133,8 +155,6 @@ class MetadataEngine {
      * Throws exception if exact relationship name is not found in cache
      */
     public function getRelationshipMetadata(string $relationshipName): array {
-        $this->initializeServices(); // Ensure services are initialized
-        
         // Check if already cached - must be exact match (case-sensitive)
         if (isset($this->metadataCache['relationships'][$relationshipName])) {
             return $this->metadataCache['relationships'][$relationshipName];
@@ -195,7 +215,6 @@ class MetadataEngine {
      * Uses cached metadata if available to improve performance
      */
     public function loadAllMetadata(): array {
-        $this->initializeServices(); // Ensure services are initialized
         // Check for existing cache first to avoid unnecessary file I/O
         $cachedMetadata = $this->getCachedMetadata();
         if (!empty($cachedMetadata)) {
@@ -556,8 +575,8 @@ class MetadataEngine {
             // Build field class name from field type
             $fieldClassName = "Gravitycar\\Fields\\{$fieldType}Field";
             
-            // Create field instance using ServiceLocator
-            $fieldInstance = ServiceLocator::createField($fieldClassName, []);
+            // Create field instance using internal method
+            $fieldInstance = $this->createFieldInstance($fieldClassName, []);
             
             // Get React component from field instance
             return $fieldInstance->getReactComponent();
@@ -703,5 +722,38 @@ class MetadataEngine {
         }
         
         return $rules;
+    }
+
+    /**
+     * Get all loaded metadata (implementation of MetadataEngineInterface)
+     */
+    public function getAllMetadata(): array {
+        if (empty($this->metadataCache)) {
+            $this->metadataCache = $this->loadAllMetadata();
+        }
+        return $this->metadataCache;
+    }
+
+    /**
+     * Check if metadata is loaded (implementation of MetadataEngineInterface)
+     */
+    public function isLoaded(): bool {
+        return !empty($this->metadataCache);
+    }
+
+    /**
+     * Check if metadata is loaded for a model (implementation of MetadataEngineInterface)
+     */
+    public function isMetadataLoaded(string $modelName): bool {
+        $resolvedName = $this->resolveModelName($modelName);
+        return isset($this->metadataCache['models'][$resolvedName]);
+    }
+
+    /**
+     * Reload metadata from disk (implementation of MetadataEngineInterface)
+     */
+    public function reloadMetadata(): void {
+        $this->metadataCache = [];
+        $this->metadataCache = $this->loadAllMetadata();
     }
 }

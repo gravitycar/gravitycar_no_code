@@ -219,7 +219,7 @@ class APIRouteRegistry
                         try {
                             // Only register if the model has a custom registerRoutes method
                             if (method_exists($className, 'registerRoutes')) {
-                                $model = \Gravitycar\Factories\ModelFactory::new($modelName);
+                                $model = \Gravitycar\Core\ServiceLocator::getModelFactory()->new($modelName);
                                 $this->register($model, $className);
                             }
                         } catch (\Exception $e) {

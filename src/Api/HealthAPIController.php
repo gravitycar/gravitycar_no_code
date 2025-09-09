@@ -4,7 +4,11 @@ namespace Gravitycar\Api;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Core\Config;
 use Gravitycar\Database\DatabaseConnector;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
 use Psr\Log\LoggerInterface;
+use Monolog\Logger;
 
 /**
  * HealthAPIController: Provides health monitoring endpoints for system status
@@ -14,16 +18,20 @@ use Psr\Log\LoggerInterface;
  * - /health: Comprehensive system health diagnostics (< 50ms target)
  */
 class HealthAPIController extends ApiControllerBase {
-    private Config $config;
     private static ?array $cachedChecks = null;
     private static ?float $lastCheckTime = null;
     
     // Cache health checks for 30 seconds to avoid repeated work
     private const CHECK_CACHE_TTL = 30;
     
-    public function __construct() {
-        parent::__construct();
-        $this->config = ServiceLocator::getConfig();
+    public function __construct(
+        Logger $logger = null,
+        ModelFactory $modelFactory = null,
+        DatabaseConnectorInterface $databaseConnector = null,
+        MetadataEngineInterface $metadataEngine = null,
+        Config $config = null
+    ) {
+        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config);
     }
     
     /**
@@ -139,7 +147,7 @@ class HealthAPIController extends ApiControllerBase {
         $timeout = $this->config->get('health.database_timeout', 5);
         
         try {
-            $database = ServiceLocator::getDatabaseConnector();
+            $database = $this->databaseConnector;
             $connection = $database->getConnection();
             
             // Execute lightweight query using Doctrine DBAL

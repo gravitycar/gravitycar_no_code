@@ -54,6 +54,9 @@ function printWarning($text) {
 function seedAuthenticationData() {
     printInfo("Creating default roles...");
     
+    // Get ModelFactory from DI container via ServiceLocator
+    $modelFactory = \Gravitycar\Core\ServiceLocator::getModelFactory();
+    
     // Create default roles
     $roles = [
         ['name' => 'admin', 'description' => 'System administrator', 'is_oauth_default' => false],
@@ -64,7 +67,7 @@ function seedAuthenticationData() {
     
     foreach ($roles as $roleData) {
         try {
-            $role = ModelFactory::new('Roles');
+            $role = $modelFactory->new('Roles');
             $role->set('name', $roleData['name']);
             $role->set('description', $roleData['description']);
             $role->set('is_oauth_default', $roleData['is_oauth_default']);
@@ -108,7 +111,7 @@ function seedAuthenticationData() {
     
     foreach ($permissions as $permData) {
         try {
-            $permission = ModelFactory::new('Permissions');
+            $permission = $modelFactory->new('Permissions');
             $permission->set('action', $permData['action']);
             $permission->set('model', $permData['model']);
             $permission->set('description', $permData['description']);
@@ -123,14 +126,14 @@ function seedAuthenticationData() {
     
     try {
         // Find admin role
-        $adminRole = ModelFactory::new('Roles');
+        $adminRole = $modelFactory->new('Roles');
         $adminRoles = $adminRole->find(['name' => 'admin']);
         if (!empty($adminRoles)) {
             printSuccess("Admin role will have full permissions (implement role-permission assignments)");
         }
         
         // Find user role  
-        $userRole = ModelFactory::new('Roles');
+        $userRole = $modelFactory->new('Roles');
         $userRoles = $userRole->find(['name' => 'user']);
         if (!empty($userRoles)) {
             printSuccess("User role created (implement specific permission assignments)");
@@ -207,12 +210,16 @@ try {
         mkdir($cacheDir, 0755, true);
     }
     
-    // Get services through ServiceLocator
+    // Get services through ServiceLocator (which now uses DI container)
     $metadataEngine = ServiceLocator::getMetadataEngine();
     $schemaGenerator = ServiceLocator::getSchemaGenerator();
     $dbConnector = ServiceLocator::getDatabaseConnector();
     $logger = ServiceLocator::getLogger();
-    $router = new \Gravitycar\Api\Router($metadataEngine);
+    $modelFactory = ServiceLocator::getModelFactory();
+    
+    // Get router from DI container via ServiceLocator
+    $container = ServiceLocator::getContainer();
+    $router = $container->get('router');
     
     // Clear MetadataEngine internal caches
     printInfo("Clearing MetadataEngine internal caches...");
@@ -371,7 +378,7 @@ try {
             // Check if user already exists
             $existingUser = null;
             try {
-                $queryInstance = ModelFactory::new('Users');
+                $queryInstance = $modelFactory->new('Users');
                 $existingUsers = $queryInstance->find(['username' => $userData['username']]);
                 $existingUser = !empty($existingUsers) ? $existingUsers[0] : null;
             } catch (Exception $e) {
@@ -384,8 +391,8 @@ try {
                 continue;
             }
             
-            // Create new user
-            $user = ModelFactory::new('Users');
+            // Create new user using DI-managed ModelFactory
+            $user = $modelFactory->new('Users');
             
             // Set user data
             foreach ($userData as $field => $value) {

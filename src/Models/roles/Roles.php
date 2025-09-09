@@ -26,7 +26,7 @@ class Roles extends ModelBase
      */
     public function getPermissions(): array
     {
-        $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
+        $dbConnector = $this->getDatabaseConnector();
         $conn = $dbConnector->getConnection();
         $queryBuilder = $conn->createQueryBuilder();
         
@@ -47,7 +47,7 @@ class Roles extends ModelBase
      */
     public function addPermission(int $permissionId): bool
     {
-        $dbConnector = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
+        $dbConnector = $this->getDatabaseConnector();
         $conn = $dbConnector->getConnection();
         
         // Check if permission is already assigned

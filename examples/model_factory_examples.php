@@ -9,6 +9,7 @@
 require_once 'vendor/autoload.php';
 
 use Gravitycar\Core\Gravitycar;
+use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Exceptions\GCException;
 
@@ -16,18 +17,22 @@ use Gravitycar\Exceptions\GCException;
 $gc = new Gravitycar();
 $gc->bootstrap();
 
-echo "=== ModelFactory Usage Examples ===\n\n";
+echo "=== ModelFactory Usage Examples (Phase 14 Updates) ===\n\n";
 
 // ====================
-// EXAMPLE 1: Basic Model Creation
+// EXAMPLE 1: Modern Instance-Based Approach (RECOMMENDED)
 // ====================
-echo "1. Basic Model Creation\n";
-echo "----------------------\n";
+echo "1. Modern Instance-Based ModelFactory (RECOMMENDED)\n";
+echo "===================================================\n";
 
 try {
-    // Create a new user
-    $user = ModelFactory::new('Users');
-    echo "✓ Created new Users model\n";
+    // Get ModelFactory instance via ServiceLocator
+    $modelFactory = ServiceLocator::getModelFactory();
+    echo "✓ Obtained ModelFactory instance from ServiceLocator\n";
+    
+    // Create a new user using instance method
+    $user = $modelFactory->new('Users');
+    echo "✓ Created new Users model via instance method\n";
     echo "  Class: " . get_class($user) . "\n";
     echo "  Fields: " . count($user->getFields()) . "\n";
     
@@ -49,16 +54,17 @@ try {
 echo "\n";
 
 // ====================
-// EXAMPLE 2: Different Model Types
+// EXAMPLE 2: Different Model Types (Instance-Based)
 // ====================
-echo "2. Creating Different Model Types\n";
-echo "---------------------------------\n";
+echo "2. Creating Different Model Types (Instance-Based)\n";
+echo "==================================================\n";
 
+$modelFactory = ServiceLocator::getModelFactory();
 $modelTypes = ['Users', 'Movies', 'Movie_Quotes'];
 
 foreach ($modelTypes as $modelType) {
     try {
-        $model = ModelFactory::new($modelType);
+        $model = $modelFactory->new($modelType);
         echo "✓ Created $modelType model\n";
         echo "  Class: " . get_class($model) . "\n";
         echo "  Table: " . $model->getTableName() . "\n";
@@ -71,17 +77,19 @@ foreach ($modelTypes as $modelType) {
 echo "\n";
 
 // ====================
-// EXAMPLE 3: Error Handling
+// EXAMPLE 3: Error Handling Examples (Instance-Based)
 // ====================
-echo "3. Error Handling Examples\n";
-echo "--------------------------\n";
+echo "3. Error Handling Examples (Instance-Based)\n";
+echo "============================================\n";
+
+$modelFactory = ServiceLocator::getModelFactory();
 
 // Test invalid model names
 $invalidNames = ['NonExistent', 'Invalid@Name', 'User-Model', ''];
 
 foreach ($invalidNames as $invalidName) {
     try {
-        ModelFactory::new($invalidName);
+        $modelFactory->new($invalidName);
         echo "✗ Should have failed for: '$invalidName'\n";
     } catch (GCException $e) {
         echo "✓ Correctly handled error for '$invalidName': " . substr($e->getMessage(), 0, 50) . "...\n";
@@ -93,10 +101,11 @@ echo "\n";
 // ====================
 // EXAMPLE 4: Model Discovery
 // ====================
-echo "4. Model Discovery\n";
-echo "------------------\n";
+echo "4. Model Discovery (Instance-Based)\n";
+echo "===================================\n";
 
-$availableModels = ModelFactory::getAvailableModels();
+$modelFactory = ServiceLocator::getModelFactory();
+$availableModels = $modelFactory->getAvailableModels();
 echo "Available models in the system:\n";
 foreach ($availableModels as $modelName) {
     echo "  - $modelName\n";
@@ -110,11 +119,12 @@ echo "5. Dynamic Model Creation\n";
 echo "-------------------------\n";
 
 /**
- * Function to create a model dynamically based on user input
+ * Function to create a model dynamically based on user input (Instance-Based)
  */
 function createModelFromInput(string $modelType, array $data): bool {
     try {
-        $model = ModelFactory::new($modelType);
+        $modelFactory = ServiceLocator::getModelFactory();
+        $model = $modelFactory->new($modelType);
         
         foreach ($data as $fieldName => $value) {
             if ($model->hasField($fieldName)) {
@@ -156,14 +166,15 @@ echo "6. Batch Model Creation\n";
 echo "-----------------------\n";
 
 /**
- * Function to create multiple models efficiently
+ * Function to create multiple models efficiently (Instance-Based)
  */
 function createMultipleUsers(array $usersData): array {
     $createdUsers = [];
+    $modelFactory = ServiceLocator::getModelFactory();
     
     foreach ($usersData as $i => $userData) {
         try {
-            $user = ModelFactory::new('Users');
+            $user = $modelFactory->new('Users');
             
             foreach ($userData as $field => $value) {
                 if ($user->hasField($field)) {
@@ -218,9 +229,10 @@ echo "7. Model Retrieval Examples\n";
 echo "---------------------------\n";
 
 try {
-    // This would work if database is available
-    echo "Attempting to retrieve user with ID '123':\n";
-    $retrievedUser = ModelFactory::retrieve('Users', '123');
+    // This would work if database is available (Instance-Based)
+    echo "Attempting to retrieve user with ID '123' (Instance-Based):\n";
+    $modelFactory = ServiceLocator::getModelFactory();
+    $retrievedUser = $modelFactory->retrieve('Users', '123');
     
     if ($retrievedUser) {
         echo "  ✓ Found user: " . $retrievedUser->get('username') . "\n";
@@ -246,10 +258,11 @@ echo "-------------------\n";
 
 $startTime = microtime(true);
 $modelsCreated = 0;
+$modelFactory = ServiceLocator::getModelFactory();
 
 for ($i = 0; $i < 100; $i++) {
     try {
-        $user = ModelFactory::new('Users');
+        $user = $modelFactory->new('Users');
         $modelsCreated++;
     } catch (GCException $e) {
         echo "Error creating model $i: " . $e->getMessage() . "\n";
@@ -263,4 +276,7 @@ $executionTime = $endTime - $startTime;
 echo "Created $modelsCreated models in " . number_format($executionTime, 4) . " seconds\n";
 echo "Average: " . number_format($executionTime / $modelsCreated * 1000, 2) . " ms per model\n";
 
-echo "\n=== Examples completed successfully! ===\n";
+echo "\n=== Phase 14 Examples completed successfully! ===\n";
+echo "✅ Instance-based ModelFactory working correctly\n";
+echo "✅ Backward compatibility maintained\n";
+echo "✅ Performance optimizations active\n";

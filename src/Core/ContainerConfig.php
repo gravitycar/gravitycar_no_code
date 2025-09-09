@@ -41,12 +41,15 @@ class ContainerConfig {
     private static function buildContainer(): Container {
         try {
             $builder = new ContainerBuilder();
-            $di = $builder->newInstance();
+            $di = $builder->newInstance(ContainerBuilder::AUTO_RESOLVE);
 
             // Configure services with error handling
             self::configureCoreServices($di);
             self::configureFactories($di);
             self::configureApplicationServices($di);
+            self::configureModelClasses($di);
+            self::configureInterfaces($di);
+            self::configureSetterInjection($di);
 
             // Don't call enableAutoWiringForNamespaces here - it causes infinite loop
             // Auto-wiring namespace setup is now done in autoWire() method
@@ -123,7 +126,10 @@ class ContainerConfig {
         // DatabaseConnector - singleton with error handling for invalid DB credentials
         $di->set('database_connector', $di->lazy(function() use ($di) {
             try {
-                return new DatabaseConnector();
+                return new DatabaseConnector(
+                    $di->get('logger'),
+                    $di->get('config')
+                );
             } catch (Exception $e) {
                 $logger = $di->get('logger');
                 $logger->error('Database connector failed: ' . $e->getMessage());
@@ -139,9 +145,12 @@ class ContainerConfig {
         // MetadataEngine - singleton managed by DI container
         $di->set('metadata_engine', $di->lazy(function() use ($di) {
             try {
-                // DI container manages singleton behavior, but we still use getInstance 
-                // to ensure consistency if MetadataEngine is accessed directly elsewhere
-                return MetadataEngine::getInstance();
+                // Use DI container to create instance with proper dependencies
+                return new MetadataEngine(
+                    $di->get('logger'),
+                    $di->get('config'),
+                    $di->get('core_fields_metadata')
+                );
             } catch (Exception $e) {
                 $logger = $di->get('logger');
                 $logger->error('MetadataEngine initialization failed: ' . $e->getMessage());
@@ -194,6 +203,15 @@ class ContainerConfig {
     private static function configureFactories(Container $di): void {
         // ValidationRuleFactory - singleton
         $di->set('validation_rule_factory', $di->lazyNew(ValidationRuleFactory::class));
+        
+        // ModelFactory - singleton with proper DI dependencies
+        $di->set('model_factory', $di->lazyNew(\Gravitycar\Factories\ModelFactory::class));
+        $di->params[\Gravitycar\Factories\ModelFactory::class] = [
+            'container' => $di, // Pass the container itself for model instantiation
+            'logger' => $di->lazyGet('logger'),
+            'dbConnector' => $di->lazyGet('database_connector'),
+            'metadataEngine' => $di->lazyGet('metadata_engine')
+        ];
     }
 
     /**
@@ -201,33 +219,113 @@ class ContainerConfig {
      */
     private static function configureApplicationServices(Container $di): void {
         // SchemaGenerator - prototype (new instance each time)
-        $di->set('schema_generator', $di->lazyNew(SchemaGenerator::class));
+        $di->set('schema_generator', $di->lazyNew(SchemaGenerator::class, [
+            'logger' => $di->lazyGet('logger'),
+            'dbConnector' => $di->lazyGet('database_connector'),
+            'coreFieldsMetadata' => $di->lazyGet('core_fields_metadata')
+        ]));
 
         // Router - prototype with ServiceLocator instance
         $di->set('router', $di->lazyNew(\Gravitycar\Api\Router::class, [
             'serviceLocator' => $di->lazyGet('metadata_engine') // Backward compatibility - pass MetadataEngine as serviceLocator
         ]));
 
-        // Authentication services
-        $di->set('authentication_service', $di->lazyNew(\Gravitycar\Services\AuthenticationService::class, [
-            'database' => $di->lazyGet('database'),
+        // Authentication services - Use new constructor signatures
+        $di->set('authentication_service', $di->lazyNew(\Gravitycar\Services\AuthenticationService::class));
+        $di->params[\Gravitycar\Services\AuthenticationService::class] = [
+            'database' => $di->lazyGet('database_connector'),
             'logger' => $di->lazyGet('logger'),
             'config' => $di->lazyGet('config')
-        ]));
+        ];
 
-        $di->set('authorization_service', $di->lazyNew(\Gravitycar\Services\AuthorizationService::class, [
-            'database' => $di->lazyGet('database'),
-            'logger' => $di->lazyGet('logger')
-        ]));
+        $di->set('authorization_service', $di->lazyNew(\Gravitycar\Services\AuthorizationService::class));
+        $di->params[\Gravitycar\Services\AuthorizationService::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'databaseConnector' => $di->lazyGet('database_connector')
+        ];
 
-        $di->set('google_oauth_service', $di->lazyNew(\Gravitycar\Services\GoogleOAuthService::class, [
+        $di->set('google_oauth_service', $di->lazyNew(\Gravitycar\Services\GoogleOAuthService::class));
+        $di->params[\Gravitycar\Services\GoogleOAuthService::class] = [
             'logger' => $di->lazyGet('logger')
-        ]));
+        ];
 
-        $di->set('user_service', $di->lazyNew(\Gravitycar\Services\UserService::class, [
-            'database' => $di->lazyGet('database'),
-            'logger' => $di->lazyGet('logger')
-        ]));
+        $di->set('user_service', $di->lazyNew(\Gravitycar\Services\UserService::class));
+        $di->params[\Gravitycar\Services\UserService::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'config' => $di->lazyGet('config'),
+            'databaseConnector' => $di->lazyGet('database_connector')
+        ];
+
+        // TMDB Services
+        $di->set('tmdb_api_service', $di->lazyNew(\Gravitycar\Services\TMDBApiService::class));
+        
+        $di->set('movie_tmdb_integration_service', $di->lazyNew(\Gravitycar\Services\MovieTMDBIntegrationService::class));
+        $di->params[\Gravitycar\Services\MovieTMDBIntegrationService::class] = [
+            'tmdbService' => $di->lazyGet('tmdb_api_service')
+        ];
+
+        // API Controllers
+        $di->set('model_base_api_controller', $di->lazyNew(\Gravitycar\Models\Api\Api\ModelBaseAPIController::class));
+        $di->params[\Gravitycar\Models\Api\Api\ModelBaseAPIController::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'metadataEngine' => $di->lazyGet('metadata_engine')
+        ];
+    }
+
+    /**
+     * Configure interface to service mappings for auto-resolution
+     */
+    private static function configureInterfaces(Container $di): void {
+        // Map interfaces to their concrete implementations
+        $di->types['Psr\\Log\\LoggerInterface'] = $di->lazyGet('logger');
+        $di->types['Monolog\\Logger'] = $di->lazyGet('logger');
+        $di->types['Gravitycar\\Contracts\\LoggerInterface'] = $di->lazyGet('logger');
+        $di->types['Gravitycar\\Contracts\\MetadataEngineInterface'] = $di->lazyGet('metadata_engine');
+        $di->types['Gravitycar\\Contracts\\DatabaseConnectorInterface'] = $di->lazyGet('database_connector');
+        
+        // Map ModelFactory for dependency injection
+        $di->types['Gravitycar\\Factories\\ModelFactory'] = $di->lazyGet('model_factory');
+    }
+
+    /**
+     * Configure setter injection for optional dependencies
+     */
+    private static function configureSetterInjection(Container $di): void {
+        // Optional cache injection for MetadataEngine (when cache service becomes available)
+        // $di->setters['Gravitycar\\Metadata\\MetadataEngine']['setCache'] = $di->lazyGet('cache_service');
+        
+        // Optional profiler injection for DatabaseConnector (development mode)
+        // $di->setters['Gravitycar\\Database\\DatabaseConnector']['setProfiler'] = $di->lazyGet('query_profiler');
+        
+        // Context injection for field validation (when validation context becomes available)
+        // $di->setters['Gravitycar\\Fields\\FieldBase']['setValidationContext'] = $di->lazyGet('validation_context');
+        
+        // Inject DatabaseConnector into all ModelBase instances
+        $di->setters['Gravitycar\\Models\\ModelBase']['setDatabaseConnector'] = $di->lazyGet('database_connector');
+    }
+
+    /**
+     * Configure model classes for dependency injection
+     */
+    private static function configureModelClasses(Container $di): void {
+        // Configure base ModelBase constructor parameters for all model classes
+        // This will apply to all classes that extend ModelBase
+        $di->params['Gravitycar\\Models\\ModelBase'] = [
+            'logger' => $di->lazyGet('logger'),
+            'metadataEngine' => $di->lazyGet('metadata_engine')
+        ];
+        
+        // Auto-resolve model classes - when container tries to create any ModelBase subclass,
+        // it will use these constructor parameters
+        $di->types['Gravitycar\\Models\\ModelBase'] = $di->lazyNew('Gravitycar\\Models\\ModelBase');
+        
+        // Examples of specific model registrations (can be added as needed):
+        // $di->set('Gravitycar\\Models\\users\\Users', $di->lazyNew('Gravitycar\\Models\\users\\Users'));
+        // $di->set('Gravitycar\\Models\\roles\\Roles', $di->lazyNew('Gravitycar\\Models\\roles\\Roles'));
     }
 
     /**
@@ -244,7 +342,8 @@ class ContainerConfig {
 
         $di = self::getContainer();
         return new $modelClass(
-            $di->get('logger')
+            $di->get('logger'),
+            $di->get('metadata_engine')
         );
     }
 

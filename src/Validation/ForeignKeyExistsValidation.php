@@ -95,8 +95,9 @@ class ForeignKeyExistsValidation extends ValidationRuleBase {
      * Check if the foreign key value exists in the related table
      */
     private function checkForeignKeyExists(FieldBase $relatedField, mixed $value): bool {
-        // Use DatabaseConnector to check if record exists
-        $databaseConnector = \Gravitycar\Core\ServiceLocator::get('Gravitycar\Database\DatabaseConnector');
+        // Use DI container to get DatabaseConnector with proper dependencies
+        $container = \Gravitycar\Core\ServiceLocator::getContainer();
+        $databaseConnector = $container->get('database_connector');
         $exists = $databaseConnector->recordExists($relatedField, $value);
 
         if (!$exists) {

@@ -3,9 +3,11 @@
 namespace Gravitycar\Services;
 
 use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Core\Config;
 use Gravitycar\Exceptions\GCException;
 use League\OAuth2\Client\Provider\Google;
 use League\OAuth2\Client\Token\AccessToken;
+use Monolog\Logger;
 
 /**
  * GoogleOAuthService
@@ -14,15 +16,18 @@ use League\OAuth2\Client\Token\AccessToken;
 class GoogleOAuthService
 {
     private Google $provider;
+    private Config $config;
+    private Logger $logger;
     
-    public function __construct()
+    public function __construct(Config $config = null, Logger $logger = null)
     {
-        $config = ServiceLocator::getConfig();
+        $this->config = $config ?? $this->config;
+        $this->logger = $logger ?? $this->logger;
         
         $this->provider = new Google([
-            'clientId'     => $config->get('google.client_id'),
-            'clientSecret' => $config->get('google.client_secret'),
-            'redirectUri'  => $config->get('google.redirect_uri'),
+            'clientId'     => $this->config->get('google.client_id'),
+            'clientSecret' => $this->config->get('google.client_secret'),
+            'redirectUri'  => $this->config->get('google.redirect_uri'),
         ]);
     }
     
@@ -45,7 +50,7 @@ class GoogleOAuthService
      */
     public function validateOAuthToken(string $code, string $state = null): array
     {
-        $logger = ServiceLocator::getLogger();
+        $logger = $this->logger;
         
         try {
             // Get access token from authorization code
@@ -83,7 +88,7 @@ class GoogleOAuthService
      */
     public function getUserProfile(string $googleToken): ?array
     {
-        $logger = ServiceLocator::getLogger();
+        $logger = $this->logger;
         
         try {
             // The token from Google Identity Services is a JWT credential (ID token)
@@ -130,7 +135,7 @@ class GoogleOAuthService
      */
     public function refreshGoogleToken(string $refreshToken): ?array
     {
-        $logger = ServiceLocator::getLogger();
+        $logger = $this->logger;
         
         try {
             $newAccessToken = $this->provider->getAccessToken('refresh_token', [
@@ -159,7 +164,7 @@ class GoogleOAuthService
      */
     public function validateIdToken(string $idToken): ?array
     {
-        $logger = ServiceLocator::getLogger();
+        $logger = $this->logger;
         
         try {
             // Use Google's tokeninfo endpoint directly - more reliable than discovery
@@ -179,8 +184,8 @@ class GoogleOAuthService
      */
     private function verifyTokenViaGoogleAPI(string $token): ?array
     {
-        $logger = ServiceLocator::getLogger();
-        $config = ServiceLocator::getConfig();
+        $logger = $this->logger;
+        $config = $this->config;
         $clientId = $config->get('google.client_id');
         
         try {

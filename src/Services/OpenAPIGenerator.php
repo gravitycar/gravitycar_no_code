@@ -18,15 +18,76 @@ class OpenAPIGenerator {
     private ?APIRouteRegistry $routeRegistry = null;
     private ReactComponentMapper $componentMapper;
     private DocumentationCache $cache;
-    private Config $config;
-    private LoggerInterface $logger;
+    private ?Config $config = null;
+    private ?LoggerInterface $logger = null;
+    private ?FieldFactory $fieldFactory = null;
     
-    public function __construct() {
-        $this->metadataEngine = MetadataEngine::getInstance();
-        $this->componentMapper = new ReactComponentMapper();
-        $this->cache = new DocumentationCache();
-        $this->config = ServiceLocator::getConfig();
-        $this->logger = ServiceLocator::getLogger();
+    public function __construct(?MetadataEngine $metadataEngine = null, ?ReactComponentMapper $componentMapper = null, 
+                               ?DocumentationCache $cache = null, ?Config $config = null, ?LoggerInterface $logger = null, ?FieldFactory $fieldFactory = null) {
+        $this->metadataEngine = $metadataEngine ?? $this->getMetadataEngine();
+        $this->componentMapper = $componentMapper ?? new ReactComponentMapper();
+        $this->cache = $cache ?? new DocumentationCache();
+        $this->config = $config ?? $this->getConfig();
+        $this->logger = $logger ?? $this->getLogger();
+        $this->fieldFactory = $fieldFactory;
+    }
+
+    /**
+     * Get field factory (lazy getter for transition support)
+     */
+    protected function getFieldFactory(): FieldFactory {
+        if ($this->fieldFactory === null) {
+            // Create FieldFactory with available logger
+            $this->fieldFactory = new FieldFactory($this->logger);
+        }
+        return $this->fieldFactory;
+    }
+
+    /**
+     * Get metadata engine instance lazily to avoid circular dependencies
+     */
+    protected function getMetadataEngine(): MetadataEngine {
+        return MetadataEngine::getInstance();
+    }
+
+    /**
+     * Get config instance lazily to avoid circular dependencies
+     */
+    protected function getConfig(): Config {
+        if ($this->config === null) {
+            $this->config = ServiceLocator::getConfig();
+        }
+        return $this->config;
+    }
+
+    /**
+     * Get logger instance lazily to avoid circular dependencies
+     */
+    protected function getLogger(): LoggerInterface {
+        if ($this->logger === null) {
+            $this->logger = ServiceLocator::getLogger();
+        }
+        return $this->logger;
+    }
+
+    /**
+     * Get cache instance lazily to avoid circular dependencies
+     */
+    protected function getCache(): DocumentationCache {
+        if ($this->cache === null) {
+            $this->cache = ServiceLocator::get(DocumentationCache::class);
+        }
+        return $this->cache;
+    }
+
+    /**
+     * Get component mapper instance lazily to avoid circular dependencies
+     */
+    protected function getComponentMapper(): ReactComponentMapper {
+        if ($this->componentMapper === null) {
+            $this->componentMapper = ServiceLocator::get(ReactComponentMapper::class);
+        }
+        return $this->componentMapper;
     }
     
     /**
@@ -44,15 +105,15 @@ class OpenAPIGenerator {
      */
     public function generateSpecification(): array {
         // Check cache first
-        if ($this->config->get('documentation.cache_enabled', true)) {
-            $cached = $this->cache->getCachedOpenAPISpec();
+        if ($this->getConfig()->get('documentation.cache_enabled', true)) {
+            $cached = $this->getCache()->getCachedOpenAPISpec();
             if ($cached !== null) {
                 return $cached;
             }
         }
         
         $spec = [
-            'openapi' => $this->config->get('documentation.openapi_version', '3.0.3'),
+            'openapi' => $this->getConfig()->get('documentation.openapi_version', '3.0.3'),
             'info' => $this->generateInfo(),
             'servers' => $this->generateServers(),
             'paths' => $this->generatePaths(),
@@ -61,13 +122,13 @@ class OpenAPIGenerator {
         ];
         
         // Validate generated specification if configured
-        if ($this->config->get('documentation.validate_generated_schemas', true)) {
+        if ($this->getConfig()->get('documentation.validate_generated_schemas', true)) {
             $this->validateOpenAPISpec($spec);
         }
         
         // Cache the generated specification if enabled
-        if ($this->config->get('documentation.cache_enabled', true)) {
-            $this->cache->cacheOpenAPISpec($spec);
+        if ($this->getConfig()->get('documentation.cache_enabled', true)) {
+            $this->getCache()->cacheOpenAPISpec($spec);
         }
         
         return $spec;
@@ -78,9 +139,9 @@ class OpenAPIGenerator {
      */
     private function generateInfo(): array {
         return [
-            'title' => $this->config->get('documentation.api_title', 'Gravitycar Framework API'),
-            'version' => $this->config->get('documentation.api_version', '1.0.0'),
-            'description' => $this->config->get('documentation.api_description', 
+            'title' => $this->getConfig()->get('documentation.api_title', 'Gravitycar Framework API'),
+            'version' => $this->getConfig()->get('documentation.api_version', '1.0.0'),
+            'description' => $this->getConfig()->get('documentation.api_description', 
                 'Auto-generated API documentation for Gravitycar Framework'),
             'contact' => [
                 'name' => 'Gravitycar Framework',
@@ -257,7 +318,7 @@ class OpenAPIGenerator {
      * Generate response schema
      */
     private function generateResponseSchema(array $route, string $modelName): array {
-        if ($modelName && $this->metadataEngine->modelExists($modelName)) {
+        if ($modelName && $this->getMetadataEngine()->modelExists($modelName)) {
             if ($route['method'] === 'GET' && !str_contains($route['path'], '{')) {
                 // List endpoint
                 return [
@@ -340,7 +401,7 @@ class OpenAPIGenerator {
      * Generate request body for POST/PUT/PATCH operations
      */
     private function generateRequestBody(string $modelName): array {
-        if ($modelName && $this->metadataEngine->modelExists($modelName)) {
+        if ($modelName && $this->getMetadataEngine()->modelExists($modelName)) {
             return [
                 'required' => true,
                 'content' => [
@@ -366,7 +427,7 @@ class OpenAPIGenerator {
      */
     private function generateComponents(): array {
         $schemas = [];
-        $cachedMetadata = $this->metadataEngine->getCachedMetadata();
+        $cachedMetadata = $this->getMetadataEngine()->getCachedMetadata();
         
         if (isset($cachedMetadata['models'])) {
             foreach ($cachedMetadata['models'] as $modelName => $modelData) {
@@ -480,7 +541,7 @@ class OpenAPIGenerator {
             $fieldClassName = "Gravitycar\\Fields\\{$fieldType}Field";
             
             if (class_exists($fieldClassName)) {
-                $fieldInstance = ServiceLocator::createField($fieldClassName, $fieldData);
+                $fieldInstance = $this->getFieldFactory()->createField($fieldData);
                 
                 // Try to use field's own schema generation if available
                 if (method_exists($fieldInstance, 'generateOpenAPISchema')) {
@@ -492,7 +553,7 @@ class OpenAPIGenerator {
             return $this->generateBasicFieldSchema($fieldData);
             
         } catch (\Exception $e) {
-            $this->logger->warning("Failed to generate schema for field type {$fieldData['type']}: " . $e->getMessage());
+            $this->getLogger()->warning("Failed to generate schema for field type {$fieldData['type']}: " . $e->getMessage());
             return $this->generateBasicFieldSchema($fieldData);
         }
     }
@@ -563,7 +624,7 @@ class OpenAPIGenerator {
      */
     private function generateTags(): array {
         $tags = [];
-        $models = $this->metadataEngine->getAvailableModels();
+        $models = $this->getMetadataEngine()->getAvailableModels();
         
         foreach ($models as $modelName) {
             $tags[] = [

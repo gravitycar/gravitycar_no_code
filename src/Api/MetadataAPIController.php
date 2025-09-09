@@ -13,24 +13,46 @@ use Gravitycar\Exceptions\BadRequestException;
 use Gravitycar\Exceptions\InternalServerErrorException;
 use Gravitycar\Exceptions\ServiceUnavailableException;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
 use Psr\Log\LoggerInterface;
+use Monolog\Logger;
 
 /**
  * MetadataAPIController: Provides API endpoints for model and field metadata discovery
  */
 class MetadataAPIController extends ApiControllerBase {
-    private MetadataEngine $metadataEngine;
     private ?APIRouteRegistry $routeRegistry = null;
     private ReactComponentMapper $componentMapper;
     private DocumentationCache $cache;
-    private Config $config;
     
-    public function __construct() {
-        parent::__construct();
-        $this->metadataEngine = MetadataEngine::getInstance();
-        $this->cache = new DocumentationCache();
-        $this->config = ServiceLocator::getConfig();
-        $this->componentMapper = new ReactComponentMapper();
+    public function __construct(
+        Logger $logger = null,
+        ModelFactory $modelFactory = null,
+        DatabaseConnectorInterface $databaseConnector = null,
+        MetadataEngineInterface $metadataEngine = null,
+        Config $config = null,
+        ?DocumentationCache $cache = null, 
+        ?ReactComponentMapper $componentMapper = null
+    ) {
+        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config);
+        $this->cache = $cache ?? new DocumentationCache();
+        $this->componentMapper = $componentMapper ?? new ReactComponentMapper();
+    }
+
+    /**
+     * Get metadata engine instance lazily to avoid circular dependencies
+     */
+    protected function getMetadataEngine(): MetadataEngine {
+        return MetadataEngine::getInstance();
+    }
+
+    /**
+     * Get config instance lazily to avoid circular dependencies
+     */
+    protected function getConfig(): Config {
+        return $this->config;
     }
     
     /**
@@ -109,7 +131,9 @@ class MetadataAPIController extends ApiControllerBase {
         }
         
         try {
-            $cachedMetadata = $this->metadataEngine->getCachedMetadata();
+            /** @var MetadataEngine $metadataEngine */
+            $metadataEngine = $this->metadataEngine;
+            $cachedMetadata = $metadataEngine->getCachedMetadata();
             if (empty($cachedMetadata['models'])) {
                 throw new NotFoundException('No models found in metadata cache');
             }
@@ -259,7 +283,9 @@ class MetadataAPIController extends ApiControllerBase {
                 }
             }
             
-            $fieldTypeDefinitions = $this->metadataEngine->getFieldTypeDefinitions();
+            /** @var MetadataEngine $metadataEngine */
+            $metadataEngine = $this->metadataEngine;
+            $fieldTypeDefinitions = $metadataEngine->getFieldTypeDefinitions();
             if (empty($fieldTypeDefinitions)) {
                 throw new ServiceUnavailableException(
                     'Field type definitions not available. Please regenerate metadata cache.'
@@ -311,7 +337,9 @@ class MetadataAPIController extends ApiControllerBase {
      */
     public function getRelationships(): array {
         try {
-            $relationships = $this->metadataEngine->getAllRelationships();
+            /** @var MetadataEngine $metadataEngine */
+            $metadataEngine = $this->metadataEngine;
+            $relationships = $metadataEngine->getAllRelationships();
             
             return [
                 'success' => true,

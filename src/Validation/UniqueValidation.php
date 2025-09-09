@@ -22,8 +22,9 @@ class UniqueValidation extends ValidationRuleBase {
         }
 
         try {
-            // Use DatabaseConnector to check if this value already exists
-            $databaseConnector = \Gravitycar\Core\ServiceLocator::get('Gravitycar\Database\DatabaseConnector');
+            // Use DI container to get DatabaseConnector with proper dependencies
+            $container = \Gravitycar\Core\ServiceLocator::getContainer();
+            $databaseConnector = $container->get('database_connector');
             
             // If we have a model with an ID, use recordExistsExcludingId to exclude the current record
             if ($model && $model instanceof \Gravitycar\Models\ModelBase && $model->get('id')) {

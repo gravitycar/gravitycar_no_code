@@ -119,7 +119,7 @@ class Users extends ModelBase {
         // Get current user context (if available)
         $currentUser = null;
         try {
-            $currentUser = ServiceLocator::getCurrentUser();
+            $currentUser = $this->getCurrentUser();
         } catch (\Exception $e) {
             // No current user context available
         }

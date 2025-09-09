@@ -24,10 +24,10 @@ class ManyToManyRelationship extends RelationshipBase {
         
         if ($modelName === $modelA) {
             // Source is modelA, return modelB instance
-            return ModelFactory::new($modelB);
+            return $this->modelFactory->new($modelB);
         } elseif ($modelName === $modelB) {
             // Source is modelB, return modelA instance
-            return ModelFactory::new($modelA);
+            return $this->modelFactory->new($modelA);
         } else {
             throw new GCException("Model {$modelName} is not part of this ManyToMany relationship", [
                 'model_class' => $modelClass,
@@ -141,7 +141,14 @@ class ManyToManyRelationship extends RelationshipBase {
             }
 
             // Create a relationship instance from the found record and populate it
-            $relationshipInstance = new static($this->metadata, $this->logger, $this->coreFieldsMetadata);
+            $relationshipInstance = new static(
+                $this->relationshipName, 
+                $this->logger, 
+                $this->metadataEngine,
+                $this->coreFieldsMetadata,
+                $this->modelFactory,
+                $this->databaseConnector
+            );
             $relationshipInstance->populateFromRow($results[0]);
 
             // Update the fields with new data

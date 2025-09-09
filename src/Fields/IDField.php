@@ -19,8 +19,8 @@ class IDField extends FieldBase {
     /** @var array ID fields have limited operators for security and performance */
     protected array $operators = ['equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull'];
 
-    public function __construct(array $metadata) {
-        parent::__construct($metadata);
+    public function __construct(array $metadata, ?Logger $logger = null) {
+        parent::__construct($metadata, $logger);
         // ingestMetadata() in parent constructor now handles all property assignments
     }
 }

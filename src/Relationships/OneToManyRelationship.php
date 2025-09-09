@@ -24,10 +24,10 @@ class OneToManyRelationship extends RelationshipBase {
         
         if ($modelName === $modelOne) {
             // Source is modelOne, return modelMany instance
-            return ModelFactory::new($modelMany);
+            return $this->modelFactory->new($modelMany);
         } elseif ($modelName === $modelMany) {
             // Source is modelMany, return modelOne instance
-            return ModelFactory::new($modelOne);
+            return $this->modelFactory->new($modelOne);
         } else {
             throw new GCException("Model {$modelName} is not part of this OneToMany relationship", [
                 'model_class' => $modelClass,
@@ -106,7 +106,14 @@ class OneToManyRelationship extends RelationshipBase {
             }
 
             // Create a relationship instance from the found record and populate it
-            $relationshipInstance = new static($this->metadata, $this->logger, $this->coreFieldsMetadata);
+            $relationshipInstance = new static(
+                $this->relationshipName, 
+                $this->logger, 
+                $this->metadataEngine,
+                $this->coreFieldsMetadata,
+                $this->modelFactory,
+                $this->databaseConnector
+            );
             $relationshipInstance->populateFromRow($results[0]);
 
             // Update the fields with new data
@@ -267,7 +274,7 @@ class OneToManyRelationship extends RelationshipBase {
                 return null;
             }
 
-            return ModelFactory::retrieve($manyModelName, $manyId);
+            return $this->modelFactory->retrieve($manyModelName, $manyId);
 
         } catch (\Exception $e) {
             $this->logger->error('Failed to get many model from record', [

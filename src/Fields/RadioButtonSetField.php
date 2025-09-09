@@ -24,8 +24,8 @@ class RadioButtonSetField extends FieldBase {
     /** @var array Same as EnumField since radio buttons represent single selection */
     protected array $operators = ['equals', 'notEquals', 'in', 'notIn', 'isNull', 'isNotNull'];
 
-    public function __construct(array $metadata) {
-        parent::__construct($metadata);
+    public function __construct(array $metadata, ?Logger $logger = null) {
+        parent::__construct($metadata, $logger);
         // ingestMetadata() in parent constructor now handles all property assignments
 
         // Special handling for options loading after properties are set

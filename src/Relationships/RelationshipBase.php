@@ -3,10 +3,13 @@ namespace Gravitycar\Relationships;
 
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Database\DatabaseConnector;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Contracts\MetadataEngineInterface;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Metadata\CoreFieldsMetadata;
 use Gravitycar\Metadata\MetadataEngine;
+use Gravitycar\Factories\ModelFactory;
 use Monolog\Logger;
 
 /**
@@ -24,20 +27,31 @@ abstract class RelationshipBase extends ModelBase {
     protected ?string $tableName = null;
     protected ?string $relationshipName = null;
     protected CoreFieldsMetadata $coreFieldsMetadata;
-    protected MetadataEngine $metadataEngine;
+    protected MetadataEngineInterface $metadataEngine;
+    protected ModelFactory $modelFactory;
+    protected ?DatabaseConnectorInterface $databaseConnector;
     protected bool $metadataFromEngine = false;
 
     /**
-     * Constructor - uses ServiceLocator for dependencies
+     * Constructor - uses dependency injection with ServiceLocator fallback
      */
-    public function __construct(?string $relationshipName = null) {
+    public function __construct(
+        ?string $relationshipName = null, 
+        ?Logger $logger = null, 
+        ?MetadataEngineInterface $metadataEngine = null,
+        ?CoreFieldsMetadata $coreFieldsMetadata = null,
+        ?ModelFactory $modelFactory = null,
+        ?DatabaseConnectorInterface $databaseConnector = null
+    ) {
         $this->relationshipName = $relationshipName;
-        $this->logger = ServiceLocator::getLogger();
-        $this->coreFieldsMetadata = ServiceLocator::getCoreFieldsMetadata();
-        $this->metadataEngine = ServiceLocator::getMetadataEngine();
+        $this->logger = $logger ?? ServiceLocator::getLogger();
+        $this->metadataEngine = $metadataEngine ?? ServiceLocator::getMetadataEngine();
+        $this->coreFieldsMetadata = $coreFieldsMetadata ?? ServiceLocator::getCoreFieldsMetadata();
+        $this->modelFactory = $modelFactory ?? ServiceLocator::getModelFactory();
+        $this->databaseConnector = $databaseConnector ?? ServiceLocator::getDatabaseConnector();
         $this->metadataFromEngine = true; // Always use MetadataEngine now
         
-        parent::__construct();
+        parent::__construct($logger, $metadataEngine);
     }
 
     /**
@@ -771,14 +785,32 @@ abstract class RelationshipBase extends ModelBase {
     // Common utility methods for all relationship types
 
     /**
+     * Helper method to handle DatabaseConnector interface limitations
+     */
+    protected function getCountFromDatabaseConnector($dbConnector, string $fieldName, string $fieldValue, bool $includeDeleted = true): int {
+        // Use concrete class method if available
+        if (method_exists($dbConnector, 'getCount')) {
+            return $dbConnector->getCount($this, $fieldName, $fieldValue, !$includeDeleted);
+        } else {
+            // Fallback: use findWhere and count results
+            $criteria = [$fieldName => $fieldValue];
+            if (!$includeDeleted) {
+                $criteria['deleted_at'] = null;
+            }
+            $results = $dbConnector->findWhere($this, $criteria);
+            return count($results);
+        }
+    }
+
+    /**
      * Check if model has active (non-soft-deleted) relationships
      */
     protected function hasActiveRelation(ModelBase $model): bool {
         $modelIdFieldName = $this->getModelIdField($model);
         
-        // Use DatabaseConnector->getCount() for efficient checking
+        // Use helper method to handle interface limitations
         $dbConnector = $this->getDatabaseConnector();
-        $count = $dbConnector->getCount($this, $modelIdFieldName, $model->get('id'), false);
+        $count = $this->getCountFromDatabaseConnector($dbConnector, $modelIdFieldName, $model->get('id'), false);
         
         return $count > 0;
     }
@@ -789,9 +821,9 @@ abstract class RelationshipBase extends ModelBase {
     protected function getActiveRelatedCount(ModelBase $model): int {
         $modelIdFieldName = $this->getModelIdField($model);
         
-        // Use DatabaseConnector->getCount() for efficient counting
+        // Use helper method to handle interface limitations
         $dbConnector = $this->getDatabaseConnector();
-        return $dbConnector->getCount($this, $modelIdFieldName, $model->get('id'), false);
+        return $this->getCountFromDatabaseConnector($dbConnector, $modelIdFieldName, $model->get('id'), false);
     }
 
     /**
@@ -973,7 +1005,7 @@ abstract class RelationshipBase extends ModelBase {
 
         // Get total count using DatabaseConnector
         $dbConnector = $this->getDatabaseConnector();
-        $total = $dbConnector->getCount($this, $fieldName, $fieldValue, false);
+        $total = $this->getCountFromDatabaseConnector($dbConnector, $fieldName, $fieldValue, false);
 
         // Build criteria for paginated records
         $criteria = [

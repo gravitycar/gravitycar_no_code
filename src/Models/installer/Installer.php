@@ -44,7 +44,7 @@ class Installer extends ModelBase {
             $schemaGenerator->generateSchema($metadata);
 
             // 5. Create initial admin user
-            $usersModel = ModelFactory::new('Users');
+            $usersModel = \Gravitycar\Core\ServiceLocator::getModelFactory()->new('Users');
             $this->createInitialAdmin($usersModel, $adminUsername);
 
             // 6. Mark installation as complete

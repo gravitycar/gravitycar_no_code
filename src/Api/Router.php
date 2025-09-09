@@ -247,7 +247,7 @@ class Router {
                 return null; // No model parameter available
             }
             
-            return \Gravitycar\Factories\ModelFactory::new($modelName);
+            return \Gravitycar\Core\ServiceLocator::getModelFactory()->new($modelName);
             
         } catch (\Exception $e) {
             $this->logger->warning('Could not instantiate model for validation', [
