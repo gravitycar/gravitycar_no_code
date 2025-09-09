@@ -65,7 +65,7 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
     }
     
     /**
-     * Override create to implement automatic question generation
+     * Override create to implement automatic question generationp
      * 
      * When creating a new trivia question, this method will:
      * 1. Select a random movie quote (if not specified), excluding already used quotes
@@ -314,73 +314,33 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
      * @return string|null The quote ID or null if none found
      */
     private function selectRandomMovieQuote(array $excludedIds = []): ?string {
-        $db = $this->getDatabaseConnector();
+        // Use ServiceLocator to get the concrete DatabaseConnector (not interface) 
+        // so we can access the getRandomRecordWithValidatedFilters method
+        $db = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
         
         // Use ModelFactory to get a MovieQuote model instance
         $movieQuoteModel = $this->getModelFactory()->new('Movie_Quotes');
         
-        // If we have excluded IDs, use the new validated filters approach
+        // Build validated filters for the random selection
+        $validatedFilters = [
+            [
+                'field' => 'deleted_at',
+                'operator' => 'isNull',
+                'value' => null
+            ]
+        ];
+        
+        // Add exclusion filter if we have excluded IDs
         if (!empty($excludedIds)) {
-            // First, get all quotes that have movie relationships using the relationship approach
-            $rel = $movieQuoteModel->getRelationship('movies_movie_quotes');
-            $movieQuoteModelField = $rel->getModelIdField($movieQuoteModel);
-
-            // Define criteria using the relationship format to ensure the quote has a movie
-            $criteria = [
-                'deleted_at' => null,
-                'movies_movie_quotes.' . $movieQuoteModelField => '__NOT_NULL__',
+            $validatedFilters[] = [
+                'field' => 'id',
+                'operator' => 'notIn',
+                'value' => $excludedIds
             ];
-            
-            // Get all valid quotes with movies first
-            $allValidQuotes = $db->find($movieQuoteModel, $criteria, ['id'], []);
-            
-            if (empty($allValidQuotes)) {
-                return null;
-            }
-            
-            // Filter out excluded IDs
-            $validQuoteIds = [];
-            foreach ($allValidQuotes as $quote) {
-                $quoteId = $quote['id'];
-                if (!in_array($quoteId, $excludedIds)) {
-                    $validQuoteIds[] = $quoteId;
-                }
-            }
-            
-            if (empty($validQuoteIds)) {
-                return null; // No valid quotes remaining after exclusions
-            }
-            
-            // Now build validated filters to get a random quote from the remaining valid IDs
-            $validatedFilters = [
-                [
-                    'field' => 'deleted_at',
-                    'operator' => 'isNull',
-                    'value' => null
-                ],
-                [
-                    'field' => 'id',
-                    'operator' => 'in',
-                    'value' => $validQuoteIds
-                ]
-            ];
-            
-            // Use the new method that supports filtering
-            return $db->getRandomRecordWithValidatedFilters($movieQuoteModel, $validatedFilters);
-        } else {
-            // For backward compatibility, use the existing relationship-based approach
-            $rel = $movieQuoteModel->getRelationship('movies_movie_quotes');
-            $movieQuoteModelField = $rel->getModelIdField($movieQuoteModel);
-
-            // Define criteria using the new relationship format
-            $criteria = [
-                'deleted_at' => null,                           // Direct field: movie quote not deleted
-                'movies_movie_quotes.' . $movieQuoteModelField => '__NOT_NULL__',                   // Direct field: has a movie relationship
-            ];
-            
-            // Use the existing getRandomRecord method with relationship support
-            return $db->getRandomRecord($movieQuoteModel, $criteria);
         }
+        
+        // Use the validated filters method that supports 'notIn' operator
+        return $db->getRandomRecordWithValidatedFilters($movieQuoteModel, $validatedFilters);
     }
     
     /**
@@ -436,7 +396,9 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
      */
     private function selectRandomDistractorMovies(string $excludeMovieId, int $count): array {
         try {
-            $db = $this->getDatabaseConnector();
+            // Use ServiceLocator to get the concrete DatabaseConnector (not interface) 
+            // so we can access the getRandomRecordWithValidatedFilters method
+            $db = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
             
             // Use ModelFactory to get a Movies model instance for query building
             $movieModel = $this->getModelFactory()->new('Movies');
@@ -452,35 +414,30 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
             
             // Try to get the requested number of random movies
             for ($i = 0; $i < $count; $i++) {
-                // Build criteria - the applyCriteria method doesn't support NOT IN directly
-                // So we need to use a different approach: get random movies and filter client-side
-                $criteria = [
-                    'deleted_at' => null,  // Only active movies
+                // Build validated filters to exclude already selected movies
+                $validatedFilters = [
+                    [
+                        'field' => 'deleted_at',
+                        'operator' => 'isNull',
+                        'value' => null
+                    ],
+                    [
+                        'field' => 'id',
+                        'operator' => 'notIn',
+                        'value' => $excludeList
+                    ]
                 ];
                 
-                // Try multiple times to find a movie not in our exclude list
-                $attempts = 0;
-                $maxAttempts = 20; // Prevent infinite loops
-                $randomMovieId = null;
-                
-                while ($attempts < $maxAttempts) {
-                    $candidateId = $db->getRandomRecord($movieModel, $criteria);
-                    
-                    if ($candidateId && !in_array($candidateId, $excludeList)) {
-                        $randomMovieId = $candidateId;
-                        break;
-                    }
-                    $attempts++;
-                }
+                // Get a random movie that's not in our exclude list
+                $randomMovieId = $db->getRandomRecordWithValidatedFilters($movieModel, $validatedFilters);
                 
                 if ($randomMovieId) {
                     $distractors[] = $randomMovieId;
                     $excludeList[] = $randomMovieId; // Add to exclude list for next iteration
                 } else {
-                    // If we can't find more unique movies after max attempts, break early
-                    $this->logger->debug("Could not find unique distractor movie after max attempts", [
+                    // If we can't find more unique movies, break early
+                    $this->logger->debug("Could not find unique distractor movie", [
                         'exclude_list' => $excludeList,
-                        'attempts' => $attempts,
                         'iteration' => $i,
                         'method' => 'selectRandomDistractorMovies'
                     ]);
