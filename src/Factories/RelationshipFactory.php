@@ -4,27 +4,47 @@ namespace Gravitycar\Factories;
 use Gravitycar\Relationships\RelationshipBase;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Core\ServiceLocator;
-use Gravitycar\Metadata\MetadataEngine;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Monolog\Logger;
 
 /**
  * Factory for creating, validating, and managing relationship instances.
  * Handles all cross-cutting concerns that don't belong in individual relationship classes.
+ * 
+ * Updated for pure dependency injection - no ServiceLocator dependencies.
  */
 class RelationshipFactory {
-    protected string $owner;
     protected Logger $logger;
-    protected MetadataEngine $metadataEngine;
+    protected MetadataEngineInterface $metadataEngine;
+    protected DatabaseConnectorInterface $databaseConnector;
+    protected string $owner; // Kept for backward compatibility during transition
     protected array $availableRelationshipTypes = [];
     protected array $relationshipRegistry = [];
     protected array $relationshipKeys = [];
 
-    public function __construct(string $owner, Logger $logger) {
-        $this->owner = $owner;
+    /**
+     * Constructor with dependency injection
+     * 
+     * @param Logger $logger
+     * @param MetadataEngineInterface $metadataEngine
+     * @param DatabaseConnectorInterface $databaseConnector
+     * @param string $owner Owner identifier (defaults to 'ModelBase' for pure DI)
+     */
+    public function __construct(
+        Logger $logger, 
+        MetadataEngineInterface $metadataEngine, 
+        DatabaseConnectorInterface $databaseConnector,
+        string $owner = 'ModelBase'
+    ) {
         $this->logger = $logger;
-        $this->metadataEngine = ServiceLocator::getMetadataEngine();
+        $this->metadataEngine = $metadataEngine;
+        $this->databaseConnector = $databaseConnector;
+        $this->owner = $owner;
         $this->discoverRelationshipTypes();
     }
+
+
 
     /**
      * Create a relationship instance from relationship name (updated to use MetadataEngine)
@@ -36,9 +56,6 @@ class RelationshipFactory {
 
             // Validate metadata before creating instance
             $this->validateRelationshipMetadata($metadata);
-
-            // Check for duplicates
-            $this->checkForDuplicateRelationships($metadata);
 
             // Check for circular dependencies
             $this->detectCircularDependencies($metadata);
@@ -87,25 +104,6 @@ class RelationshipFactory {
      */
     protected function buildMetadataFilePath(string $relationshipName): string {
         return $this->metadataEngine->buildRelationshipMetadataPath($relationshipName);
-    }
-
-    /**
-     * Prevent duplicate relationship definitions
-     */
-    protected function checkForDuplicateRelationships(array $metadata): void {
-        $relationshipKey = $this->generateRelationshipKey($metadata);
-
-        if (isset($this->relationshipKeys[$relationshipKey])) {
-            throw new GCException(
-                'Duplicate relationship definition detected',
-                [
-                    'relationship_key' => $relationshipKey,
-                    'new_relationship' => $metadata['name'],
-                    'existing_relationship' => $this->relationshipKeys[$relationshipKey],
-                    'suggestion' => 'Use different relationship names or purposes to distinguish multiple relationships between the same models'
-                ]
-            );
-        }
     }
 
     /**

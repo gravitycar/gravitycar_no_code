@@ -3,11 +3,41 @@ namespace Gravitycar\Models\users;
 
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Factories\FieldFactory;
+use Gravitycar\Factories\RelationshipFactory;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Monolog\Logger;
 
 /**
  * Users model for Gravitycar framework
  */
 class Users extends ModelBase {
+
+    /**
+     * Pure dependency injection constructor
+     */
+    public function __construct(
+        Logger $logger,
+        MetadataEngineInterface $metadataEngine,
+        FieldFactory $fieldFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        RelationshipFactory $relationshipFactory,
+        ModelFactory $modelFactory,
+        CurrentUserProviderInterface $currentUserProvider
+    ) {
+        parent::__construct(
+            $logger,
+            $metadataEngine,
+            $fieldFactory,
+            $databaseConnector,
+            $relationshipFactory,
+            $modelFactory,
+            $currentUserProvider
+        );
+    }
 
     /**
      * Hash password before saving

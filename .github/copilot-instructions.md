@@ -59,11 +59,99 @@ class ModelName extends ModelBase {
 }
 ```
 
-### Dependency Injection Requirements
-- Every class needs `logger` (Monolog) and `config` (Config class) properties
-- Use `ServiceLocator` for shared services
-- Type hint all method parameters
+### Pure Dependency Injection Requirements
+- **NO ServiceLocator usage** - All dependencies must be explicitly injected via constructor
+- Use `Container->get('model_factory')` for accessing ModelFactory with proper DI
+- All ModelBase subclasses require 7-parameter constructor with full dependency injection
+- Type hint all method parameters and constructor dependencies
 - Use early returns to reduce nesting (complexity target: <4/10)
+
+### Model Creation Pattern
+```php
+// CORRECT: Use Container to get ModelFactory for new model creation
+$container = \Gravitycar\Core\ContainerConfig::getContainer();
+$factory = $container->get('model_factory');
+$model = $factory->new('Users');
+
+// CORRECT: Use ModelFactory for retrieving existing models
+$existing = $factory->retrieve('Users', $userId);
+
+// ALTERNATIVE: ServiceLocator convenience method (legacy compatibility)
+$factory = ServiceLocator::getModelFactory();
+$model = $factory->new('Users');
+
+// ADVANCED: Direct container access for complex cases
+$model = \Gravitycar\Core\ContainerConfig::createModel('Gravitycar\\Models\\Users\\Users');
+
+// INCORRECT: Direct instantiation without dependencies
+$model = new Users(); // Missing 7 required dependencies
+```
+
+### Required ModelBase Constructor Pattern
+```php
+namespace Gravitycar\Models\model_name;
+use Gravitycar\Models\ModelBase;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Factories\FieldFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Factories\RelationshipFactory;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Monolog\Logger;
+
+class ModelName extends ModelBase {
+    public function __construct(
+        Logger $logger,
+        MetadataEngineInterface $metadataEngine,
+        FieldFactory $fieldFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        RelationshipFactory $relationshipFactory,
+        ModelFactory $modelFactory,
+        CurrentUserProviderInterface $currentUserProvider
+    ) {
+        parent::__construct(
+            $logger,
+            $metadataEngine,
+            $fieldFactory,
+            $databaseConnector,
+            $relationshipFactory,
+            $modelFactory,
+            $currentUserProvider
+        );
+    }
+    
+    // Custom business logic only
+    // CRUD operations auto-generated
+}
+```
+
+### Testing Infrastructure
+- Use direct dependency injection in tests - NO complex mock injection patterns
+- Create mocks directly and inject via constructor
+- NO TestableModelBase helper class needed for simple tests
+- Container can be mocked for integration tests
+
+```php
+// CORRECT: Direct dependency injection in tests
+protected function setUp(): void {
+    $mockMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+    $mockFieldFactory = $this->createMock(FieldFactory::class);
+    // ... create all 7 mocks
+    
+    $this->model = new TestableModelForPureDI(
+        $this->logger,
+        $mockMetadataEngine,
+        $mockFieldFactory,
+        $mockDatabaseConnector,
+        $mockRelationshipFactory,
+        $mockModelFactory,
+        $mockCurrentUserProvider
+    );
+}
+
+// INCORRECT: ServiceLocator mock injection (deprecated)
+$this->setupMockFieldFactoryForModel($this->model);
+```
 
 ## Relationships System
 

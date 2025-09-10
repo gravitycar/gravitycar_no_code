@@ -3,6 +3,13 @@
 namespace Gravitycar\Models\permissions;
 
 use Gravitycar\Models\ModelBase;
+use Gravitycar\Factories\FieldFactory;
+use Gravitycar\Factories\RelationshipFactory;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Monolog\Logger;
 
 /**
  * Permissions Model
@@ -10,6 +17,29 @@ use Gravitycar\Models\ModelBase;
  */
 class Permissions extends ModelBase
 {
+    /**
+     * Pure dependency injection constructor
+     */
+    public function __construct(
+        Logger $logger,
+        MetadataEngineInterface $metadataEngine,
+        FieldFactory $fieldFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        RelationshipFactory $relationshipFactory,
+        ModelFactory $modelFactory,
+        CurrentUserProviderInterface $currentUserProvider
+    ) {
+        parent::__construct(
+            $logger,
+            $metadataEngine,
+            $fieldFactory,
+            $databaseConnector,
+            $relationshipFactory,
+            $modelFactory,
+            $currentUserProvider
+        );
+    }
+
     /**
      * Find permission by action and model
      */
@@ -28,8 +58,7 @@ class Permissions extends ModelBase
      */
     public function getRoles(): array
     {
-        $dbConnector = $this->getDatabaseConnector();
-        $conn = $dbConnector->getConnection();
+        $conn = $this->databaseConnector->getConnection();
         $queryBuilder = $conn->createQueryBuilder();
         
         $queryBuilder
@@ -53,7 +82,8 @@ class Permissions extends ModelBase
         $actions = ['create', 'read', 'update', 'delete', 'list', 'restore'];
         
         foreach ($actions as $action) {
-            $permission = new self();
+            // Use ContainerConfig to create properly injected model instance
+            $permission = \Gravitycar\Core\ContainerConfig::createModel(self::class);
             $permission->set('action', $action);
             $permission->set('model', $modelName);
             $permission->set('description', ucfirst($action) . ' ' . $modelName . ' records');

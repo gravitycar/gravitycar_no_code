@@ -8,6 +8,12 @@ use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Models\movie_quote_trivia_questions\Movie_Quote_Trivia_Questions;
 use Gravitycar\Models\movie_quotes\Movie_Quotes;
 use Gravitycar\Models\users\Users;
+use Gravitycar\Factories\FieldFactory;
+use Gravitycar\Factories\RelationshipFactory;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Monolog\Logger;
 
 class Movie_Quote_Trivia_Games extends ModelBase
 {
@@ -16,6 +22,30 @@ class Movie_Quote_Trivia_Games extends ModelBase
      * @var array
      */
     private array $selectedQuoteIds = [];
+
+    /**
+     * Pure dependency injection constructor
+     */
+    public function __construct(
+        Logger $logger,
+        MetadataEngineInterface $metadataEngine,
+        FieldFactory $fieldFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        RelationshipFactory $relationshipFactory,
+        ModelFactory $modelFactory,
+        CurrentUserProviderInterface $currentUserProvider
+    ) {
+        parent::__construct(
+            $logger,
+            $metadataEngine,
+            $fieldFactory,
+            $databaseConnector,
+            $relationshipFactory,
+            $modelFactory,
+            $currentUserProvider
+        );
+    }
+
     /**
      * Generate a unique game name based on the player
      */
@@ -47,7 +77,7 @@ class Movie_Quote_Trivia_Games extends ModelBase
         // Generate 15 questions
         for ($i = 0; $i < 15; $i++) {
             // Create a new trivia question using ModelFactory
-            $question = $this->getModelFactory()->new('Movie_Quote_Trivia_Questions');
+            $question = $this->modelFactory->new('Movie_Quote_Trivia_Questions');
             
             // Set game session fields before creation
             $question->set('game_id', $gameId);
@@ -60,7 +90,7 @@ class Movie_Quote_Trivia_Games extends ModelBase
             }
             
             // Add the selected quote ID to our tracking array
-            $quoteId = $question->getMovieQuoteId();
+            $quoteId = $question->get('movie_quote_id');
             if ($quoteId) {
                 $this->selectedQuoteIds[] = $quoteId;
             }
@@ -109,21 +139,19 @@ class Movie_Quote_Trivia_Games extends ModelBase
      */
     public function getQuestionsInOrder(): array
     {
-        $databaseConnector = $this->getDatabaseConnector();
-        
         $gameId = $this->get('id');
         
         // Create a model instance for querying
-        $questionModel = $this->getModelFactory()->new('Movie_Quote_Trivia_Questions');
+        $questionModel = $this->modelFactory->new('Movie_Quote_Trivia_Questions');
         
         // Use the find method with criteria and ordering
         $criteria = ['game_id' => $gameId];
         $orderBy = ['question_order' => 'ASC'];
-        $result = $databaseConnector->find($questionModel, $criteria, [], [], $orderBy);
+        $result = $this->databaseConnector->find($questionModel, $criteria, [], [], $orderBy);
         
         $questions = [];
         foreach ($result as $row) {
-            $question = $this->getModelFactory()->new('Movie_Quote_Trivia_Questions');
+            $question = $this->modelFactory->new('Movie_Quote_Trivia_Questions');
             $question->populateFromRow($row);
             $questions[] = $question;
         }

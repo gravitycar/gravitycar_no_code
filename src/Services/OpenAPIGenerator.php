@@ -480,9 +480,10 @@ class OpenAPIGenerator {
         $properties = [];
         $required = [];
         
+        $tableName = $modelData['table'] ?? null;
         $fields = $modelData['fields'] ?? [];
         foreach ($fields as $fieldName => $fieldData) {
-            $properties[$fieldName] = $this->generateFieldSchema($fieldData);
+            $properties[$fieldName] = $this->generateFieldSchema($fieldData, $tableName);
             if ($fieldData['required'] ?? false) {
                 $required[] = $fieldName;
             }
@@ -507,6 +508,7 @@ class OpenAPIGenerator {
         $properties = [];
         $required = [];
         
+        $tableName = $modelData['table'] ?? null;
         $fields = $modelData['fields'] ?? [];
         foreach ($fields as $fieldName => $fieldData) {
             // Skip auto-generated fields like ID
@@ -514,7 +516,7 @@ class OpenAPIGenerator {
                 continue;
             }
             
-            $properties[$fieldName] = $this->generateFieldSchema($fieldData);
+            $properties[$fieldName] = $this->generateFieldSchema($fieldData, $tableName);
             if ($fieldData['required'] ?? false) {
                 $required[] = $fieldName;
             }
@@ -535,13 +537,13 @@ class OpenAPIGenerator {
     /**
      * Generate field schema using ServiceLocator for accurate typing
      */
-    private function generateFieldSchema(array $fieldData): array {
+    private function generateFieldSchema(array $fieldData, ?string $tableName = null): array {
         try {
             $fieldType = $fieldData['type'] ?? 'Text';
             $fieldClassName = "Gravitycar\\Fields\\{$fieldType}Field";
             
             if (class_exists($fieldClassName)) {
-                $fieldInstance = $this->getFieldFactory()->createField($fieldData);
+                $fieldInstance = $this->getFieldFactory()->createField($fieldData, $tableName);
                 
                 // Try to use field's own schema generation if available
                 if (method_exists($fieldInstance, 'generateOpenAPISchema')) {

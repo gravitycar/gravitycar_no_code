@@ -204,6 +204,22 @@ class ContainerConfig {
         // ValidationRuleFactory - singleton
         $di->set('validation_rule_factory', $di->lazyNew(ValidationRuleFactory::class));
         
+        // FieldFactory - singleton with proper DI dependencies
+        $di->set('field_factory', $di->lazyNew(\Gravitycar\Factories\FieldFactory::class));
+        $di->params[\Gravitycar\Factories\FieldFactory::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'databaseConnector' => $di->lazyGet('database_connector')
+        ];
+
+        // RelationshipFactory - singleton with proper DI dependencies
+        $di->set('relationship_factory', $di->lazyNew(\Gravitycar\Factories\RelationshipFactory::class));
+        $di->params[\Gravitycar\Factories\RelationshipFactory::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'owner' => 'ModelBase' // Default owner
+        ];
+        
         // ModelFactory - singleton with proper DI dependencies
         $di->set('model_factory', $di->lazyNew(\Gravitycar\Factories\ModelFactory::class));
         $di->params[\Gravitycar\Factories\ModelFactory::class] = [
@@ -235,7 +251,9 @@ class ContainerConfig {
         $di->params[\Gravitycar\Services\AuthenticationService::class] = [
             'database' => $di->lazyGet('database_connector'),
             'logger' => $di->lazyGet('logger'),
-            'config' => $di->lazyGet('config')
+            'config' => $di->lazyGet('config'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'googleOAuthService' => $di->lazyGet('google_oauth_service')
         ];
 
         $di->set('authorization_service', $di->lazyNew(\Gravitycar\Services\AuthorizationService::class));
@@ -247,7 +265,17 @@ class ContainerConfig {
 
         $di->set('google_oauth_service', $di->lazyNew(\Gravitycar\Services\GoogleOAuthService::class));
         $di->params[\Gravitycar\Services\GoogleOAuthService::class] = [
+            'config' => $di->lazyGet('config'),
             'logger' => $di->lazyGet('logger')
+        ];
+
+        // CurrentUserProvider - singleton service for user context
+        $di->set('current_user_provider', $di->lazyNew(\Gravitycar\Services\CurrentUserProvider::class));
+        $di->params[\Gravitycar\Services\CurrentUserProvider::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'authService' => $di->lazyGet('authentication_service'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'guestUserManager' => null // Will be created internally if needed
         ];
 
         $di->set('user_service', $di->lazyNew(\Gravitycar\Services\UserService::class));
@@ -304,8 +332,8 @@ class ContainerConfig {
         // Context injection for field validation (when validation context becomes available)
         // $di->setters['Gravitycar\\Fields\\FieldBase']['setValidationContext'] = $di->lazyGet('validation_context');
         
-        // Inject DatabaseConnector into all ModelBase instances
-        $di->setters['Gravitycar\\Models\\ModelBase']['setDatabaseConnector'] = $di->lazyGet('database_connector');
+        // NOTE: Removed setter injection for ModelBase as we now use pure constructor injection
+        // All dependencies are injected via the 7-parameter constructor
     }
 
     /**
@@ -316,16 +344,32 @@ class ContainerConfig {
         // This will apply to all classes that extend ModelBase
         $di->params['Gravitycar\\Models\\ModelBase'] = [
             'logger' => $di->lazyGet('logger'),
-            'metadataEngine' => $di->lazyGet('metadata_engine')
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'fieldFactory' => $di->lazyGet('field_factory'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'relationshipFactory' => $di->lazyGet('relationship_factory'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'currentUserProvider' => $di->lazyGet('current_user_provider')
         ];
         
-        // Auto-resolve model classes - when container tries to create any ModelBase subclass,
-        // it will use these constructor parameters
-        $di->types['Gravitycar\\Models\\ModelBase'] = $di->lazyNew('Gravitycar\\Models\\ModelBase');
+        // Register all specific model classes with pure DI
+        $modelClasses = [
+            'Books' => 'Gravitycar\\Models\\books\\Books',
+            'GoogleOauthTokens' => 'Gravitycar\\Models\\google_oauth_tokens\\GoogleOauthTokens',
+            'Installer' => 'Gravitycar\\Models\\installer\\Installer',
+            'JwtRefreshTokens' => 'Gravitycar\\Models\\jwt_refresh_tokens\\JwtRefreshTokens',
+            'Movie_Quote_Trivia_Games' => 'Gravitycar\\Models\\movie_quote_trivia_games\\Movie_Quote_Trivia_Games',
+            'Movie_Quote_Trivia_Questions' => 'Gravitycar\\Models\\movie_quote_trivia_questions\\Movie_Quote_Trivia_Questions',
+            'Movie_Quotes' => 'Gravitycar\\Models\\movie_quotes\\Movie_Quotes',
+            'Movies' => 'Gravitycar\\Models\\movies\\Movies',
+            'Permissions' => 'Gravitycar\\Models\\permissions\\Permissions',
+            'Roles' => 'Gravitycar\\Models\\roles\\Roles',
+            'Users' => 'Gravitycar\\Models\\users\\Users'
+        ];
         
-        // Examples of specific model registrations (can be added as needed):
-        // $di->set('Gravitycar\\Models\\users\\Users', $di->lazyNew('Gravitycar\\Models\\users\\Users'));
-        // $di->set('Gravitycar\\Models\\roles\\Roles', $di->lazyNew('Gravitycar\\Models\\roles\\Roles'));
+        foreach ($modelClasses as $shortName => $fullClass) {
+            $di->set($fullClass, $di->lazyNew($fullClass));
+        }
     }
 
     /**
@@ -341,10 +385,17 @@ class ContainerConfig {
         }
 
         $di = self::getContainer();
-        return new $modelClass(
-            $di->get('logger'),
-            $di->get('metadata_engine')
-        );
+        
+        // Use container's newInstance to get properly injected model
+        return $di->newInstance($modelClass, [
+            'logger' => $di->get('logger'),
+            'metadataEngine' => $di->get('metadata_engine'),
+            'fieldFactory' => $di->get('field_factory'),
+            'databaseConnector' => $di->get('database_connector'),
+            'relationshipFactory' => $di->get('relationship_factory'),
+            'modelFactory' => $di->get('model_factory'),
+            'currentUserProvider' => $di->get('current_user_provider')
+        ]);
     }
 
     /**
@@ -365,7 +416,11 @@ class ContainerConfig {
      * Create a new FieldFactory instance with dependencies and specific model
      */
     public static function createFieldFactory(\Gravitycar\Models\ModelBase $model): object {
-        return new \Gravitycar\Factories\FieldFactory($model);
+        $di = self::getContainer();
+        return new \Gravitycar\Factories\FieldFactory(
+            $di->get('logger'),
+            $di->get('database_connector')
+        );
     }
 
     /**
@@ -374,8 +429,10 @@ class ContainerConfig {
     public static function createRelationshipFactory(\Gravitycar\Models\ModelBase $model): object {
         $di = self::getContainer();
         return new \Gravitycar\Factories\RelationshipFactory(
-            get_class($model),
-            $di->get('logger')
+            $di->get('logger'),
+            $di->get('metadata_engine'),
+            $di->get('database_connector'),
+            get_class($model)
         );
     }
 
