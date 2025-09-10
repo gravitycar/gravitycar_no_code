@@ -10,6 +10,9 @@ use Gravitycar\Exceptions\GCException;
 use Gravitycar\Metadata\CoreFieldsMetadata;
 use Gravitycar\Metadata\MetadataEngine;
 use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Factories\FieldFactory;
+use Gravitycar\Factories\RelationshipFactory;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Monolog\Logger;
 
 /**
@@ -29,11 +32,10 @@ abstract class RelationshipBase extends ModelBase {
     protected CoreFieldsMetadata $coreFieldsMetadata;
     protected MetadataEngineInterface $metadataEngine;
     protected ModelFactory $modelFactory;
-    protected ?DatabaseConnectorInterface $databaseConnector;
     protected bool $metadataFromEngine = false;
 
     /**
-     * Constructor - uses dependency injection with ServiceLocator fallback
+     * Constructor - uses pure dependency injection
      */
     public function __construct(
         ?string $relationshipName = null, 
@@ -44,14 +46,31 @@ abstract class RelationshipBase extends ModelBase {
         ?DatabaseConnectorInterface $databaseConnector = null
     ) {
         $this->relationshipName = $relationshipName;
-        $this->logger = $logger ?? ServiceLocator::getLogger();
-        $this->metadataEngine = $metadataEngine ?? ServiceLocator::getMetadataEngine();
+        
+        // Get all required dependencies for ModelBase constructor
+        $container = ServiceLocator::getContainer();
+        $logger = $logger ?? $container->get('logger');
+        $metadataEngine = $metadataEngine ?? $container->get('metadata_engine');
+        $fieldFactory = $container->get('field_factory');
+        $databaseConnector = $databaseConnector ?? $container->get('database_connector');
+        $relationshipFactory = $container->get('relationship_factory');
+        $modelFactory = $modelFactory ?? $container->get('model_factory');
+        $currentUserProvider = $container->get('current_user_provider');
+        
+        // Store additional RelationshipBase-specific dependencies
         $this->coreFieldsMetadata = $coreFieldsMetadata ?? ServiceLocator::getCoreFieldsMetadata();
-        $this->modelFactory = $modelFactory ?? ServiceLocator::getModelFactory();
-        $this->databaseConnector = $databaseConnector ?? ServiceLocator::getDatabaseConnector();
         $this->metadataFromEngine = true; // Always use MetadataEngine now
         
-        parent::__construct($logger, $metadataEngine);
+        // Call parent constructor with all required dependencies
+        parent::__construct(
+            $logger,
+            $metadataEngine,
+            $fieldFactory,
+            $databaseConnector,
+            $relationshipFactory,
+            $modelFactory,
+            $currentUserProvider
+        );
     }
 
     /**
@@ -98,7 +117,7 @@ abstract class RelationshipBase extends ModelBase {
             // Generate dynamic fields for the relationship
             $this->generateDynamicFields();
 
-            $this->logger->info('Relationship metadata ingested successfully', [
+            $this->logger->debug('Relationship metadata ingested successfully', [
                 'relationship_name' => $this->getName(),
                 'metadata_source' => $this->metadataFromEngine ? 'MetadataEngine' : 'Direct',
                 'metadata' => $this->metadata,

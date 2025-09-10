@@ -66,3 +66,7 @@
 - [X] There is no list of timezones for users and it's a required field. 
 - [] Dropping fields from metadata no longer drops them from the database? I thought we had that fixed a long time ago.
 - [] Model api classes are not being picked up by the APIRegistry.
+- [] The FieldFactory constructor calls discoverFieldTypes which scans the Fields directory. That's bad, need to use MetadataEngine.
+- [] The FieldFactory needs to take a Model so it can know what table the field belongs to. We need a setModel() method or something.
+- [] GoogleAuthTokens::cleanupExpiredTokens() should be using a DatabaseConnector method instead of building its own SQL.
+- [] ContainerConfig hard-codes model names to register them. BAD! Make it ues the MetadataEngine.

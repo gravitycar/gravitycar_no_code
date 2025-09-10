@@ -45,37 +45,19 @@ class ModelFactory {
             $modelClass = $this->resolveModelClass($modelName);
             $this->validateModelClass($modelClass);
             
-            $this->logger->debug('Creating new model instance via DI container', [
+            $this->logger->debug('Creating new model instance via ContainerConfig', [
                 'model_name' => $modelName,
                 'model_class' => $modelClass
             ]);
             
-            // First try to get model from DI container (with proper dependency injection)
-            try {
-                $model = $this->container->get($modelClass);
-                $this->logger->debug('Model created via DI container', [
-                    'model_name' => $modelName,
-                    'model_class' => $modelClass,
-                    'instance_id' => spl_object_id($model)
-                ]);
-            } catch (\Exception $containerException) {
-                // Fallback to manual instantiation with dependency injection
-                $this->logger->debug('DI container failed, using manual instantiation', [
-                    'model_name' => $modelName,
-                    'container_error' => $containerException->getMessage()
-                ]);
-                
-                $model = new $modelClass($this->logger, $this->metadataEngine);
-                
-                // Inject database connector via setter
-                $model->setDatabaseConnector($this->dbConnector);
-                
-                $this->logger->debug('Model created via manual instantiation', [
-                    'model_name' => $modelName,
-                    'model_class' => $modelClass,
-                    'instance_id' => spl_object_id($model)
-                ]);
-            }
+            // Use ContainerConfig::createModel for proper pure DI instantiation
+            $model = \Gravitycar\Core\ContainerConfig::createModel($modelClass);
+            
+            $this->logger->debug('Model created via ContainerConfig', [
+                'model_name' => $modelName,
+                'model_class' => $modelClass,
+                'instance_id' => spl_object_id($model)
+            ]);
             
             return $model;
             

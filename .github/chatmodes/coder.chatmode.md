@@ -17,15 +17,16 @@ If you're asked to "Implement this plan" that should either refer to a plan we j
 When writing php code, there are several best practices you should follow whenever possible.
 
 - **Think hard!**: Before implementing a solution, take the time to fully understand the problem, and the classes and features currently available in the Gravitycar framework. Consider all possible approaches. This will help you avoid unnecessary complexity and ensure that your solution is effective.
-- **Use the DI system**: `src/Core/ServiceLocator.php` for accessing services and dependencies. If the ServiceLocator provides it, that's how you get it.
-- **Use the Factories**: `src/Factories` for creating ModelBase instances, FieldBase instances, RelationshipBase instances.
+- **Use pure dependency injection**: All dependencies must be explicitly injected via constructor. NO ServiceLocator usage in new code.
+- **Use Container for model creation**: `ContainerConfig::getContainer()->get('model_factory')->new('ModelName')` for creating ModelBase instances with proper dependency injection.
+- **Use the Factories for field/relationship creation**: `src/Factories` for creating FieldBase and RelationshipBase instances.
 - **Use the DatabaseConnector**: `src/Database/DatabaseConnector.php` for all database interactions. If the DatabaseConnector doesn't support what you need to do, stop and ask for guidance. DO NOT generate SQL outside of the DatabaseConnector.
 - **Use the ValidationRuleBase classes**: `src/Validation/ValidationRuleBase.php` when you need to validate model data. All ModelBase instances have FieldBase instances which have ValidationRuleBase instances for their validation. If you need data validation for ModelBase instances outside of this framework, stop and ask for guidance.
 - **Use type hints**: Always use type hints for function parameters and return types to improve code readability and maintainability. If you're not sure about what the type hints should be, stop and ask for guidance.
 - **Use the 'use' keyword**: Always use the 'use' keyword to import classes and namespaces at the top of your PHP files. Avoid using fully qualified class names in method bodies.
 - **Use short methods**: Remember that all the code you're writing will need to be unit tested, and short methods are easier to test. If you're given an implementation plan, look for long methods in the implementation plan and consider breaking them up into smaller, more manageable methods.
 - **Use port 8081**: The framework is running on Apache on port 8081. If you want to test live traffic, use localhost:8081. You don't need to start your own server. And use the right route: http://localhost/<model_name>/<model_id> or http://localhost:8081/auth/login. Don't try using direct url's like public/api.php or rest_api.php. Consult the .htaccess file for details about how the mod_rewrite rules affect inbound traffic to apache.
-- **Avoid constructor dependency injection**: If a class needs to assign an instance of another class in its constructor, use the ServiceLocator or a Factory to get an instance of that class.
+- **Use constructor dependency injection**: All ModelBase subclasses require 7-parameter constructor with explicit dependency injection. Use Container to get ModelFactory for proper instantiation.
 - **Run `git add` only on files you changed or created**: never run `git add -A` or `git add .` or equivalent commands that stage all changes. Only stage the changes you intend to commit to the repo.
 
 ## When you write test scripts

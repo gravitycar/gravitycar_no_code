@@ -6,6 +6,12 @@ use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Factories\FieldFactory;
+use Gravitycar\Factories\RelationshipFactory;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Monolog\Logger;
 
 /**
  * Movie Quote Trivia Questions model class for Gravitycar framework.
@@ -40,8 +46,27 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
      */
     private $cachedMovieQuoteIdForMovie = null;
     
-    public function __construct() {
-        parent::__construct();
+    /**
+     * Pure dependency injection constructor
+     */
+    public function __construct(
+        Logger $logger,
+        MetadataEngineInterface $metadataEngine,
+        FieldFactory $fieldFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        RelationshipFactory $relationshipFactory,
+        ModelFactory $modelFactory,
+        CurrentUserProviderInterface $currentUserProvider
+    ) {
+        parent::__construct(
+            $logger,
+            $metadataEngine,
+            $fieldFactory,
+            $databaseConnector,
+            $relationshipFactory,
+            $modelFactory,
+            $currentUserProvider
+        );
     }
     
     /**
@@ -220,7 +245,7 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
         
         // Retrieve and cache the movie quote model
         try {
-            $this->movieQuoteModel = $this->getModelFactory()->retrieve('Movie_Quotes', $movieQuoteId);
+            $this->movieQuoteModel = $this->modelFactory->retrieve('Movie_Quotes', $movieQuoteId);
             $this->cachedMovieQuoteId = $movieQuoteId;
             
             return $this->movieQuoteModel;
@@ -314,12 +339,16 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
      * @return string|null The quote ID or null if none found
      */
     private function selectRandomMovieQuote(array $excludedIds = []): ?string {
-        // Use ServiceLocator to get the concrete DatabaseConnector (not interface) 
-        // so we can access the getRandomRecordWithValidatedFilters method
-        $db = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
+        // Cast to concrete DatabaseConnector to access getRandomRecordWithValidatedFilters method
+        // The injected interface is mapped to the concrete class in the container
+        $db = $this->databaseConnector;
+        if (!($db instanceof \Gravitycar\Database\DatabaseConnector)) {
+            // Fallback for testing or stub implementations
+            $db = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
+        }
         
         // Use ModelFactory to get a MovieQuote model instance
-        $movieQuoteModel = $this->getModelFactory()->new('Movie_Quotes');
+        $movieQuoteModel = $this->modelFactory->new('Movie_Quotes');
         
         // Build validated filters for the random selection
         $validatedFilters = [
@@ -396,12 +425,16 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
      */
     private function selectRandomDistractorMovies(string $excludeMovieId, int $count): array {
         try {
-            // Use ServiceLocator to get the concrete DatabaseConnector (not interface) 
-            // so we can access the getRandomRecordWithValidatedFilters method
-            $db = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
+            // Cast to concrete DatabaseConnector to access getRandomRecordWithValidatedFilters method
+            // The injected interface is mapped to the concrete class in the container
+            $db = $this->databaseConnector;
+            if (!($db instanceof \Gravitycar\Database\DatabaseConnector)) {
+                // Fallback for testing or stub implementations
+                $db = \Gravitycar\Core\ServiceLocator::getDatabaseConnector();
+            }
             
             // Use ModelFactory to get a Movies model instance for query building
-            $movieModel = $this->getModelFactory()->new('Movies');
+            $movieModel = $this->modelFactory->new('Movies');
             
             $this->logger->debug("Selecting random distractor movies", [
                 'exclude_movie_id' => $excludeMovieId,
@@ -476,7 +509,7 @@ class Movie_Quote_Trivia_Questions extends ModelBase {
      */
     private function getMovieTitle(string $movieId): string {
         // Use ModelFactory to retrieve the specific movie record
-        $movieModel = $this->getModelFactory()->retrieve('Movies', $movieId);
+        $movieModel = $this->modelFactory->retrieve('Movies', $movieId);
         
         return $movieModel ? ($movieModel->get('name') ?? 'Unknown Movie') : 'Unknown Movie';
     }

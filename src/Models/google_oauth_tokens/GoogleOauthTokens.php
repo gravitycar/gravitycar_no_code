@@ -3,6 +3,13 @@
 namespace Gravitycar\Models\google_oauth_tokens;
 
 use Gravitycar\Models\ModelBase;
+use Gravitycar\Factories\FieldFactory;
+use Gravitycar\Factories\RelationshipFactory;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Monolog\Logger;
 
 /**
  * GoogleOauthTokens Model
@@ -11,12 +18,34 @@ use Gravitycar\Models\ModelBase;
 class GoogleOauthTokens extends ModelBase
 {
     /**
+     * Pure dependency injection constructor
+     */
+    public function __construct(
+        Logger $logger,
+        MetadataEngineInterface $metadataEngine,
+        FieldFactory $fieldFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        RelationshipFactory $relationshipFactory,
+        ModelFactory $modelFactory,
+        CurrentUserProviderInterface $currentUserProvider
+    ) {
+        parent::__construct(
+            $logger,
+            $metadataEngine,
+            $fieldFactory,
+            $databaseConnector,
+            $relationshipFactory,
+            $modelFactory,
+            $currentUserProvider
+        );
+    }
+
+    /**
      * Clean up expired Google tokens
      */
     public function cleanupExpiredTokens(): int
     {
-        $dbConnector = $this->getDatabaseConnector();
-        $conn = $dbConnector->getConnection();
+        $conn = $this->databaseConnector->getConnection();
         $queryBuilder = $conn->createQueryBuilder();
         
         $queryBuilder
@@ -49,8 +78,7 @@ class GoogleOauthTokens extends ModelBase
      */
     public function revokeUserTokens(int $userId): int
     {
-        $dbConnector = $this->getDatabaseConnector();
-        $conn = $dbConnector->getConnection();
+        $conn = $this->databaseConnector->getConnection();
         $queryBuilder = $conn->createQueryBuilder();
         
         $queryBuilder

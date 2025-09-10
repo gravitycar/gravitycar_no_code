@@ -3,6 +3,13 @@
 namespace Gravitycar\Models\roles;
 
 use Gravitycar\Models\ModelBase;
+use Gravitycar\Factories\FieldFactory;
+use Gravitycar\Factories\RelationshipFactory;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Monolog\Logger;
 
 /**
  * Roles Model
@@ -11,11 +18,35 @@ use Gravitycar\Models\ModelBase;
 class Roles extends ModelBase
 {
     /**
+     * Pure dependency injection constructor
+     */
+    public function __construct(
+        Logger $logger,
+        MetadataEngineInterface $metadataEngine,
+        FieldFactory $fieldFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        RelationshipFactory $relationshipFactory,
+        ModelFactory $modelFactory,
+        CurrentUserProviderInterface $currentUserProvider
+    ) {
+        parent::__construct(
+            $logger,
+            $metadataEngine,
+            $fieldFactory,
+            $databaseConnector,
+            $relationshipFactory,
+            $modelFactory,
+            $currentUserProvider
+        );
+    }
+
+    /**
      * Get default OAuth role
      */
     public static function getDefaultOAuthRole(): ?self
     {
-        $role = new self();
+        // Use ContainerConfig to create properly injected model instance
+        $role = \Gravitycar\Core\ContainerConfig::createModel(self::class);
         $roles = $role->find(['is_oauth_default' => true], [], ['limit' => 1]);
         
         return !empty($roles) ? $roles[0] : null;
@@ -26,8 +57,7 @@ class Roles extends ModelBase
      */
     public function getPermissions(): array
     {
-        $dbConnector = $this->getDatabaseConnector();
-        $conn = $dbConnector->getConnection();
+        $conn = $this->databaseConnector->getConnection();
         $queryBuilder = $conn->createQueryBuilder();
         
         $queryBuilder
@@ -47,8 +77,7 @@ class Roles extends ModelBase
      */
     public function addPermission(int $permissionId): bool
     {
-        $dbConnector = $this->getDatabaseConnector();
-        $conn = $dbConnector->getConnection();
+        $conn = $this->databaseConnector->getConnection();
         
         // Check if permission is already assigned
         $queryBuilder = $conn->createQueryBuilder();
