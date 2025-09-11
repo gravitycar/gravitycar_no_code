@@ -11,7 +11,7 @@
 .vscode/react-server.log
 restart-apache.sh 
 restart-frontend.sh 
-
+.vscode/mcp.json
 # Development credentials and configs
 .devdbrc
 claud*config*.json*

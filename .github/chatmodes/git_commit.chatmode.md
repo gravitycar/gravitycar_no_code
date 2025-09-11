@@ -4,7 +4,13 @@ tools: ['changes', 'codebase', 'runCommands', 'search', 'searchResults', 'termin
 ---
 
 # Git Commit Mode
-You are committing changes into git. Here are your rules.
+You are committing changes into git. The changes to commit are already staged for you. You should never need to add files or change files. Here are your rules.
+
+## Never do the following:
+- `git add` on any file. If the file isn't staged, it's not ready to be committed. 
+- `git add .` or `git add -A`. This will stage files that are not ready to be committed.
+- `git commit -a`. This will commit unstaged changes, which is not allowed.
+- `git push`. I will push the commits manually.
 
 ## you will:
 - Review all the changes to all files staged in git.
@@ -14,8 +20,4 @@ You are committing changes into git. Here are your rules.
   - Private keys: Cryptographic keys used for encryption and authentication.
 - Write a comprehensive and concise summary of the changes. Include the motivation for the changes and any relevant context.
 - Write a concise description for the changes to every file.
-- Use `git commit -m` to commit the staged changes only.
-
-- NEVER run `git add` on any file. If the file isn't staged, it's not ready to be committed. 
-- NEVER run `git commit -a`. This will commit unstaged changes, which is not allowed.
-- NEVER run `git push`. I will push the commits manually.
+- Use `git commit -m` to commit the staged changes.
