@@ -15,6 +15,7 @@ use Gravitycar\Services\AuthenticationService;
 use Gravitycar\Services\AuthorizationService;
 use Gravitycar\Services\GoogleOAuthService;
 use Gravitycar\Services\UserService;
+use Gravitycar\Exceptions\ContainerException;
 use Exception;
 
 /**
@@ -83,7 +84,15 @@ class ContainerConfig {
                 $logDir = dirname($logFile);
                 if (!is_dir($logDir)) {
                     if (!mkdir($logDir, 0755, true) && !is_dir($logDir)) {
-                        throw new \Exception("Failed to create log directory: $logDir");
+                        throw new ContainerException(
+                            "Failed to create log directory: $logDir",
+                            [
+                                'service' => 'logger',
+                                'log_directory' => $logDir
+                            ],
+                            0,
+                            new Exception("Failed to create log directory: $logDir")
+                        );
                     }
                 }
 
@@ -352,8 +361,96 @@ class ContainerConfig {
             'currentUserProvider' => $di->lazyGet('current_user_provider')
         ];
         
-        // Register all specific model classes with pure DI
-        $modelClasses = [
+        // Dynamically discover and register all model classes
+        try {
+            $modelNames = self::discoverModelNamesFromCache();
+            $registeredCount = 0;
+            
+            foreach ($modelNames as $modelName) {
+                $fullClassName = self::buildModelClassName($modelName);
+                
+                // Verify the model class exists before registering
+                if (class_exists($fullClassName)) {
+                    $di->set($fullClassName, $di->lazyNew($fullClassName));
+                    $registeredCount++;
+                } else {
+                    // Note: Can't log here since logger might not be available yet
+                    // Model class will be created on-demand by auto-wiring if needed
+                }
+            }
+            
+            // Store registry info for debugging
+            $di->set('model_registration_info', $di->lazy(function() use ($modelNames, $registeredCount) {
+                return new class($modelNames, $registeredCount) {
+                    public string $method = 'dynamic';
+                    public int $discoveredCount;
+                    public int $registeredCount;
+                    public array $modelNames;
+                    
+                    public function __construct(array $modelNames, int $registeredCount) {
+                        $this->discoveredCount = count($modelNames);
+                        $this->registeredCount = $registeredCount;
+                        $this->modelNames = $modelNames;
+                    }
+                };
+            }));
+            
+        } catch (Exception $e) {
+            // Fallback to hardcoded model list if dynamic discovery fails
+            self::registerFallbackModels($di);
+            
+            $di->set('model_registration_info', $di->lazy(function() use ($e) {
+                return new class($e) {
+                    public string $method = 'fallback';
+                    public string $error;
+                    public int $registeredCount = 11; // Known fallback count
+                    
+                    public function __construct(Exception $e) {
+                        $this->error = $e->getMessage();
+                    }
+                };
+            }));
+        }
+    }
+    
+    /**
+     * Discover model names from metadata cache without circular dependency
+     */
+    private static function discoverModelNamesFromCache(): array {
+        $cacheFile = 'cache/metadata_cache.php';
+        
+        if (!file_exists($cacheFile)) {
+            throw new ContainerException(
+                "Metadata cache file not found: {$cacheFile}",
+                ['cache_file' => $cacheFile, 'reason' => 'File not found']
+            );
+        }
+        
+        $cachedMetadata = include $cacheFile;
+        
+        if (!is_array($cachedMetadata) || !isset($cachedMetadata['models'])) {
+            throw new ContainerException(
+                "Invalid metadata cache structure",
+                ['cache_file' => $cacheFile, 'reason' => 'Invalid cache structure - missing models array']
+            );
+        }
+        
+        return array_keys($cachedMetadata['models']);
+    }
+    
+    /**
+     * Build the full class name for a model
+     */
+    private static function buildModelClassName(string $modelName): string {
+        $modelNameLower = strtolower($modelName);
+        return "Gravitycar\\Models\\{$modelNameLower}\\{$modelName}";
+    }
+    
+    /**
+     * Register fallback model classes when dynamic discovery fails
+     */
+    private static function registerFallbackModels(Container $di): void {
+        $fallbackModels = [
             'Books' => 'Gravitycar\\Models\\books\\Books',
             'GoogleOauthTokens' => 'Gravitycar\\Models\\google_oauth_tokens\\GoogleOauthTokens',
             'Installer' => 'Gravitycar\\Models\\installer\\Installer',
@@ -367,7 +464,7 @@ class ContainerConfig {
             'Users' => 'Gravitycar\\Models\\users\\Users'
         ];
         
-        foreach ($modelClasses as $shortName => $fullClass) {
+        foreach ($fallbackModels as $shortName => $fullClass) {
             $di->set($fullClass, $di->lazyNew($fullClass));
         }
     }
@@ -378,7 +475,7 @@ class ContainerConfig {
     public static function createModel(string $modelClass): object {
         // Check if the model class exists before trying to instantiate it
         if (!class_exists($modelClass)) {
-            throw new \Gravitycar\Exceptions\GCException(
+            throw new ContainerException(
                 "Model class does not exist: {$modelClass}",
                 ['model_class' => $modelClass]
             );
@@ -491,12 +588,16 @@ class ContainerConfig {
             return self::createInstanceWithAutoWiring($className, $di, [], 0);
 
         } catch (Exception $e) {
-            // Use GCException with new constructor signature (no logger parameter)
-            throw new \Gravitycar\Exceptions\GCException(
-                "Auto-wiring failed for class $className: " . $e->getMessage(),
-                ['class' => $className, 'original_error' => $e->getMessage()], // Context array
-                0, // Error code
-                $e // Previous exception
+            // Use ContainerException with proper error handling
+            throw new ContainerException(
+                "Auto-wiring failed for class {$className}: " . $e->getMessage(),
+                [
+                    'class' => $className,
+                    'original_error' => $e->getMessage(),
+                    'original_exception' => get_class($e)
+                ],
+                0,
+                $e
             );
         }
     }
@@ -507,16 +608,34 @@ class ContainerConfig {
     private static function createInstanceWithAutoWiring(string $className, Container $di, array $resolutionStack = [], int $depth = 0): object {
         // Prevent infinite recursion by limiting depth
         if ($depth > 10) {
-            throw new \Exception("Auto-wiring depth limit exceeded (10) for class: $className. Possible circular dependency.");
+            throw new ContainerException(
+                "Auto-wiring depth limit exceeded (10) for class: {$className}",
+                [
+                    'class' => $className,
+                    'depth' => $depth,
+                    'reason' => 'Possible circular dependency'
+                ]
+            );
         }
 
         if (!class_exists($className)) {
-            throw new \Exception("Class $className does not exist");
+            throw new ContainerException(
+                "Class {$className} does not exist",
+                ['class' => $className]
+            );
         }
 
         // Check for circular dependency
         if (in_array($className, $resolutionStack)) {
-            throw new \Exception("Circular dependency detected: " . implode(' -> ', $resolutionStack) . " -> $className");
+            $dependencyChain = implode(' -> ', $resolutionStack) . " -> {$className}";
+            throw new ContainerException(
+                "Circular dependency detected: {$dependencyChain}",
+                [
+                    'class' => $className,
+                    'resolution_stack' => $resolutionStack,
+                    'dependency_chain' => $dependencyChain
+                ]
+            );
         }
 
         $resolutionStack[] = $className;
@@ -573,7 +692,17 @@ class ContainerConfig {
                 if ($parameter->isDefaultValueAvailable()) {
                     return $parameter->getDefaultValue();
                 }
-                throw new \Exception("Cannot resolve container service '{$serviceMap[$typeName]}' for parameter {$parameter->getName()}: " . $e->getMessage());
+                throw new ContainerException(
+                    "Cannot resolve container service '{$serviceMap[$typeName]}' for parameter {$parameter->getName()}: " . $e->getMessage(),
+                    [
+                        'parameter_name' => $parameter->getName(),
+                        'type_name' => $typeName,
+                        'service_name' => $serviceMap[$typeName],
+                        'original_error' => $e->getMessage()
+                    ],
+                    0,
+                    $e
+                );
             }
         }
 
@@ -586,7 +715,16 @@ class ContainerConfig {
             if ($parameter->isDefaultValueAvailable()) {
                 return $parameter->getDefaultValue();
             }
-            throw new \Exception("Circular dependency detected and cannot be resolved for parameter: {$parameter->getName()} of type $typeName");
+            $dependencyChain = implode(' -> ', $resolutionStack) . " -> {$typeName}";
+            throw new ContainerException(
+                "Circular dependency detected: {$dependencyChain}",
+                [
+                    'parameter_name' => $parameter->getName(),
+                    'type_name' => $typeName,
+                    'resolution_stack' => $resolutionStack,
+                    'dependency_chain' => $dependencyChain
+                ]
+            );
         }
 
         // Auto-wire all Gravitycar classes except excluded namespaces
@@ -614,7 +752,14 @@ class ContainerConfig {
             if ($parameter->isDefaultValueAvailable()) {
                 return $parameter->getDefaultValue();
             }
-            throw new \Exception("Cannot auto-wire type $typeName - not in auto-wirable namespaces and no default value available");
+            throw new ContainerException(
+                "Cannot auto-wire type {$typeName} - not in auto-wirable namespaces and no default value available",
+                [
+                    'parameter_name' => $parameter->getName(),
+                    'type_name' => $typeName,
+                    'reason' => 'Type not in auto-wirable namespaces and no default value available'
+                ]
+            );
         }
 
         // Auto-wire the dependency recursively with stack protection
@@ -653,7 +798,14 @@ class ContainerConfig {
             return null;
         }
 
-        throw new \Exception("Cannot resolve primitive parameter: {$parameter->getName()}");
+        throw new ContainerException(
+            "Cannot resolve primitive parameter - no mapping, default value, or nullable type",
+            [
+                'parameter_name' => $parameter->getName(),
+                'type_name' => 'primitive',
+                'reason' => 'Cannot resolve primitive parameter - no mapping, default value, or nullable type'
+            ]
+        );
     }
 
     /**
