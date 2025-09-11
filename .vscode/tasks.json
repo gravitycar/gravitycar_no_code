@@ -1,0 +1,311 @@
+{
+  // =====================================================================================
+  // GRAVITYCAR FRAMEWORK - AI AGENT LOG READING TASKS
+  // =====================================================================================
+  // Purpose: Provide AI agents with easy access to application and Apache log files
+  // 
+  // Available Tasks:
+  // 
+  // APPLICATION LOG TASKS:
+  // 1. "Read Latest Log File" - Interactive app log reader with prompts
+  // 2. "List Available Log Files" - Shows all app log files with timestamps
+  // 3. "Quick Read Latest Log (20 lines)" - Fast access to main app log
+  // 4. "Read Today's Log File" - Reads today's dated app log file
+  // 5. "Search All Recent Logs" - Search across recent app log files
+  //
+  // APACHE LOG TASKS:
+  // 6. "Read Apache Error Log" - Interactive Apache log reader (handles gzipped files)
+  // 7. "List Apache Error Logs" - Shows all Apache error logs with timestamps
+  // 8. "Quick Read Apache Error Log (20 lines)" - Fast access to current Apache log
+  // 9. "Search Apache Error Logs" - Search across Apache logs (current + archived)
+  // 10. "Apache Error Log Summary" - Health assessment and error analysis
+  //
+  // Log File Indexing:
+  // - Index 0 = Most recent log file
+  // - Index 1 = Next most recent log file
+  // - Index 2 = Third most recent, etc.
+  //
+  // Apache Log Features:
+  // - Automatic handling of gzipped archive files (.gz)
+  // - Requires sudo access for /var/log/apache2/ directory
+  // - Transparent decompression of archived logs
+  // - Error pattern analysis and health monitoring
+  //
+  // Usage for AI Agents:
+  // - Use "List" tasks first to see what's available
+  // - Use "Quick Read" tasks for immediate status checks
+  // - Use "Search" tasks for specific error investigation
+  // - Use "Summary" task for Apache health assessment
+  // - Combine application and Apache logs for comprehensive troubleshooting
+  // =====================================================================================
+  
+  "version": "2.0.0",
+  "inputs": [
+    {
+      "id": "numberOfLines",
+      "description": "Number of lines to read from the log file",
+      "default": "20",
+      "type": "promptString"
+    },
+    {
+      "id": "logFileIndex",
+      "description": "Log file index (0=most recent, 1=next most recent, etc.)",
+      "default": "0",
+      "type": "promptString"
+    },
+    {
+      "id": "searchTerm",
+      "description": "Text to search for in the log file",
+      "type": "promptString"
+    },
+    {
+      "id": "logFileIndexForSearch",
+      "description": "Log file index for search (0=most recent, 1=next most recent, etc.)",
+      "default": "0",
+      "type": "promptString"
+    },
+    {
+      "id": "apacheLogIndex",
+      "description": "Apache log file index (0=most recent, 1=next most recent, etc.)",
+      "default": "0",
+      "type": "promptString"
+    },
+    {
+      "id": "apacheSearchTerm",
+      "description": "Text to search for in Apache error logs",
+      "type": "promptString"
+    }
+  ],
+  "tasks": [
+    {
+      "label": "Read Latest Log File",
+      "type": "shell",
+      "command": "./tasks_scripts/read_log.sh",
+      "args": [
+        "${input:logFileIndex}",
+        "${input:numberOfLines}"
+      ],
+      "group": "none",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": true,
+        "clear": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "detail": "🤖 AI Agent Task: Interactive log file reader. Prompts for log file index (0=newest) and number of lines to read (default=20). Uses read_log.sh script for robust file handling."
+    },
+    {
+      "label": "List Available Log Files",
+      "type": "shell",
+      "command": "ls",
+      "args": [
+        "-lht",
+        "logs/"
+      ],
+      "group": "none",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": true,
+        "clear": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "detail": "🤖 AI Agent Task: Lists all log files sorted by modification time (newest first). Use this to identify available log files and their indices for other tasks."
+    },
+    {
+      "label": "Quick Read Latest Log (20 lines)",
+      "type": "shell",
+      "command": "tail",
+      "args": [
+        "-n",
+        "20",
+        "logs/gravitycar.log"
+      ],
+      "group": "none",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": true,
+        "clear": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "detail": "🤖 AI Agent Task: Fast access to the last 20 lines of the main log file (gravitycar.log). No prompts required - instant results."
+    },
+    {
+      "label": "Read Today's Log File",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-c",
+        "TODAY=$(date +%Y-%m-%d); LOGFILE=\"logs/gravitycar-$TODAY.log\"; if [ -f \"$LOGFILE\" ]; then echo \"📅 Reading today's log file: $LOGFILE\"; echo \"===========================================\"; tail -n ${input:numberOfLines} \"$LOGFILE\"; else echo \"❌ Today's log file not found: $LOGFILE\"; echo \"📁 Available log files:\"; ls -lt logs/*.log | head -5; fi"
+      ],
+      "group": "none",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": true,
+        "clear": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "detail": "🤖 AI Agent Task: Reads today's dated log file (format: gravitycar-YYYY-MM-DD.log). Prompts for number of lines. Shows available files if today's log doesn't exist."
+    },
+    {
+      "label": "Search All Recent Logs",
+      "type": "shell",
+      "command": "bash",
+      "args": [
+        "-c",
+        "SEARCH_TERM=\"${input:searchTerm}\"; echo \"🔍 Searching for: '$SEARCH_TERM' in recent log files\"; echo \"======================================================\"; find logs/ -name '*.log' -mtime -7 -exec echo \"📄 {}:\" \\; -exec grep -n \"$SEARCH_TERM\" {} \\; 2>/dev/null || echo \"❌ No matches found in recent logs\""
+      ],
+      "group": "none",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": true,
+        "clear": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "detail": "🤖 AI Agent Task: Search for specific text across all log files modified within the last 7 days. Shows file names and line numbers for matches."
+    },
+    {
+      "label": "Read Apache Error Log",
+      "type": "shell",
+      "command": "./tasks_scripts/read_apache_log.sh",
+      "args": [
+        "${input:apacheLogIndex}",
+        "${input:numberOfLines}"
+      ],
+      "group": "none",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": true,
+        "clear": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "detail": "🤖 AI Agent Task: Read Apache error logs with automatic gzip handling. Prompts for log index (0=current, 1=yesterday, etc.) and lines to display."
+    },
+    {
+      "label": "List Apache Error Logs",
+      "type": "shell",
+      "command": "sudo",
+      "args": [
+        "ls",
+        "-lht",
+        "/var/log/apache2/error.log*"
+      ],
+      "group": "none",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": true,
+        "clear": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "detail": "🚨 AI Agent Task: Lists all Apache error log files with timestamps, sizes, and indices. Shows both current and archived (gzipped) logs."
+    },
+    {
+      "label": "Quick Read Apache Error Log (20 lines)",
+      "type": "shell",
+      "command": "sudo",
+      "args": [
+        "tail",
+        "-n",
+        "20",
+        "/var/log/apache2/error.log"
+      ],
+      "group": "none",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": true,
+        "clear": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "detail": "🚨 AI Agent Task: Fast access to the last 20 lines of the current Apache error log. No prompts required - instant results."
+    },
+    {
+      "label": "Search Apache Error Logs",
+      "type": "shell",
+      "command": "./tasks_scripts/search_apache_logs.sh",
+      "args": [
+        "${input:apacheSearchTerm}"
+      ],
+      "group": "none",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": true,
+        "clear": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "detail": "🚨 AI Agent Task: Search for specific text in Apache error logs. Searches current log, recent archived logs, and recent gzipped logs. Shows file names and line numbers."
+    },
+    {
+      "label": "Apache Error Log Summary",
+      "type": "shell",
+      "command": "./tasks_scripts/apache_log_summary.sh",
+      "args": [],
+      "group": "none",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "new",
+        "showReuseMessage": true,
+        "clear": true
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [],
+      "detail": "🚨 AI Agent Task: Provides a summary of Apache error logs including file size, error type counts, and latest entries. Great for quick health assessment."
+    }
+  ]
+}
