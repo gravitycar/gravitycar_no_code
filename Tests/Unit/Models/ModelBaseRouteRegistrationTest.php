@@ -2,35 +2,137 @@
 
 namespace Tests\Unit\Models;
 
+use Gravitycar\Tests\Unit\UnitTestCase;
 use Gravitycar\Models\users\Users;
 use Gravitycar\Models\ModelBase;
-use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Factories\FieldFactory;
+use Gravitycar\Factories\RelationshipFactory;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Psr\Log\LoggerInterface;
 use Monolog\Logger;
 use Monolog\Handler\NullHandler;
-use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\MockObject\MockObject;
 
-class ModelBaseRouteRegistrationTest extends TestCase
+class ModelBaseRouteRegistrationTest extends UnitTestCase
 {
-    protected Logger $logger;
-    protected Users $userModel;
+    private Users $userModel;
+    private MetadataEngineInterface&MockObject $mockMetadataEngine;
+    private FieldFactory&MockObject $mockFieldFactory;
+    private DatabaseConnectorInterface&MockObject $mockDatabaseConnector;
+    private RelationshipFactory&MockObject $mockRelationshipFactory;
+    private ModelFactory&MockObject $mockModelFactory;
+    private CurrentUserProviderInterface&MockObject $mockCurrentUserProvider;
 
     protected function setUp(): void
     {
         parent::setUp();
         
-        // Create a real logger to avoid type issues
-        $this->logger = new Logger('test');
-        $this->logger->pushHandler(new NullHandler());
+        // Create all mocks
+        $this->mockMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        $this->mockFieldFactory = $this->createMock(FieldFactory::class);
+        $this->mockDatabaseConnector = $this->createMock(DatabaseConnectorInterface::class);
+        $this->mockRelationshipFactory = $this->createMock(RelationshipFactory::class);
+        $this->mockModelFactory = $this->createMock(ModelFactory::class);
+        $this->mockCurrentUserProvider = $this->createMock(CurrentUserProviderInterface::class);
+
+        // Set up mock behaviors for Users model
+        $this->setupUserModelMocks();
         
-        // Create a test user model instance
-        // Note: This will trigger metadata loading, which should include our new apiRoutes
+        // Create a test user model instance with dependency injection
         try {
-            $this->userModel = new Users($this->logger);
+            $this->userModel = new Users(
+                $this->logger,
+                $this->mockMetadataEngine,
+                $this->mockFieldFactory,
+                $this->mockDatabaseConnector,
+                $this->mockRelationshipFactory,
+                $this->mockModelFactory,
+                $this->mockCurrentUserProvider
+            );
         } catch (\Exception $e) {
             // If model creation fails (e.g., missing dependencies), skip the test
             $this->markTestSkipped('Could not create Users model: ' . $e->getMessage());
         }
+    }
+
+    private function setupUserModelMocks(): void
+    {
+        // MetadataEngine mock for Users model
+        $this->mockMetadataEngine->method('resolveModelName')->willReturn('Users');
+        $this->mockMetadataEngine->method('getModelMetadata')->willReturn([
+            'name' => 'Users',
+            'table' => 'users',
+            'fields' => [
+                'id' => ['type' => 'ID', 'required' => true],
+                'username' => ['type' => 'Text', 'required' => true],
+                'email' => ['type' => 'Email', 'required' => true],
+                'password' => ['type' => 'Password', 'required' => true],
+            ],
+            'relationships' => [],
+            'apiRoutes' => [
+                [
+                    'method' => 'GET',
+                    'path' => '/Users',
+                    'apiClass' => 'UsersAPIController',
+                    'apiMethod' => 'index',
+                    'parameterNames' => []
+                ],
+                [
+                    'method' => 'GET',
+                    'path' => '/Users/?',
+                    'apiClass' => 'UsersAPIController',
+                    'apiMethod' => 'read',
+                    'parameterNames' => ['userId']
+                ],
+                [
+                    'method' => 'POST',
+                    'path' => '/Users',
+                    'apiClass' => 'UsersAPIController',
+                    'apiMethod' => 'create',
+                    'parameterNames' => []
+                ],
+                [
+                    'method' => 'PUT',
+                    'path' => '/Users/?',
+                    'apiClass' => 'UsersAPIController',
+                    'apiMethod' => 'update',
+                    'parameterNames' => ['userId']
+                ],
+                [
+                    'method' => 'DELETE',
+                    'path' => '/Users/?',
+                    'apiClass' => 'UsersAPIController',
+                    'apiMethod' => 'delete',
+                    'parameterNames' => ['userId']
+                ],
+                [
+                    'method' => 'PUT',
+                    'path' => '/Users/?/setPassword',
+                    'apiClass' => 'UsersAPIController',
+                    'apiMethod' => 'setUserPassword',
+                    'parameterNames' => ['userId', '']
+                ]
+            ]
+        ]);
+
+        // FieldFactory - create mock fields
+        $this->mockFieldFactory->method('createField')
+            ->willReturnCallback(function($fieldMeta, $tableName = null) {
+                $mockField = $this->createMock(\Gravitycar\Fields\FieldBase::class);
+                $mockField->method('getName')->willReturn($fieldMeta['name'] ?? 'test_field');
+                return $mockField;
+            });
+
+        // CurrentUserProvider
+        $this->mockCurrentUserProvider->method('getCurrentUserId')->willReturn('test-user');
+        $this->mockCurrentUserProvider->method('hasAuthenticatedUser')->willReturn(true);
+
+        // DatabaseConnector
+        $this->mockDatabaseConnector->method('create')->willReturn(true);
+        $this->mockDatabaseConnector->method('update')->willReturn(true);
     }
 
     public function testRegisterRoutesMethod(): void
@@ -116,17 +218,23 @@ class ModelBaseRouteRegistrationTest extends TestCase
 
     public function testEmptyApiRoutesMetadata(): void
     {
-        // Create a mock ModelBase with no apiRoutes in metadata
-        $mockModel = $this->createPartialMock(ModelBase::class, ['loadMetadata']);
-        $reflection = new \ReflectionClass($mockModel);
-        
-        // Set metadata without apiRoutes
-        $metadataProperty = $reflection->getProperty('metadata');
-        $metadataProperty->setAccessible(true);
-        $metadataProperty->setValue($mockModel, [
+        // Create a mock model with no apiRoutes in metadata
+        $emptyMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        $emptyMetadataEngine->method('resolveModelName')->willReturn('TestModel');
+        $emptyMetadataEngine->method('getModelMetadata')->willReturn([
             'fields' => ['id' => ['type' => 'ID']],
             'relationships' => []
         ]);
+        
+        $mockModel = new TestableModelForRoutes(
+            $this->logger,
+            $emptyMetadataEngine,
+            $this->mockFieldFactory,
+            $this->mockDatabaseConnector,
+            $this->mockRelationshipFactory,
+            $this->mockModelFactory,
+            $this->mockCurrentUserProvider
+        );
         
         $routes = $mockModel->registerRoutes();
         $this->assertIsArray($routes);
@@ -135,21 +243,58 @@ class ModelBaseRouteRegistrationTest extends TestCase
 
     public function testInvalidApiRoutesMetadata(): void
     {
-        // Create a mock ModelBase with invalid apiRoutes in metadata
-        $mockModel = $this->createPartialMock(ModelBase::class, ['loadMetadata']);
-        $reflection = new \ReflectionClass($mockModel);
-        
-        // Set metadata with invalid apiRoutes (not an array)
-        $metadataProperty = $reflection->getProperty('metadata');
-        $metadataProperty->setAccessible(true);
-        $metadataProperty->setValue($mockModel, [
+        // Create a mock model with invalid apiRoutes in metadata
+        $invalidMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        $invalidMetadataEngine->method('resolveModelName')->willReturn('TestModel');
+        $invalidMetadataEngine->method('getModelMetadata')->willReturn([
             'fields' => ['id' => ['type' => 'ID']],
             'relationships' => [],
             'apiRoutes' => 'invalid' // Should be array
         ]);
         
+        $mockModel = new TestableModelForRoutes(
+            $this->logger,
+            $invalidMetadataEngine,
+            $this->mockFieldFactory,
+            $this->mockDatabaseConnector,
+            $this->mockRelationshipFactory,
+            $this->mockModelFactory,
+            $this->mockCurrentUserProvider
+        );
+        
         $routes = $mockModel->registerRoutes();
         $this->assertIsArray($routes);
         $this->assertEmpty($routes, 'Should return empty array when apiRoutes is not an array');
+    }
+}
+
+/**
+ * Testable model class for route registration tests
+ */
+class TestableModelForRoutes extends ModelBase
+{
+    public function __construct(
+        Logger $logger,
+        MetadataEngineInterface $metadataEngine,
+        FieldFactory $fieldFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        RelationshipFactory $relationshipFactory,
+        ModelFactory $modelFactory,
+        CurrentUserProviderInterface $currentUserProvider
+    ) {
+        parent::__construct(
+            $logger,
+            $metadataEngine,
+            $fieldFactory,
+            $databaseConnector,
+            $relationshipFactory,
+            $modelFactory,
+            $currentUserProvider
+        );
+    }
+
+    public function getTableName(): string
+    {
+        return 'test_models';
     }
 }

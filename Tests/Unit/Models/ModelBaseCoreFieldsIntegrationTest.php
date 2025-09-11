@@ -5,44 +5,46 @@ namespace Gravitycar\Tests\Unit\Models;
 use Gravitycar\Tests\Unit\UnitTestCase;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Metadata\MetadataEngine;
-use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Factories\FieldFactory;
+use Gravitycar\Factories\RelationshipFactory;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Monolog\Logger;
 use PHPUnit\Framework\MockObject\MockObject;
-use Aura\Di\Container;
-use Aura\Di\ContainerBuilder;
 
 /**
- * Test suite for ModelBase integration with MetadataEngine cached core fields.
+ * Test suite for ModelBase integration with MetadataEngine cached core fields using pure DI.
  * Tests automatic core field inclusion via cached metadata.
  */
 class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
 {
-    private MockObject $mockLogger;
-    private MockObject $mockMetadataEngine;
-    private Container $testContainer;
+    private MetadataEngineInterface&MockObject $mockMetadataEngine;
+    private FieldFactory&MockObject $mockFieldFactory;
+    private DatabaseConnectorInterface&MockObject $mockDatabaseConnector;
+    private RelationshipFactory&MockObject $mockRelationshipFactory;
+    private ModelFactory&MockObject $mockModelFactory;
+    private CurrentUserProviderInterface&MockObject $mockCurrentUserProvider;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->mockLogger = $this->createMock(Logger::class);
-        $this->mockMetadataEngine = $this->createMock(MetadataEngine::class);
-
-        // Set up test container with mocked services using ContainerBuilder
-        $builder = new ContainerBuilder();
-        $this->testContainer = $builder->newInstance();
-        $this->testContainer->set('logger', $this->mockLogger);
-        $this->testContainer->set('metadata_engine', $this->mockMetadataEngine);
-
-        // Mock field factory to avoid actual field creation
-        $mockFieldFactory = $this->createMock(\Gravitycar\Factories\FieldFactory::class);
-        $this->testContainer->set('field_factory', $mockFieldFactory);
+        // Create all mocks
+        $this->mockMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        $this->mockFieldFactory = $this->createMock(FieldFactory::class);
+        $this->mockDatabaseConnector = $this->createMock(DatabaseConnectorInterface::class);
+        $this->mockRelationshipFactory = $this->createMock(RelationshipFactory::class);
+        $this->mockModelFactory = $this->createMock(ModelFactory::class);
+        $this->mockCurrentUserProvider = $this->createMock(CurrentUserProviderInterface::class);
 
         // Configure MetadataEngine mock to handle the test model classes
         $this->setupMetadataEngineMocks();
 
-        ServiceLocator::setContainer($this->testContainer);
+        // Setup default behaviors for other mocks
+        $this->setupOtherMockDefaults();
     }
 
     /**
@@ -152,9 +154,27 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
             });
     }
 
+    private function setupOtherMockDefaults(): void
+    {
+        // FieldFactory - create mock fields
+        $this->mockFieldFactory->method('createField')
+            ->willReturnCallback(function($fieldMeta, $tableName = null) {
+                $mockField = $this->createMock(\Gravitycar\Fields\FieldBase::class);
+                $mockField->method('getName')->willReturn($fieldMeta['name'] ?? 'test_field');
+                return $mockField;
+            });
+
+        // CurrentUserProvider
+        $this->mockCurrentUserProvider->method('getCurrentUserId')->willReturn('test-user');
+        $this->mockCurrentUserProvider->method('hasAuthenticatedUser')->willReturn(true);
+
+        // DatabaseConnector
+        $this->mockDatabaseConnector->method('create')->willReturn(true);
+        $this->mockDatabaseConnector->method('update')->willReturn(true);
+    }
+
     protected function tearDown(): void
     {
-        ServiceLocator::reset();
         parent::tearDown();
     }
 
@@ -168,7 +188,15 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
      */
     public function testModelBaseWorksWithCoreFieldsInMetadata(): void
     {
-        $model = new TestableModelForCoreFields();
+        $model = new TestableModelForCoreFields(
+            $this->logger,
+            $this->mockMetadataEngine,
+            $this->mockFieldFactory,
+            $this->mockDatabaseConnector,
+            $this->mockRelationshipFactory,
+            $this->mockModelFactory,
+            $this->mockCurrentUserProvider
+        );
 
         // Verify that the model has the core fields that were included in metadata by MetadataEngine
         $metadata = $model->getTestMetadata();
@@ -186,7 +214,15 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
      */
     public function testModelSpecificMetadataOverridesCoreFields(): void
     {
-        $model = new TestableModelWithMetadataOverride();
+        $model = new TestableModelWithMetadataOverride(
+            $this->logger,
+            $this->mockMetadataEngine,
+            $this->mockFieldFactory,
+            $this->mockDatabaseConnector,
+            $this->mockRelationshipFactory,
+            $this->mockModelFactory,
+            $this->mockCurrentUserProvider
+        );
 
         $metadata = $model->getTestMetadata();
 
@@ -203,7 +239,15 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
      */
     public function testCoreFieldsMergedWithExistingModelFields(): void
     {
-        $model = new TestableModelWithExistingFields();
+        $model = new TestableModelWithExistingFields(
+            $this->logger,
+            $this->mockMetadataEngine,
+            $this->mockFieldFactory,
+            $this->mockDatabaseConnector,
+            $this->mockRelationshipFactory,
+            $this->mockModelFactory,
+            $this->mockCurrentUserProvider
+        );
 
         $metadata = $model->getTestMetadata();
 
@@ -214,20 +258,27 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
     }
 
     /**
-     * Test error handling when MetadataEngine service is unavailable
+     * Test error handling when MetadataEngine returns empty metadata
      */
-    public function testErrorHandlingWhenMetadataEngineServiceUnavailable(): void
+    public function testErrorHandlingWhenMetadataEngineReturnsEmpty(): void
     {
-        // Remove MetadataEngine from container to simulate service failure
-        $builder = new ContainerBuilder();
-        $failingContainer = $builder->newInstance();
-        $failingContainer->set('logger', $this->mockLogger);
-        ServiceLocator::setContainer($failingContainer);
+        // Create a specific MetadataEngine mock that returns empty metadata
+        $emptyMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        $emptyMetadataEngine->method('resolveModelName')->willReturn('TestModel');
+        $emptyMetadataEngine->method('getModelMetadata')->willReturn([]);
 
         $this->expectException(GCException::class);
-        $this->expectExceptionMessage('Model metadata not found for');
+        $this->expectExceptionMessage('No metadata found for model');
 
-        new TestableModelForCoreFields();
+        new TestableModelWithNoInitialFields(
+            $this->logger,
+            $emptyMetadataEngine,
+            $this->mockFieldFactory,
+            $this->mockDatabaseConnector,
+            $this->mockRelationshipFactory,
+            $this->mockModelFactory,
+            $this->mockCurrentUserProvider
+        );
     }
 
     // ====================
@@ -235,12 +286,19 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
     // ====================
 
     /**
-     * Test that ModelBase uses ServiceLocator to get MetadataEngine
+     * Test that ModelBase uses MetadataEngine correctly via dependency injection
      */
-    public function testModelBaseUsesServiceLocatorForMetadataEngine(): void
+    public function testModelBaseUsesMetadataEngineViaDI(): void
     {
-        // Simply create a model - the default mocks handle the MetadataEngine calls
-        $model = new TestableModelForCoreFields();
+        $model = new TestableModelForCoreFields(
+            $this->logger,
+            $this->mockMetadataEngine,
+            $this->mockFieldFactory,
+            $this->mockDatabaseConnector,
+            $this->mockRelationshipFactory,
+            $this->mockModelFactory,
+            $this->mockCurrentUserProvider
+        );
 
         // Verify that the model was created successfully (indicating MetadataEngine was used)
         $this->assertInstanceOf(TestableModelForCoreFields::class, $model);
@@ -252,14 +310,31 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
     }
 
     /**
-     * Test that multiple model instances share the same MetadataEngine service
+     * Test that multiple model instances work independently with their own dependencies
      */
-    public function testMultipleModelInstancesShareMetadataEngineService(): void
+    public function testMultipleModelInstancesWorkIndependently(): void
     {
-        $model1 = new TestableModelForCoreFields();
-        $model2 = new TestableModelForCoreFields();
+        $model1 = new TestableModelForCoreFields(
+            $this->logger,
+            $this->mockMetadataEngine,
+            $this->mockFieldFactory,
+            $this->mockDatabaseConnector,
+            $this->mockRelationshipFactory,
+            $this->mockModelFactory,
+            $this->mockCurrentUserProvider
+        );
+        
+        $model2 = new TestableModelForCoreFields(
+            $this->logger,
+            $this->mockMetadataEngine,
+            $this->mockFieldFactory,
+            $this->mockDatabaseConnector,
+            $this->mockRelationshipFactory,
+            $this->mockModelFactory,
+            $this->mockCurrentUserProvider
+        );
 
-        // Both models should have used the same service instance and have metadata
+        // Both models should work independently
         $this->assertInstanceOf(TestableModelForCoreFields::class, $model1);
         $this->assertInstanceOf(TestableModelForCoreFields::class, $model2);
 
@@ -280,7 +355,15 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
     public function testMetadataValidationWorksWithCoreFields(): void
     {
         // Should not throw exception - cached metadata provides required 'fields' array
-        $model = new TestableModelWithNoInitialFields();
+        $model = new TestableModelWithNoInitialFields(
+            $this->logger,
+            $this->mockMetadataEngine,
+            $this->mockFieldFactory,
+            $this->mockDatabaseConnector,
+            $this->mockRelationshipFactory,
+            $this->mockModelFactory,
+            $this->mockCurrentUserProvider
+        );
 
         $this->assertInstanceOf(TestableModelWithNoInitialFields::class, $model);
     }
@@ -290,27 +373,23 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
      */
     public function testValidationFailsWhenNoFieldsAvailable(): void
     {
-        // Override the mock to return empty fields
-        $emptyMetadata = ['fields' => []]; 
-
-        $mockMetadataEngine = $this->createMock(MetadataEngine::class);
-        $mockMetadataEngine->method('resolveModelName')
-            ->willReturn('TestableModelWithNoInitialFields');
-        $mockMetadataEngine->method('getModelMetadata')
-            ->willReturn($emptyMetadata);
-
-        // Create a new container with this specific mock
-        $builder = new ContainerBuilder();
-        $testContainer = $builder->newInstance();
-        $testContainer->set('logger', $this->mockLogger);
-        $testContainer->set('metadata_engine', $mockMetadataEngine);
-        $testContainer->set('field_factory', $this->createMock(\Gravitycar\Factories\FieldFactory::class));
-        ServiceLocator::setContainer($testContainer);
+        // Create specific mock that returns empty fields
+        $emptyMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        $emptyMetadataEngine->method('resolveModelName')->willReturn('TestableModelWithNoInitialFields');
+        $emptyMetadataEngine->method('getModelMetadata')->willReturn(['fields' => []]);
 
         $this->expectException(GCException::class);
         $this->expectExceptionMessage('No metadata found for model');
 
-        new TestableModelWithNoInitialFields();
+        new TestableModelWithNoInitialFields(
+            $this->logger,
+            $emptyMetadataEngine,
+            $this->mockFieldFactory,
+            $this->mockDatabaseConnector,
+            $this->mockRelationshipFactory,
+            $this->mockModelFactory,
+            $this->mockCurrentUserProvider
+        );
     }
 
     // ====================
@@ -326,17 +405,22 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
         $mockField = $this->createMock(\Gravitycar\Fields\FieldBase::class);
         $mockField->method('getName')->willReturn('id');
 
-        $mockFieldFactory = $this->createMock(\Gravitycar\Factories\FieldFactory::class);
-        $mockFieldFactory->expects($this->atLeastOnce())
+        $specificFieldFactory = $this->createMock(FieldFactory::class);
+        $specificFieldFactory->expects($this->atLeastOnce())
             ->method('createField')
             ->with($this->arrayHasKey('name'))
             ->willReturn($mockField);
 
-        // IMPORTANT: Set up the mock field factory in the container BEFORE creating the model
-        $this->testContainer->set('field_factory', $mockFieldFactory);
-
-        // Now create the model - it will use the mock field factory during construction
-        $model = new TestableModelForCoreFields();
+        // Create the model with the specific field factory
+        $model = new TestableModelForCoreFields(
+            $this->logger,
+            $this->mockMetadataEngine,
+            $specificFieldFactory,
+            $this->mockDatabaseConnector,
+            $this->mockRelationshipFactory,
+            $this->mockModelFactory,
+            $this->mockCurrentUserProvider
+        );
 
         // Verify field was created and added
         $fields = $model->getFields();
@@ -346,25 +430,28 @@ class ModelBaseCoreFieldsIntegrationTest extends UnitTestCase
 }
 
 /**
- * Test model class for testing core fields integration
+ * Test model class for testing core fields integration using pure DI
  */
 class TestableModelForCoreFields extends ModelBase
 {
-    public function __construct()
-    {
-        parent::__construct();
-    }
-
-    protected function getMetaDataFilePaths(): array
-    {
-        // Return empty array to simulate no metadata file
-        return [];
-    }
-
-    protected function loadMetadataFromFiles(array $filePaths): array
-    {
-        // Return empty metadata - core fields will be added automatically
-        return [];
+    public function __construct(
+        Logger $logger,
+        MetadataEngineInterface $metadataEngine,
+        FieldFactory $fieldFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        RelationshipFactory $relationshipFactory,
+        ModelFactory $modelFactory,
+        CurrentUserProviderInterface $currentUserProvider
+    ) {
+        parent::__construct(
+            $logger,
+            $metadataEngine,
+            $fieldFactory,
+            $databaseConnector,
+            $relationshipFactory,
+            $modelFactory,
+            $currentUserProvider
+        );
     }
 
     public function getTestMetadata(): array
@@ -376,11 +463,6 @@ class TestableModelForCoreFields extends ModelBase
     {
         return 'testable_models';
     }
-
-    public function clearFieldsForTesting(): void
-    {
-        $this->fields = [];
-    }
 }
 
 /**
@@ -388,30 +470,24 @@ class TestableModelForCoreFields extends ModelBase
  */
 class TestableModelWithMetadataOverride extends ModelBase
 {
-    public function __construct()
-    {
-        parent::__construct();
-    }
-
-    protected function getMetaDataFilePaths(): array
-    {
-        return [];
-    }
-
-    protected function loadMetadataFromFiles(array $filePaths): array
-    {
-        // Return metadata that overrides core field properties but includes all required fields
-        return [
-            'fields' => [
-                'id' => [
-                    'name' => 'id',
-                    'type' => 'IDField',  // Include the type to ensure it's not lost during merging
-                    'label' => 'Overridden ID Label',
-                    'description' => 'Custom description',
-                    'isDBField' => true
-                ]
-            ]
-        ];
+    public function __construct(
+        Logger $logger,
+        MetadataEngineInterface $metadataEngine,
+        FieldFactory $fieldFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        RelationshipFactory $relationshipFactory,
+        ModelFactory $modelFactory,
+        CurrentUserProviderInterface $currentUserProvider
+    ) {
+        parent::__construct(
+            $logger,
+            $metadataEngine,
+            $fieldFactory,
+            $databaseConnector,
+            $relationshipFactory,
+            $modelFactory,
+            $currentUserProvider
+        );
     }
 
     public function getTestMetadata(): array
@@ -430,34 +506,24 @@ class TestableModelWithMetadataOverride extends ModelBase
  */
 class TestableModelWithExistingFields extends ModelBase
 {
-    public function __construct()
-    {
-        parent::__construct();
-    }
-
-    protected function getMetaDataFilePaths(): array
-    {
-        return [];
-    }
-
-    protected function loadMetadataFromFiles(array $filePaths): array
-    {
-        return [
-            'fields' => [
-                'name' => [
-                    'name' => 'name',
-                    'type' => 'TextField',
-                    'label' => 'Name',
-                    'isDBField' => true
-                ],
-                'description' => [
-                    'name' => 'description',
-                    'type' => 'TextField',
-                    'label' => 'Description',
-                    'isDBField' => true
-                ]
-            ]
-        ];
+    public function __construct(
+        Logger $logger,
+        MetadataEngineInterface $metadataEngine,
+        FieldFactory $fieldFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        RelationshipFactory $relationshipFactory,
+        ModelFactory $modelFactory,
+        CurrentUserProviderInterface $currentUserProvider
+    ) {
+        parent::__construct(
+            $logger,
+            $metadataEngine,
+            $fieldFactory,
+            $databaseConnector,
+            $relationshipFactory,
+            $modelFactory,
+            $currentUserProvider
+        );
     }
 
     public function getTestMetadata(): array
@@ -476,19 +542,24 @@ class TestableModelWithExistingFields extends ModelBase
  */
 class TestableModelWithNoInitialFields extends ModelBase
 {
-    public function __construct()
-    {
-        parent::__construct();
-    }
-
-    protected function getMetaDataFilePaths(): array
-    {
-        return [];
-    }
-
-    protected function loadMetadataFromFiles(array $filePaths): array
-    {
-        return []; // No fields initially
+    public function __construct(
+        Logger $logger,
+        MetadataEngineInterface $metadataEngine,
+        FieldFactory $fieldFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        RelationshipFactory $relationshipFactory,
+        ModelFactory $modelFactory,
+        CurrentUserProviderInterface $currentUserProvider
+    ) {
+        parent::__construct(
+            $logger,
+            $metadataEngine,
+            $fieldFactory,
+            $databaseConnector,
+            $relationshipFactory,
+            $modelFactory,
+            $currentUserProvider
+        );
     }
 
     public function getTableName(): string
