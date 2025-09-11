@@ -9,6 +9,8 @@
 .vscode/gravitycar-token.json
 .vscode/react-server.pid
 .vscode/react-server.log
+restart-apache.sh 
+restart-frontend.sh 
 
 # Development credentials and configs
 .devdbrc
