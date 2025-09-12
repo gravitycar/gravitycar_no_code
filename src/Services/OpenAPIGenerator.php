@@ -37,8 +37,9 @@ class OpenAPIGenerator {
      */
     protected function getFieldFactory(): FieldFactory {
         if ($this->fieldFactory === null) {
-            // Create FieldFactory with available logger
-            $this->fieldFactory = new FieldFactory($this->logger);
+            // Use DI Container to get properly configured FieldFactory
+            $container = \Gravitycar\Core\ContainerConfig::getContainer();
+            $this->fieldFactory = $container->get('field_factory');
         }
         return $this->fieldFactory;
     }
@@ -154,10 +155,12 @@ class OpenAPIGenerator {
      * Generate OpenAPI servers section
      */
     private function generateServers(): array {
+        $backendUrl = $this->config->get('app.backend_url', 'http://localhost:8081');
+        
         return [
             [
-                'url' => 'http://localhost:8081',
-                'description' => 'Development server'
+                'url' => $backendUrl,
+                'description' => 'Application server'
             ]
         ];
     }

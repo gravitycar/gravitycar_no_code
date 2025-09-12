@@ -1,19 +1,21 @@
 <?php
 return [
     'database' => [
-        'driver' => 'pdo_mysql',
-        'host' => 'localhost',
-        'port' => 3306,
-        'dbname' => 'gravitycar_nc',
-        'user' => 'mike',
-        'password' => 'mike',
-        'charset' => 'utf8mb4',
+        'driver' => $_ENV['DB_DRIVER'] ?? 'pdo_mysql',
+        'host' => $_ENV['DB_HOST'] ?? 'localhost',
+        'port' => (int)($_ENV['DB_PORT'] ?? 3306),
+        'dbname' => $_ENV['DB_NAME'] ?? 'gravitycar_nc',
+        'user' => $_ENV['DB_USER'] ?? 'mike',
+        'password' => $_ENV['DB_PASSWORD'] ?? 'mike',
+        'charset' => $_ENV['DB_CHARSET'] ?? 'utf8mb4',
     ],
     'installed' => false,
     'app' => [
         'name' => 'Gravitycar Framework',
         'version' => '1.0.0',
         'debug' => true,
+        'backend_url' => $_ENV['BACKEND_URL'] ?? 'http://localhost:8081',
+        'frontend_url' => $_ENV['FRONTEND_URL'] ?? 'http://localhost:3000',
     ],
     'logging' => [
         'level' => 'info',
@@ -114,6 +116,6 @@ return [
     'google' => [
         'client_id' => $_ENV['GOOGLE_CLIENT_ID'] ?? 'test-client-id',
         'client_secret' => $_ENV['GOOGLE_CLIENT_SECRET'] ?? 'test-client-secret',
-        'redirect_uri' => $_ENV['GOOGLE_REDIRECT_URI'] ?? 'http://localhost:8081/auth/google/callback'
+        'redirect_uri' => $_ENV['GOOGLE_REDIRECT_URI'] ?? ($_ENV['BACKEND_URL'] ?? 'http://localhost:8081') . '/auth/google/callback'
     ]
 ];

@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { FieldComponentProps } from '../../types';
 
+// Get API base URL from environment or fallback to localhost
+const getApiBaseUrl = (): string => {
+  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
+};
+
 // Enhanced props interface for relationship management
 interface RelationshipContext {
   type: 'OneToMany' | 'ManyToMany' | 'OneToOne';
@@ -97,7 +102,7 @@ const RelatedRecordSelect: React.FC<EnhancedRelatedRecordProps> = ({
       
       try {
         console.log(`RelatedRecordSelect: Fetching metadata for related model: ${relatedModel}`);
-        const response = await fetch(`http://localhost:8081/metadata/models/${relatedModel}`, {
+        const response = await fetch(`${getApiBaseUrl()}/metadata/models/${relatedModel}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
@@ -140,7 +145,7 @@ const RelatedRecordSelect: React.FC<EnhancedRelatedRecordProps> = ({
         params.append('search', search.trim());
       }
       
-      const url = `http://localhost:8081/${relatedModel}?${params.toString()}`;
+      const url = `${getApiBaseUrl()}/${relatedModel}?${params.toString()}`;
       console.log(`RelatedRecordSelect: Making request to ${url}`);
       
       const response = await fetch(url, {
@@ -307,7 +312,7 @@ const RelatedRecordSelect: React.FC<EnhancedRelatedRecordProps> = ({
     if (!relatedModel || !recordId) return;
     
     try {
-      const response = await fetch(`http://localhost:8081/${relatedModel}/${recordId}`, {
+      const response = await fetch(`${getApiBaseUrl()}/${relatedModel}/${recordId}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

@@ -39,6 +39,20 @@ const child_process_1 = require("child_process");
 const path = __importStar(require("path"));
 class GravitycarServerTool {
     /**
+     * Get configurable backend URL
+     */
+    getBackendUrl() {
+        const config = vscode.workspace.getConfiguration('gravitycar');
+        return config.get('backendUrl') || process.env.GRAVITYCAR_BACKEND_URL || 'http://localhost:8081';
+    }
+    /**
+     * Get configurable frontend URL
+     */
+    getFrontendUrl() {
+        const config = vscode.workspace.getConfiguration('gravitycar');
+        return config.get('frontendUrl') || process.env.GRAVITYCAR_FRONTEND_URL || 'http://localhost:3000';
+    }
+    /**
      * Get the current workspace root path dynamically
      */
     getWorkspaceRoot() {
@@ -78,7 +92,8 @@ class GravitycarServerTool {
      */
     checkFrontendPing() {
         try {
-            const httpCode = (0, child_process_1.execSync)('curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 5 http://localhost:3000', {
+            const frontendUrl = this.getFrontendUrl();
+            const httpCode = (0, child_process_1.execSync)(`curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 5 ${frontendUrl}`, {
                 encoding: 'utf8',
                 cwd: this.getWorkspaceRoot(),
                 timeout: 8000 // 8 second timeout for the entire operation
@@ -455,13 +470,13 @@ class GravitycarServerTool {
                 case 'health-check':
                     let healthCommand = '';
                     if (service === 'backend' || service === 'both') {
-                        healthCommand += 'curl -s http://localhost:8081/health';
+                        healthCommand += `curl -s ${this.getBackendUrl()}/health`;
                     }
                     if (service === 'both') {
                         healthCommand += ' && ';
                     }
                     if (service === 'frontend' || service === 'both') {
-                        healthCommand += 'curl -s http://localhost:3000/';
+                        healthCommand += `curl -s ${this.getFrontendUrl()}/`;
                     }
                     command = healthCommand;
                     description = 'Performing health check';
