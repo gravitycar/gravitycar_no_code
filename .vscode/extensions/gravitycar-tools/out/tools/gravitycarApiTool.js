@@ -38,7 +38,23 @@ const vscode = __importStar(require("vscode"));
 const child_process_1 = require("child_process");
 class GravitycarApiTool {
     constructor() {
-        this.baseUrl = 'http://localhost:8081';
+        // Try to read base URL from workspace configuration, environment, or fallback to localhost
+        this.baseUrl = this.getBaseUrl();
+    }
+    getBaseUrl() {
+        // Try workspace configuration first
+        const config = vscode.workspace.getConfiguration('gravitycar');
+        const configUrl = config.get('backendUrl');
+        if (configUrl) {
+            return configUrl;
+        }
+        // Try environment variable
+        const envUrl = process.env.GRAVITYCAR_BACKEND_URL;
+        if (envUrl) {
+            return envUrl;
+        }
+        // Fallback to localhost
+        return 'http://localhost:8081';
     }
     async invoke(options, token) {
         try {

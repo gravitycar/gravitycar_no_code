@@ -4,7 +4,8 @@
 /composer.lock
 /logs
 /cache
-.env
+.env*
+gravitycar-frontend/.env*
 /tmp
 .vscode/gravitycar-token.json
 .vscode/react-server.pid

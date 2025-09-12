@@ -10,6 +10,22 @@ interface ServerControlInput {
 export class GravitycarServerTool implements vscode.LanguageModelTool<ServerControlInput> {
 
     /**
+     * Get configurable backend URL
+     */
+    private getBackendUrl(): string {
+        const config = vscode.workspace.getConfiguration('gravitycar');
+        return config.get<string>('backendUrl') || process.env.GRAVITYCAR_BACKEND_URL || 'http://localhost:8081';
+    }
+
+    /**
+     * Get configurable frontend URL
+     */
+    private getFrontendUrl(): string {
+        const config = vscode.workspace.getConfiguration('gravitycar');
+        return config.get<string>('frontendUrl') || process.env.GRAVITYCAR_FRONTEND_URL || 'http://localhost:3000';
+    }
+
+    /**
      * Get the current workspace root path dynamically
      */
     private getWorkspaceRoot(): string {
@@ -51,7 +67,8 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
      */
     private checkFrontendPing(): { isResponding: boolean; httpCode: string; error?: string } {
         try {
-            const httpCode = execSync('curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 5 http://localhost:3000', { 
+            const frontendUrl = this.getFrontendUrl();
+            const httpCode = execSync(`curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 5 ${frontendUrl}`, { 
                 encoding: 'utf8',
                 cwd: this.getWorkspaceRoot(),
                 timeout: 8000 // 8 second timeout for the entire operation
@@ -459,13 +476,13 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
                 case 'health-check':
                     let healthCommand = '';
                     if (service === 'backend' || service === 'both') {
-                        healthCommand += 'curl -s http://localhost:8081/health';
+                        healthCommand += `curl -s ${this.getBackendUrl()}/health`;
                     }
                     if (service === 'both') {
                         healthCommand += ' && ';
                     }
                     if (service === 'frontend' || service === 'both') {
-                        healthCommand += 'curl -s http://localhost:3000/';
+                        healthCommand += `curl -s ${this.getFrontendUrl()}/`;
                     }
                     command = healthCommand;
                     description = 'Performing health check';

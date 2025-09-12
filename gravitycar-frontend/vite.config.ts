@@ -12,5 +12,10 @@ export default defineConfig({
       usePolling: true,
       interval: 1000
     }
+  },
+  envPrefix: 'VITE_', // Ensure VITE_ prefixed env vars are exposed to client
+  define: {
+    // Make API base URL available at build time
+    __API_BASE_URL__: JSON.stringify(process.env.VITE_API_BASE_URL || 'http://localhost:8081')
   }
 })

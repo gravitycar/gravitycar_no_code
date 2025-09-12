@@ -16,8 +16,8 @@ class ApiService {
   private baseURL: string;
 
   constructor() {
-    // This will be configurable - for now pointing to your local Gravitycar backend on port 8081
-    this.baseURL = 'http://localhost:8081';
+    // Use environment variable or fallback to localhost for development
+    this.baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
     
     this.api = axios.create({
       baseURL: this.baseURL,

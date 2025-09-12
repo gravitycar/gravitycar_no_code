@@ -18,7 +18,30 @@ interface ApiCallInput {
 }
 
 export class GravitycarApiTool implements vscode.LanguageModelTool<ApiCallInput> {
-    private readonly baseUrl = 'http://localhost:8081';
+    private readonly baseUrl: string;
+
+    constructor() {
+        // Try to read base URL from workspace configuration, environment, or fallback to localhost
+        this.baseUrl = this.getBaseUrl();
+    }
+
+    private getBaseUrl(): string {
+        // Try workspace configuration first
+        const config = vscode.workspace.getConfiguration('gravitycar');
+        const configUrl = config.get<string>('backendUrl');
+        if (configUrl) {
+            return configUrl;
+        }
+
+        // Try environment variable
+        const envUrl = process.env.GRAVITYCAR_BACKEND_URL;
+        if (envUrl) {
+            return envUrl;
+        }
+
+        // Fallback to localhost
+        return 'http://localhost:8081';
+    }
 
     async invoke(
         options: vscode.LanguageModelToolInvocationOptions<ApiCallInput>,

@@ -1,4 +1,9 @@
 {
+    // Gravitycar Framework API URLs
+    "gravitycar.backendUrl": "http://localhost:8081",
+    "gravitycar.frontendUrl": "http://localhost:3000",
+    
+    // PHP configuration
     "php.executablePath": "/usr/bin/php",
     "php.validate.executablePath": "/usr/bin/php",
     "php.suggest.basic": false,
@@ -6,6 +11,8 @@
     "intelephense.files.maxSize": 5000000,
     "intelephense.completion.triggerParameterHints": true,
     "intelephense.completion.insertUseDeclaration": true,
+    
+    // Database DevDB configuration
     "Devdb.enableMcpServer": true,
     "Devdb.phpExecutablePath": "php",
     "Devdb.connections": [
@@ -18,5 +25,33 @@
             "username": "mike",
             "password": "mike"
         }
-    ]
+    ],
+    
+    // File associations for better development experience
+    "files.associations": {
+        "*.php": "php",
+        "*.tsx": "typescriptreact",
+        "*.ts": "typescript"
+    },
+    
+    // TypeScript/React settings
+    "typescript.preferences.quoteStyle": "single",
+    "javascript.preferences.quoteStyle": "single",
+    
+    // File exclusions for cleaner workspace
+    "files.exclude": {
+        "**/node_modules": true,
+        "**/vendor": true,
+        "**/.git": true,
+        "**/cache/*.php": true,
+        "**/logs/*.log": true
+    },
+    
+    // Search exclusions
+    "search.exclude": {
+        "**/node_modules": true,
+        "**/vendor": true,
+        "**/cache": true,
+        "**/logs": true
+    }
 }

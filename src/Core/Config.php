@@ -14,13 +14,10 @@ class Config {
     protected array $env = [];
     /** @var string */
     protected string $configFilePath;
-    /** @var string */
-    protected string $envFilePath;
 
     public function __construct() {
         // Find the project root directory (where config.php should be)
         $this->configFilePath = $this->findProjectFile('config.php');
-        $this->envFilePath = $this->findProjectFile('.env');
         
         $this->loadEnv();
         $this->loadConfig();
@@ -62,17 +59,33 @@ class Config {
 
     /**
      * Load environment variables from .env file
+     * Looks for .env file in current directory first, then parent directory
+     * This supports production deployments where .env is kept outside web root
      */
     protected function loadEnv(): void {
-        if (!file_exists($this->envFilePath)) {
-            // .env file is optional
+        // Try multiple locations for .env file
+        $envLocations = [
+            './.env',           // Current directory (development)
+            '../.env'           // Parent directory (production - outside web root)
+        ];
+        
+        $envFilePath = null;
+        foreach ($envLocations as $location) {
+            if (file_exists($location)) {
+                $envFilePath = $location;
+                break;
+            }
+        }
+        
+        if ($envFilePath === null) {
+            // .env file is optional - no error if not found
             return;
         }
         
-        $lines = file($this->envFilePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        $lines = file($envFilePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
         if ($lines === false) {
             throw new GCException('Failed to read .env file', [
-                'env_file_path' => $this->envFilePath
+                'env_file_path' => $envFilePath
             ]);
         }
         

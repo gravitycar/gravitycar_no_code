@@ -253,7 +253,24 @@
           "required": ["scriptFile"]
         }
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Gravitycar Framework",
+      "properties": {
+        "gravitycar.backendUrl": {
+          "type": "string",
+          "default": "http://localhost:8081",
+          "description": "URL of the Gravitycar backend API server",
+          "scope": "window"
+        },
+        "gravitycar.frontendUrl": {
+          "type": "string", 
+          "default": "http://localhost:3000",
+          "description": "URL of the Gravitycar frontend React server",
+          "scope": "window"
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

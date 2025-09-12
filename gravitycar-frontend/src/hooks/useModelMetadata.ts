@@ -36,9 +36,12 @@ export const useModelMetadata = (modelName: string): UseModelMetadataReturn => {
 
       console.log(`🔍 Fetching metadata for ${modelName} from API`);
 
+      // Use environment variable or fallback to localhost for development
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
+
       // Fetch from API using a direct call to the axios instance
       // We'll add a method to apiService for metadata fetching
-      const response = await fetch(`http://localhost:8081/metadata/models/${modelName}`, {
+      const response = await fetch(`${apiBaseUrl}/metadata/models/${modelName}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
