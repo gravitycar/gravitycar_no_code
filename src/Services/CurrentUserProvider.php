@@ -3,6 +3,7 @@
 namespace Gravitycar\Services;
 
 use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Gravitycar\Contracts\UserContextInterface;
 use Gravitycar\Services\AuthenticationService;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Models\ModelBase;
@@ -16,7 +17,7 @@ use Monolog\Logger;
  * Always returns current authentication state (no stale user objects).
  * Handles different execution contexts appropriately.
  */
-class CurrentUserProvider implements CurrentUserProviderInterface
+class CurrentUserProvider implements CurrentUserProviderInterface, UserContextInterface
 {
     private Logger $logger;
     private AuthenticationService $authService;

@@ -269,7 +269,8 @@ class ContainerConfig {
         $di->params[\Gravitycar\Services\AuthorizationService::class] = [
             'logger' => $di->lazyGet('logger'),
             'modelFactory' => $di->lazyGet('model_factory'),
-            'databaseConnector' => $di->lazyGet('database_connector')
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'userContext' => $di->lazyGet('current_user_provider')
         ];
 
         $di->set('google_oauth_service', $di->lazyNew(\Gravitycar\Services\GoogleOAuthService::class));
