@@ -2,9 +2,15 @@
 namespace Tests\Unit\Models\Api\Api;
 
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\MockObject\MockObject;
 use Gravitycar\Models\Api\Api\ModelBaseAPIController;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Api\Request;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Gravitycar\Core\Config;
 use Monolog\Logger;
 
 /**
@@ -28,17 +34,35 @@ class ModelBaseAPIControllerTest extends TestCase {
     /** @var ModelBaseAPIController */
     private ModelBaseAPIController $controller;
     
-    /** @var Logger */
-    private Logger $logger;
+    /** @var Logger|MockObject */
+    private Logger|MockObject $mockLogger;
+    
+    /** @var ModelFactory|MockObject */
+    private ModelFactory|MockObject $mockModelFactory;
 
     protected function setUp(): void {
         parent::setUp();
         
-        // Create a real logger for these tests
-        $this->logger = new Logger('test');
+        // Create all required mock dependencies
+        $this->mockLogger = $this->createMock(Logger::class);
+        $this->mockModelFactory = $this->createMock(ModelFactory::class);
+        $mockDatabaseConnector = $this->createMock(DatabaseConnectorInterface::class);
+        $mockMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        $mockConfig = $this->createMock(Config::class);
+        $mockCurrentUserProvider = $this->createMock(CurrentUserProviderInterface::class);
         
-        // Create controller instance
-        $this->controller = new ModelBaseAPIController($this->logger);
+        // Setup mock behavior for ModelFactory
+        $this->mockModelFactory->method('getAvailableModels')->willReturn(['Users', 'Movies', 'TestModel']);
+        
+        // Create controller with proper dependency injection
+        $this->controller = new ModelBaseAPIController(
+            $this->mockLogger,
+            $this->mockModelFactory,
+            $mockDatabaseConnector,
+            $mockMetadataEngine,
+            $mockConfig,
+            $mockCurrentUserProvider
+        );
     }
 
     /**

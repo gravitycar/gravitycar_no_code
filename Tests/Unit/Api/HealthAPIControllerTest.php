@@ -8,6 +8,10 @@ use Gravitycar\Api\HealthAPIController;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Core\Config;
 use Gravitycar\Database\DatabaseConnector;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Gravitycar\Factories\ModelFactory;
 use Monolog\Logger;
 use ReflectionClass;
 use ReflectionMethod;
@@ -30,21 +34,29 @@ class HealthAPIControllerTest extends TestCase
     {
         parent::setUp();
         
-        // Create mocks
-        $this->mockConfig = $this->createMock(Config::class);
+        // Create all required mock dependencies 
         $this->mockLogger = $this->createMock(Logger::class);
-        $this->mockDatabase = $this->createMock(DatabaseConnector::class);
+        $mockModelFactory = $this->createMock(ModelFactory::class);
+        $this->mockDatabase = $this->createMock(DatabaseConnectorInterface::class);
+        $mockMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        $this->mockConfig = $this->createMock(Config::class);
+        $mockCurrentUserProvider = $this->createMock(CurrentUserProviderInterface::class);
+        
+        // Create connection mock
         $this->mockConnection = $this->createMock(Connection::class);
         
         // Set up database mock chain
         $this->mockDatabase->method('getConnection')->willReturn($this->mockConnection);
         
-        // Create controller instance
-        $this->controller = new HealthAPIController();
-        
-        // Inject mocks using reflection
-        $this->setPrivateProperty($this->controller, 'config', $this->mockConfig);
-        $this->setPrivateProperty($this->controller, 'logger', $this->mockLogger);
+        // Create controller with proper dependency injection
+        $this->controller = new HealthAPIController(
+            $this->mockLogger,
+            $mockModelFactory,
+            $this->mockDatabase,
+            $mockMetadataEngine,
+            $this->mockConfig,
+            $mockCurrentUserProvider
+        );
         
         // Clear static cache before each test
         $this->setPrivateStaticProperty(HealthAPIController::class, 'cachedChecks', null);

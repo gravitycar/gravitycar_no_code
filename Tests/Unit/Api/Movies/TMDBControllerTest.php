@@ -2,9 +2,16 @@
 namespace Tests\Unit\Api\Movies;
 
 use Gravitycar\Tests\TestCase;
-use Gravitycar\Api\Movies\TMDBController;
+use Gravitycar\Api\TMDBController;
+use Gravitycar\Api\Request;
 use Gravitycar\Services\MovieTMDBIntegrationService;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Gravitycar\Core\Config;
+use Monolog\Logger;
 use PHPUnit\Framework\MockObject\MockObject;
 
 class TMDBControllerTest extends TestCase {
@@ -14,33 +21,56 @@ class TMDBControllerTest extends TestCase {
     protected function setUp(): void {
         parent::setUp();
         
+        // Create all required mock dependencies
+        $mockLogger = $this->createMock(Logger::class);
+        $mockModelFactory = $this->createMock(ModelFactory::class);
+        $mockDatabaseConnector = $this->createMock(DatabaseConnectorInterface::class);
+        $mockMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        $mockConfig = $this->createMock(Config::class);
+        $mockCurrentUserProvider = $this->createMock(CurrentUserProviderInterface::class);
         $this->mockService = $this->createMock(MovieTMDBIntegrationService::class);
-        $this->controller = new TMDBController();
         
-        // Use reflection to inject mock
-        $reflection = new \ReflectionClass($this->controller);
-        $property = $reflection->getProperty('tmdbService');
-        $property->setAccessible(true);
-        $property->setValue($this->controller, $this->mockService);
+        // Create controller with proper dependency injection
+        $this->controller = new TMDBController(
+            $mockLogger,
+            $mockModelFactory,
+            $mockDatabaseConnector,
+            $mockMetadataEngine,
+            $mockConfig,
+            $mockCurrentUserProvider,
+            $this->mockService
+        );
     }
     
     public function testRegisterRoutes(): void {
         $routes = $this->controller->registerRoutes();
         
         $this->assertIsArray($routes);
-        $this->assertCount(2, $routes);
+        $this->assertCount(4, $routes);
         
-        // Check search route
-        $searchRoute = $routes[0];
-        $this->assertEquals('GET', $searchRoute['method']);
-        $this->assertEquals('/movies/tmdb/search', $searchRoute['path']);
-        $this->assertEquals('search', $searchRoute['apiMethod']);
+        // Test first route (GET search)
+        $this->assertEquals('GET', $routes[0]['method']);
+        $this->assertEquals('/movies/tmdb/search', $routes[0]['path']);
+        $this->assertEquals('\\Gravitycar\\Api\\TMDBController', $routes[0]['apiClass']);
+        $this->assertEquals('search', $routes[0]['apiMethod']);
         
-        // Check enrich route
-        $enrichRoute = $routes[1];
-        $this->assertEquals('GET', $enrichRoute['method']);
-        $this->assertEquals('/movies/tmdb/enrich/?', $enrichRoute['path']);
-        $this->assertEquals('enrich', $enrichRoute['apiMethod']);
+        // Test second route (POST search)
+        $this->assertEquals('POST', $routes[1]['method']);
+        $this->assertEquals('/movies/tmdb/search', $routes[1]['path']);
+        $this->assertEquals('\\Gravitycar\\Api\\TMDBController', $routes[1]['apiClass']);
+        $this->assertEquals('searchPost', $routes[1]['apiMethod']);
+        
+        // Test third route (GET enrich)
+        $this->assertEquals('GET', $routes[2]['method']);
+        $this->assertEquals('/movies/tmdb/enrich/?', $routes[2]['path']);
+        $this->assertEquals('\\Gravitycar\\Api\\TMDBController', $routes[2]['apiClass']);
+        $this->assertEquals('enrich', $routes[2]['apiMethod']);
+        
+        // Test fourth route (POST refresh)
+        $this->assertEquals('POST', $routes[3]['method']);
+        $this->assertEquals('/movies/?/tmdb/refresh', $routes[3]['path']);
+        $this->assertEquals('\\Gravitycar\\Api\\TMDBController', $routes[3]['apiClass']);
+        $this->assertEquals('refresh', $routes[3]['apiMethod']);
     }
     
     public function testSearchWithTitle(): void {
@@ -110,10 +140,11 @@ class TMDBControllerTest extends TestCase {
             ->with($tmdbId)
             ->willReturn($mockEnrichmentData);
         
-        // Capture output
-        ob_start();
-        $result = $this->controller->enrich($tmdbId);
-        $output = ob_get_clean();
+        // Create mock Request object with tmdbId parameter
+        $mockRequest = $this->createMock(Request::class);
+        $mockRequest->method('get')->with('tmdbId')->willReturn((string)$tmdbId);
+        
+        $result = $this->controller->enrich($mockRequest);
         
         $this->assertTrue($result['success']);
         $this->assertEquals($mockEnrichmentData, $result['data']);
