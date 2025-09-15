@@ -2,12 +2,11 @@
 
 namespace Gravitycar\Services;
 
-use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Core\Config;
 use Gravitycar\Exceptions\GCException;
 use League\OAuth2\Client\Provider\Google;
 use League\OAuth2\Client\Token\AccessToken;
-use Monolog\Logger;
+use Psr\Log\LoggerInterface;
 
 /**
  * GoogleOAuthService
@@ -17,12 +16,12 @@ class GoogleOAuthService
 {
     private Google $provider;
     private Config $config;
-    private Logger $logger;
+    private LoggerInterface $logger;
     
-    public function __construct(Config $config = null, Logger $logger = null)
+    public function __construct(Config $config, LoggerInterface $logger)
     {
-        $this->config = $config ?? $this->config;
-        $this->logger = $logger ?? $this->logger;
+        $this->config = $config;
+        $this->logger = $logger;
         
         $this->provider = new Google([
             'clientId'     => $this->config->get('google.client_id'),

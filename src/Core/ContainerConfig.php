@@ -308,6 +308,13 @@ class ContainerConfig {
             'tmdbService' => $di->lazyGet('tmdb_api_service')
         ];
 
+        // OAuth Services
+        $di->set('google_oauth_service', $di->lazyNew(\Gravitycar\Services\GoogleOAuthService::class));
+        $di->params[\Gravitycar\Services\GoogleOAuthService::class] = [
+            'config' => $di->lazyGet('config'),
+            'logger' => $di->lazyGet('logger')
+        ];
+
         // API Controllers
         $di->set('model_base_api_controller', $di->lazyNew(\Gravitycar\Models\Api\Api\ModelBaseAPIController::class));
         $di->params[\Gravitycar\Models\Api\Api\ModelBaseAPIController::class] = [
