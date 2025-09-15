@@ -315,6 +315,18 @@ class ContainerConfig {
             'logger' => $di->lazyGet('logger')
         ];
 
+        // Google Books Services
+        $di->set('google_books_api_service', $di->lazyNew(\Gravitycar\Services\GoogleBooksApiService::class));
+        $di->params[\Gravitycar\Services\GoogleBooksApiService::class] = [
+            'config' => $di->lazyGet('config'),
+            'logger' => $di->lazyGet('logger')
+        ];
+
+        $di->set('book_google_books_integration_service', $di->lazyNew(\Gravitycar\Services\BookGoogleBooksIntegrationService::class));
+        $di->params[\Gravitycar\Services\BookGoogleBooksIntegrationService::class] = [
+            'googleBooksService' => $di->lazyGet('google_books_api_service')
+        ];
+
         // API Controllers
         $di->set('model_base_api_controller', $di->lazyNew(\Gravitycar\Models\Api\Api\ModelBaseAPIController::class));
         $di->params[\Gravitycar\Models\Api\Api\ModelBaseAPIController::class] = [

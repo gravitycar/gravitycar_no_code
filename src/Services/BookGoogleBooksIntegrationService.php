@@ -3,7 +3,6 @@
 namespace Gravitycar\Services;
 
 use Gravitycar\Services\GoogleBooksApiService;
-use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Exceptions\GCException;
 
 /**
@@ -14,9 +13,9 @@ class BookGoogleBooksIntegrationService
 {
     private GoogleBooksApiService $googleBooksService;
     
-    public function __construct()
+    public function __construct(GoogleBooksApiService $googleBooksService)
     {
-        $this->googleBooksService = new GoogleBooksApiService();
+        $this->googleBooksService = $googleBooksService;
     }
     
     /**
