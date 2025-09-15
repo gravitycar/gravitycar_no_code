@@ -7,6 +7,12 @@ use Gravitycar\Relationships\ManyToManyRelationship;
 use Gravitycar\Relationships\RelationshipBase;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Database\DatabaseConnector;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Factories\FieldFactory;
+use Gravitycar\Factories\RelationshipFactory;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Metadata\CoreFieldsMetadata;
 use Monolog\Logger;
@@ -22,8 +28,23 @@ class ManyToManyRelationshipTest extends TestCase
     {
         parent::setUp();
 
-        // Create the testable relationship
-        $this->relationship = new TestableManyToManyRelationship();
+        // Create mocked dependencies for RelationshipBase/ModelBase
+        $logger = $this->createMock(Logger::class);
+        $metadataEngine = $this->createMock(MetadataEngineInterface::class);
+        $coreFieldsMetadata = $this->createMock(CoreFieldsMetadata::class);
+        $modelFactory = $this->createMock(ModelFactory::class);
+        $databaseConnector = $this->createMock(DatabaseConnectorInterface::class);
+
+        // Create the testable relationship with proper dependencies
+        $this->relationship = new TestableManyToManyRelationship(
+            'users_roles',
+            $logger,
+            $metadataEngine,
+            $coreFieldsMetadata,
+            $modelFactory,
+            $databaseConnector
+        );
+        
         $this->relationship->setTestMetadata([
             'name' => 'users_roles',
             'type' => 'ManyToMany',
@@ -344,31 +365,38 @@ class TestableManyToManyRelationship extends ManyToManyRelationship
     private bool $mockBulkSoftDeleteResult = false;
     private bool $mockUpdateResult = false;
 
-    public function __construct($relationshipNameOrMetadata = null, $logger = null, $coreFieldsMetadata = null)
-    {
-        // Handle the bug in the actual code where it passes metadata as first parameter
-        if (is_array($relationshipNameOrMetadata)) {
-            // It's metadata, so set it
-            $this->testMode = true;
-            $this->metadata = $relationshipNameOrMetadata;
-            $this->metadataLoaded = true;
-        } else {
-            // It's a relationship name (normal case)
-            if (!$this->testMode) {
-                $this->relationshipName = $relationshipNameOrMetadata;
-                $this->logger = $this->logger ?? new Logger('test');
-            }
-        }
+    public function __construct(
+        ?string $relationshipName = null, 
+        ?Logger $logger = null, 
+        ?MetadataEngineInterface $metadataEngine = null,
+        ?CoreFieldsMetadata $coreFieldsMetadata = null,
+        ?ModelFactory $modelFactory = null,
+        ?DatabaseConnectorInterface $databaseConnector = null
+    ) {
+        $this->testMode = true;
+        $this->relationshipName = $relationshipName;
         
-        // Handle other parameters
-        if ($logger) {
-            $this->logger = $logger;
+        // Store all the dependencies to avoid the ServiceLocator calls
+        $this->logger = $logger ?? $this->createMock(Logger::class);
+        $this->metadataEngine = $metadataEngine ?? $this->createMock(MetadataEngineInterface::class);
+        $this->coreFieldsMetadata = $coreFieldsMetadata ?? new MockCoreFieldsMetadata();
+        $this->modelFactory = $modelFactory ?? $this->createMock(ModelFactory::class);
+        $this->databaseConnector = $databaseConnector ?? $this->createMock(DatabaseConnectorInterface::class);
+        
+        // Create other required dependencies for ModelBase
+        $this->fieldFactory = $this->createMock(FieldFactory::class);
+        $this->relationshipFactory = $this->createMock(RelationshipFactory::class);
+        $this->currentUserProvider = $this->createMock(CurrentUserProviderInterface::class);
+    }
+    
+    private function createMock(string $className) {
+        static $mocks = [];
+        if (!isset($mocks[$className])) {
+            $mocks[$className] = new class {
+                public function __call($name, $args) { return null; }
+            };
         }
-        if ($coreFieldsMetadata) {
-            $this->coreFieldsMetadata = $coreFieldsMetadata;
-        } else if (!isset($this->coreFieldsMetadata)) {
-            $this->coreFieldsMetadata = new MockCoreFieldsMetadata();
-        }
+        return $mocks[$className];
     }
 
     public function setTestMetadata(array $metadata): void
@@ -495,35 +523,6 @@ class TestableManyToManyRelationship extends ManyToManyRelationship
     public function populateFromRow(array $row): void
     {
         // Mock implementation - do nothing
-    }
-
-    private function createMock(string $className)
-    {
-        // Simple mock creation without PHPUnit dependencies
-        return new class($className) {
-            private string $className;
-            private array $methodResults = [];
-            
-            public function __construct(string $className) {
-                $this->className = $className;
-            }
-            
-            public function method(string $methodName) {
-                return $this;
-            }
-            
-            public function willReturn($value) {
-                return $this;
-            }
-            
-            public function willThrowException(\Exception $exception) {
-                return $this;
-            }
-            
-            public function __call(string $method, array $arguments) {
-                return $this->methodResults[$method] ?? null;
-            }
-        };
     }
 }
 
