@@ -16,7 +16,7 @@ use Monolog\Logger;
  * Movies model class for Gravitycar framework.
  */
 class Movies extends ModelBase {
-    private ?MovieTMDBIntegrationService $tmdbIntegration = null;
+    private MovieTMDBIntegrationService $tmdbIntegration;
     
     /**
      * Pure dependency injection constructor
@@ -28,7 +28,8 @@ class Movies extends ModelBase {
         DatabaseConnectorInterface $databaseConnector,
         RelationshipFactory $relationshipFactory,
         ModelFactory $modelFactory,
-        CurrentUserProviderInterface $currentUserProvider
+        CurrentUserProviderInterface $currentUserProvider,
+        MovieTMDBIntegrationService $tmdbIntegration
     ) {
         parent::__construct(
             $logger,
@@ -39,7 +40,7 @@ class Movies extends ModelBase {
             $modelFactory,
             $currentUserProvider
         );
-        $this->tmdbIntegration = new MovieTMDBIntegrationService();
+        $this->tmdbIntegration = $tmdbIntegration;
     }
     
     /**
