@@ -2,29 +2,44 @@
 namespace Gravitycar\Api;
 
 use Gravitycar\Services\OpenAPIGenerator;
-use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Gravitycar\Core\Config;
 use Psr\Log\LoggerInterface;
 use Monolog\Logger;
 
 /**
  * OpenAPIController: Provides OpenAPI specification endpoint
+ * Pure dependency injection - all dependencies explicitly injected via constructor.
  */
 class OpenAPIController extends ApiControllerBase {
-    private OpenAPIGenerator $openAPIGenerator;
+    private ?OpenAPIGenerator $openAPIGenerator;
     
+    /**
+     * Pure dependency injection constructor - all dependencies explicitly provided
+     * 
+     * @param Logger $logger
+     * @param ModelFactory $modelFactory
+     * @param DatabaseConnectorInterface $databaseConnector
+     * @param MetadataEngineInterface $metadataEngine
+     * @param Config $config
+     * @param CurrentUserProviderInterface $currentUserProvider
+     * @param OpenAPIGenerator $openAPIGenerator
+     */
     public function __construct(
-        Logger $logger = null,
-        ModelFactory $modelFactory = null,
-        DatabaseConnectorInterface $databaseConnector = null,
-        MetadataEngineInterface $metadataEngine = null,
-        Config $config = null
+        Logger $logger,
+        ModelFactory $modelFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        MetadataEngineInterface $metadataEngine,
+        Config $config,
+        CurrentUserProviderInterface $currentUserProvider,
+        OpenAPIGenerator $openAPIGenerator
     ) {
-        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config);
-        $this->openAPIGenerator = new OpenAPIGenerator();
+        // All dependencies explicitly injected - no ServiceLocator fallbacks
+        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config, $currentUserProvider);
+        $this->openAPIGenerator = $openAPIGenerator;
     }
     
     /**

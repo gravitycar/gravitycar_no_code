@@ -38,20 +38,4 @@
     "typescript.preferences.quoteStyle": "single",
     "javascript.preferences.quoteStyle": "single",
     
-    // File exclusions for cleaner workspace
-    "files.exclude": {
-        "**/node_modules": true,
-        "**/vendor": true,
-        "**/.git": true,
-        "**/cache/*.php": true,
-        "**/logs/*.log": true
-    },
-    
-    // Search exclusions
-    "search.exclude": {
-        "**/node_modules": true,
-        "**/vendor": true,
-        "**/cache": true,
-        "**/logs": true
-    }
 }

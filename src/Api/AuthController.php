@@ -2,7 +2,6 @@
 
 namespace Gravitycar\Api;
 
-use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Core\Config;
 use Gravitycar\Services\AuthenticationService;
 use Gravitycar\Services\GoogleOAuthService;
@@ -13,75 +12,60 @@ use Gravitycar\Exceptions\InternalServerErrorException;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Monolog\Logger;
 use Exception;
 
 /**
  * Authentication Controller
  * Handles Google OAuth and traditional authentication endpoints
- * Phase 15: Enhanced with dependency injection support
+ * Pure dependency injection - all dependencies explicitly injected via constructor.
  */
 class AuthController extends ApiControllerBase
 {
-    private ?AuthenticationService $authService = null;
-    private ?GoogleOAuthService $googleOAuthService = null;
+    private ?AuthenticationService $authService;
+    private ?GoogleOAuthService $googleOAuthService;
 
+    /**
+     * Pure dependency injection constructor - all dependencies explicitly provided
+     * For backwards compatibility during route discovery, all parameters are optional with null defaults
+     * 
+     * @param Logger $logger
+     * @param ModelFactory $modelFactory
+     * @param DatabaseConnectorInterface $databaseConnector
+     * @param MetadataEngineInterface $metadataEngine
+     * @param Config $config
+     * @param CurrentUserProviderInterface $currentUserProvider
+     * @param AuthenticationService $authService
+     * @param GoogleOAuthService $googleOAuthService
+     */
     public function __construct(
         Logger $logger = null,
         ModelFactory $modelFactory = null,
         DatabaseConnectorInterface $databaseConnector = null,
         MetadataEngineInterface $metadataEngine = null,
         Config $config = null,
+        CurrentUserProviderInterface $currentUserProvider = null,
         AuthenticationService $authService = null,
         GoogleOAuthService $googleOAuthService = null
     ) {
-        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config);
-        
-        // Store service instances if provided
+        // All dependencies explicitly injected - no ServiceLocator fallbacks
+        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config, $currentUserProvider);
         $this->authService = $authService;
         $this->googleOAuthService = $googleOAuthService;
     }
     
     /**
-     * Get authentication service (lazy initialization)
+     * Get authentication service
      */
-    protected function getAuthService(): AuthenticationService {
-        if ($this->authService === null) {
-            try {
-                $this->authService = ServiceLocator::get(AuthenticationService::class);
-            } catch (\Exception $e) {
-                // Fallback to manual instantiation if auto-wiring fails
-                // Create GoogleOAuthService first with proper dependencies
-                $config = ServiceLocator::getConfig();
-                $logger = ServiceLocator::getLogger();
-                $googleOAuthService = new GoogleOAuthService($config, $logger);
-                
-                $this->authService = new AuthenticationService(
-                    null, // database - will use ServiceLocator
-                    null, // logger - will use ServiceLocator
-                    null, // config - will use ServiceLocator
-                    null, // modelFactory - will use ServiceLocator
-                    $googleOAuthService // provide this to avoid auto-wiring
-                );
-            }
-        }
+    protected function getAuthService(): ?AuthenticationService {
         return $this->authService;
     }
     
     /**
-     * Get Google OAuth service (lazy initialization)
+     * Get Google OAuth service
      */
-    protected function getGoogleOAuthService(): GoogleOAuthService {
-        if ($this->googleOAuthService === null) {
-            try {
-                $this->googleOAuthService = ServiceLocator::get(GoogleOAuthService::class);
-            } catch (\Exception $e) {
-                // Fallback to manual instantiation if auto-wiring fails
-                $config = ServiceLocator::getConfig();
-                $logger = ServiceLocator::getLogger();
-                $this->googleOAuthService = new GoogleOAuthService($config, $logger);
-            }
-        }
+    protected function getGoogleOAuthService(): ?GoogleOAuthService {
         return $this->googleOAuthService;
     }
 

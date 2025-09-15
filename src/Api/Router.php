@@ -10,33 +10,41 @@ use Gravitycar\Api\ParameterValidationResult;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Services\AuthenticationService;
 use Gravitycar\Services\AuthorizationService;
+use Gravitycar\Factories\APIControllerFactory;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Monolog\Logger;
 
 /**
  * API Router: Routes API requests to appropriate handlers
  */
 class Router {
-    /** @var APIRouteRegistry */
-    protected APIRouteRegistry $routeRegistry;
-    /** @var Logger */
-    protected Logger $logger;
-    /** @var APIPathScorer */
-    protected APIPathScorer $pathScorer;
-    /** @var \Gravitycar\Metadata\MetadataEngine */
-    protected $metadataEngine;
-
-    public function __construct($serviceLocator) {
-        if ($serviceLocator instanceof ServiceLocator) {
-            $this->logger = $serviceLocator->get('logger');
-            $this->metadataEngine = $serviceLocator->get('metadataEngine');
-        } else {
-            // Backward compatibility - assume it's MetadataEngine for old constructor
-            $this->metadataEngine = $serviceLocator;
-            $this->logger = ServiceLocator::getLogger();
-        }
-        
-        $this->routeRegistry = APIRouteRegistry::getInstance();
-        $this->pathScorer = new APIPathScorer($this->logger);
+    /**
+     * Pure dependency injection constructor - all dependencies explicitly provided
+     * 
+     * @param Logger $logger
+     * @param MetadataEngineInterface $metadataEngine
+     * @param APIRouteRegistry $routeRegistry
+     * @param APIPathScorer $pathScorer
+     * @param APIControllerFactory $controllerFactory
+     * @param ModelFactory $modelFactory
+     * @param AuthenticationService $authenticationService
+     * @param AuthorizationService $authorizationService
+     * @param CurrentUserProviderInterface $currentUserProvider
+     */
+    public function __construct(
+        private Logger $logger,
+        private MetadataEngineInterface $metadataEngine,
+        private APIRouteRegistry $routeRegistry,
+        private APIPathScorer $pathScorer,
+        private APIControllerFactory $controllerFactory,
+        private ModelFactory $modelFactory,
+        private AuthenticationService $authenticationService,
+        private AuthorizationService $authorizationService,
+        private CurrentUserProviderInterface $currentUserProvider
+    ) {
+        // All dependencies explicitly injected - no ServiceLocator fallbacks
     }
 
     /**
@@ -152,7 +160,19 @@ class Router {
             ]);
         }
         
-        $controller = new $controllerClass($this->logger);
+        // Use APIControllerFactory for proper dependency injection
+        try {
+            $dependencies = $route['controllerDependencies'] ?? [];
+            $controller = $this->controllerFactory->createControllerWithDependencyList($controllerClass, $dependencies);
+        } catch (\Exception $e) {
+            $this->logger->error("Failed to create controller via factory, falling back to legacy method", [
+                'controller_class' => $controllerClass,
+                'dependencies' => $route['controllerDependencies'] ?? [],
+                'error' => $e->getMessage()
+            ]);
+            // Fallback to legacy instantiation for compatibility
+            $controller = new $controllerClass($this->logger);
+        }
         
         if (!method_exists($controller, $handlerMethod)) {
             throw new GCException("Handler method not found: $handlerMethod in $controllerClass", [
@@ -247,7 +267,7 @@ class Router {
                 return null; // No model parameter available
             }
             
-            return \Gravitycar\Core\ServiceLocator::getModelFactory()->new($modelName);
+            return $this->modelFactory->new($modelName);
             
         } catch (\Exception $e) {
             $this->logger->warning('Could not instantiate model for validation', [
@@ -365,7 +385,7 @@ class Router {
         
         try {
             // Get current user from JWT token
-            $currentUser = ServiceLocator::getCurrentUser();
+            $currentUser = $this->currentUserProvider->getCurrentUser();
             
             if (!$currentUser) {
                 throw new UnauthorizedException('Authentication required', [
@@ -375,11 +395,10 @@ class Router {
             }
             
             // Check if user has required role
-            $authorizationService = ServiceLocator::getAuthorizationService();
             $hasRequiredRole = false;
             
             foreach ($allowedRoles as $role) {
-                if ($authorizationService->hasRole($currentUser, $role)) {
+                if ($this->authorizationService->hasRole($currentUser, $role)) {
                     $hasRequiredRole = true;
                     break;
                 }
@@ -423,9 +442,7 @@ class Router {
         $action = $this->mapMethodToAction($method, $route['path']);
         
         if ($action) {
-            $authorizationService = ServiceLocator::getAuthorizationService();
-            
-            if (!$authorizationService->hasPermission($action, $modelName)) {
+            if (!$this->authorizationService->hasPermission($action, $modelName)) {
                 throw new ForbiddenException("Insufficient permissions for $action on $modelName", [
                     'action' => $action,
                     'model' => $modelName,

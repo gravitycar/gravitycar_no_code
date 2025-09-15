@@ -1,6 +1,6 @@
 ---
 description: 'Implementing code from implementation plans or prompts'
-tools: ['extensions', 'codebase', 'usages', 'problems', 'changes', 'testFailure', 'terminalSelection', 'terminalLastCommand', 'findTestFiles', 'searchResults', 'runCommands', 'editFiles', 'search',  'gravitycar-api', 'gravitycar-test', 'gravitycar-server', 'gravitycar-cache', 'gravitycar-php-debug']
+tools: ['extensions', 'codebase', 'usages', 'problems', 'changes', 'testFailure', 'terminalSelection', 'terminalLastCommand', 'findTestFiles', 'searchResults', 'runCommands', 'createFile', 'editFiles', 'search',  'gravitycar-api', 'gravitycar-test', 'gravitycar-server', 'gravitycar-cache', 'gravitycar-php-debug']
 ---
 
 # Coding Chat Mode

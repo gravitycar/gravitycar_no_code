@@ -1,12 +1,12 @@
 <?php
 namespace Gravitycar\Api;
 
-use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Core\Config;
 use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Psr\Log\LoggerInterface;
 use Monolog\Logger;
 
@@ -16,6 +16,7 @@ use Monolog\Logger;
  * This controller implements two endpoints:
  * - /ping: Ultra-fast availability check (< 5ms target)
  * - /health: Comprehensive system health diagnostics (< 50ms target)
+ * Pure dependency injection - all dependencies explicitly injected via constructor.
  */
 class HealthAPIController extends ApiControllerBase {
     private static ?array $cachedChecks = null;
@@ -24,14 +25,27 @@ class HealthAPIController extends ApiControllerBase {
     // Cache health checks for 30 seconds to avoid repeated work
     private const CHECK_CACHE_TTL = 30;
     
+    /**
+     * Pure dependency injection constructor - all dependencies explicitly provided
+     * For backwards compatibility during route discovery, all parameters are optional with null defaults
+     * 
+     * @param Logger $logger
+     * @param ModelFactory $modelFactory
+     * @param DatabaseConnectorInterface $databaseConnector
+     * @param MetadataEngineInterface $metadataEngine
+     * @param Config $config
+     * @param CurrentUserProviderInterface $currentUserProvider
+     */
     public function __construct(
         Logger $logger = null,
         ModelFactory $modelFactory = null,
         DatabaseConnectorInterface $databaseConnector = null,
         MetadataEngineInterface $metadataEngine = null,
-        Config $config = null
+        Config $config = null,
+        CurrentUserProviderInterface $currentUserProvider = null
     ) {
-        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config);
+        // All dependencies explicitly injected - no ServiceLocator fallbacks
+        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config, $currentUserProvider);
     }
     
     /**

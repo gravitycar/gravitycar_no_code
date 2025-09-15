@@ -8,21 +8,40 @@ use Gravitycar\Exceptions\GCException;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Gravitycar\Core\Config;
 use Monolog\Logger;
 
+/**
+ * TMDBController: Provides TMDB movie data integration endpoints
+ * Pure dependency injection - all dependencies explicitly injected via constructor.
+ */
 class TMDBController extends ApiControllerBase {
-    private MovieTMDBIntegrationService $tmdbService;
+    private ?MovieTMDBIntegrationService $tmdbService;
     
+    /**
+     * Pure dependency injection constructor - all dependencies explicitly provided
+     * 
+     * @param Logger $logger
+     * @param ModelFactory $modelFactory
+     * @param DatabaseConnectorInterface $databaseConnector
+     * @param MetadataEngineInterface $metadataEngine
+     * @param Config $config
+     * @param CurrentUserProviderInterface $currentUserProvider
+     * @param MovieTMDBIntegrationService $tmdbService
+     */
     public function __construct(
-        Logger $logger = null,
-        ModelFactory $modelFactory = null,
-        DatabaseConnectorInterface $databaseConnector = null,
-        MetadataEngineInterface $metadataEngine = null,
-        Config $config = null
+        Logger $logger,
+        ModelFactory $modelFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        MetadataEngineInterface $metadataEngine,
+        Config $config,
+        CurrentUserProviderInterface $currentUserProvider,
+        MovieTMDBIntegrationService $tmdbService
     ) {
-        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config);
-        $this->tmdbService = new MovieTMDBIntegrationService();
+        // All dependencies explicitly injected - no ServiceLocator fallbacks
+        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config, $currentUserProvider);
+        $this->tmdbService = $tmdbService;
     }
     
     /**

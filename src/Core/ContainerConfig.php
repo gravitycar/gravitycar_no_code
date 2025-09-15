@@ -54,7 +54,6 @@ class ContainerConfig {
 
             // Don't call enableAutoWiringForNamespaces here - it causes infinite loop
             // Auto-wiring namespace setup is now done in autoWire() method
-
             return $di;
         } catch (Exception $e) {
             // Log the error and fall back to minimal container
@@ -237,6 +236,18 @@ class ContainerConfig {
             'dbConnector' => $di->lazyGet('database_connector'),
             'metadataEngine' => $di->lazyGet('metadata_engine')
         ];
+        
+        // APIControllerFactory - singleton with container injection
+        $di->set('api_controller_factory', $di->lazyNew(\Gravitycar\Factories\APIControllerFactory::class));
+        $di->params[\Gravitycar\Factories\APIControllerFactory::class] = [
+            'container' => $di
+        ];
+
+        // APIPathScorer - prototype with logger injection
+        $di->set('api_path_scorer', $di->lazyNew(\Gravitycar\Api\APIPathScorer::class));
+        $di->params[\Gravitycar\Api\APIPathScorer::class] = [
+            'logger' => $di->lazyGet('logger')
+        ];
     }
 
     /**
@@ -250,10 +261,19 @@ class ContainerConfig {
             'coreFieldsMetadata' => $di->lazyGet('core_fields_metadata')
         ]));
 
-        // Router - prototype with ServiceLocator instance
-        $di->set('router', $di->lazyNew(\Gravitycar\Api\Router::class, [
-            'serviceLocator' => $di->lazyGet('metadata_engine') // Backward compatibility - pass MetadataEngine as serviceLocator
-        ]));
+        // Router - pure dependency injection
+        $di->set('router', $di->lazyNew(\Gravitycar\Api\Router::class));
+        $di->params[\Gravitycar\Api\Router::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'routeRegistry' => $di->lazyGet('api_route_registry'),
+            'pathScorer' => $di->lazyGet('api_path_scorer'),
+            'controllerFactory' => $di->lazyGet('api_controller_factory'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'authenticationService' => $di->lazyGet('authentication_service'),
+            'authorizationService' => $di->lazyGet('authorization_service'),
+            'currentUserProvider' => $di->lazyGet('current_user_provider')
+        ];
 
         // Authentication services - Use new constructor signatures
         $di->set('authentication_service', $di->lazyNew(\Gravitycar\Services\AuthenticationService::class));
@@ -309,8 +329,107 @@ class ContainerConfig {
             'logger' => $di->lazyGet('logger'),
             'modelFactory' => $di->lazyGet('model_factory'),
             'databaseConnector' => $di->lazyGet('database_connector'),
-            'metadataEngine' => $di->lazyGet('metadata_engine')
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'config' => $di->lazyGet('config'),
+            'currentUserProvider' => $di->lazyGet('current_user_provider')
         ];
+
+        // AuthController
+        $di->set('auth_controller', $di->lazyNew(\Gravitycar\Api\AuthController::class));
+        $di->params[\Gravitycar\Api\AuthController::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'config' => $di->lazyGet('config'),
+            'currentUserProvider' => $di->lazyGet('current_user_provider'),
+            'authService' => $di->lazyGet('authentication_service'),
+            'googleOAuthService' => $di->lazyGet('google_oauth_service')
+        ];
+
+        // HealthAPIController
+        $di->set('health_api_controller', $di->lazyNew(\Gravitycar\Api\HealthAPIController::class));
+        $di->params[\Gravitycar\Api\HealthAPIController::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'config' => $di->lazyGet('config'),
+            'currentUserProvider' => $di->lazyGet('current_user_provider')
+        ];
+
+        // MetadataAPIController
+        $di->set('metadata_api_controller', $di->lazyNew(\Gravitycar\Api\MetadataAPIController::class));
+        $di->params[\Gravitycar\Api\MetadataAPIController::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'config' => $di->lazyGet('config'),
+            'currentUserProvider' => $di->lazyGet('current_user_provider'),
+            'routeRegistry' => $di->lazyGet('api_route_registry'),
+            'cache' => $di->lazyGet('documentation_cache'),
+            'componentMapper' => $di->lazyGet('react_component_mapper')
+        ];
+
+        // OpenAPIController
+        $di->set('open_api_controller', $di->lazyNew(\Gravitycar\Api\OpenAPIController::class));
+        $di->params[\Gravitycar\Api\OpenAPIController::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'config' => $di->lazyGet('config'),
+            'currentUserProvider' => $di->lazyGet('current_user_provider'),
+            'openAPIGenerator' => $di->lazyNew(\Gravitycar\Services\OpenAPIGenerator::class)
+        ];
+
+        // TMDBController
+        $di->set('tmdb_controller', $di->lazyNew(\Gravitycar\Api\TMDBController::class));
+        $di->params[\Gravitycar\Api\TMDBController::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'config' => $di->lazyGet('config'),
+            'currentUserProvider' => $di->lazyGet('current_user_provider'),
+            'tmdbService' => $di->lazyGet('movie_tmdb_integration_service')
+        ];
+
+        // GoogleBooksController
+        $di->set('google_books_controller', $di->lazyNew(\Gravitycar\Api\GoogleBooksController::class));
+        $di->params[\Gravitycar\Api\GoogleBooksController::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'config' => $di->lazyGet('config'),
+            'currentUserProvider' => $di->lazyGet('current_user_provider'),
+            'googleBooksService' => $di->lazyNew(\Gravitycar\Services\GoogleBooksApiService::class),
+            'integrationService' => $di->lazyNew(\Gravitycar\Services\BookGoogleBooksIntegrationService::class)
+        ];
+
+        // TriviaGameAPIController
+        $di->set('trivia_game_api_controller', $di->lazyNew(\Gravitycar\Api\TriviaGameAPIController::class));
+        $di->params[\Gravitycar\Api\TriviaGameAPIController::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'config' => $di->lazyGet('config'),
+            'currentUserProvider' => $di->lazyGet('current_user_provider')
+        ];
+
+        // APIRouteRegistry for MetadataAPIController (singleton pattern)
+        $di->set('api_route_registry', function() {
+            return \Gravitycar\Api\APIRouteRegistry::getInstance();
+        });
+
+        // DocumentationCache service
+        $di->set('documentation_cache', $di->lazyNew(\Gravitycar\Services\DocumentationCache::class));
+
+        // ReactComponentMapper service
+        $di->set('react_component_mapper', $di->lazyNew(\Gravitycar\Services\ReactComponentMapper::class));
     }
 
     /**

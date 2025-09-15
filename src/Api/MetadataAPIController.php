@@ -6,7 +6,6 @@ use Gravitycar\Api\APIRouteRegistry;
 use Gravitycar\Api\Request;
 use Gravitycar\Services\ReactComponentMapper;
 use Gravitycar\Services\DocumentationCache;
-use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Core\Config;
 use Gravitycar\Exceptions\NotFoundException;
 use Gravitycar\Exceptions\BadRequestException;
@@ -16,52 +15,69 @@ use Gravitycar\Exceptions\GCException;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Psr\Log\LoggerInterface;
 use Monolog\Logger;
 
 /**
  * MetadataAPIController: Provides API endpoints for model and field metadata discovery
+ * Pure dependency injection - all dependencies explicitly injected via constructor.
  */
 class MetadataAPIController extends ApiControllerBase {
-    private ?APIRouteRegistry $routeRegistry = null;
-    private ReactComponentMapper $componentMapper;
-    private DocumentationCache $cache;
+    private ?APIRouteRegistry $routeRegistry;
+    private ?ReactComponentMapper $componentMapper;
+    private ?DocumentationCache $cache;
     
+    /**
+     * Pure dependency injection constructor - all dependencies explicitly provided
+     * For backwards compatibility during route discovery, all parameters are optional with null defaults
+     * 
+     * @param Logger $logger
+     * @param ModelFactory $modelFactory
+     * @param DatabaseConnectorInterface $databaseConnector
+     * @param MetadataEngineInterface $metadataEngine
+     * @param Config $config
+     * @param CurrentUserProviderInterface $currentUserProvider
+     * @param APIRouteRegistry $routeRegistry
+     * @param DocumentationCache $cache
+     * @param ReactComponentMapper $componentMapper
+     */
     public function __construct(
         Logger $logger = null,
         ModelFactory $modelFactory = null,
         DatabaseConnectorInterface $databaseConnector = null,
         MetadataEngineInterface $metadataEngine = null,
         Config $config = null,
-        ?DocumentationCache $cache = null, 
-        ?ReactComponentMapper $componentMapper = null
+        CurrentUserProviderInterface $currentUserProvider = null,
+        APIRouteRegistry $routeRegistry = null,
+        DocumentationCache $cache = null,
+        ReactComponentMapper $componentMapper = null
     ) {
-        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config);
-        $this->cache = $cache ?? new DocumentationCache();
-        $this->componentMapper = $componentMapper ?? new ReactComponentMapper();
+        // All dependencies explicitly injected - no ServiceLocator fallbacks
+        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config, $currentUserProvider);
+        $this->routeRegistry = $routeRegistry;
+        $this->cache = $cache;
+        $this->componentMapper = $componentMapper;
     }
 
     /**
-     * Get metadata engine instance lazily to avoid circular dependencies
+     * Get metadata engine instance
      */
-    protected function getMetadataEngine(): MetadataEngine {
-        return MetadataEngine::getInstance();
+    protected function getMetadataEngine(): ?MetadataEngineInterface {
+        return $this->metadataEngine;
     }
 
     /**
-     * Get config instance lazily to avoid circular dependencies
+     * Get config instance
      */
-    protected function getConfig(): Config {
+    protected function getConfig(): ?Config {
         return $this->config;
     }
     
     /**
-     * Get the route registry (lazy initialization to avoid circular dependency)
+     * Get the route registry
      */
-    private function getRouteRegistry(): APIRouteRegistry {
-        if ($this->routeRegistry === null) {
-            $this->routeRegistry = APIRouteRegistry::getInstance();
-        }
+    private function getRouteRegistry(): ?APIRouteRegistry {
         return $this->routeRegistry;
     }
     
