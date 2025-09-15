@@ -5,7 +5,11 @@ namespace Tests\Unit\Api;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\MockObject\MockObject;
 use Gravitycar\Api\ApiControllerBase;
-use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Gravitycar\Core\Config;
 use Monolog\Logger;
 use ReflectionClass;
 
@@ -13,26 +17,67 @@ class ApiControllerBaseTest extends TestCase
 {
     private MockApiControllerForApiControllerBaseTest $controller;
     private MockObject $logger;
+    private MockObject $modelFactory;
+    private MockObject $databaseConnector;
+    private MockObject $metadataEngine;
+    private MockObject $config;
+    private MockObject $currentUserProvider;
 
     protected function setUp(): void
     {
         parent::setUp();
         
+        // Create mocks for all dependencies
         $this->logger = $this->createMock(Logger::class);
+        $this->modelFactory = $this->createMock(ModelFactory::class);
+        $this->databaseConnector = $this->createMock(DatabaseConnectorInterface::class);
+        $this->metadataEngine = $this->createMock(MetadataEngineInterface::class);
+        $this->config = $this->createMock(Config::class);
+        $this->currentUserProvider = $this->createMock(CurrentUserProviderInterface::class);
         
-        // Create concrete implementation for testing
-        $this->controller = new MockApiControllerForApiControllerBaseTest();
-        
-        // Mock the logger using reflection since ServiceLocator is used
-        $this->setPrivateProperty($this->controller, 'logger', $this->logger);
+        // Create concrete implementation for testing with all dependencies
+        $this->controller = new MockApiControllerForApiControllerBaseTest(
+            $this->logger,
+            $this->modelFactory,
+            $this->databaseConnector,
+            $this->metadataEngine,
+            $this->config,
+            $this->currentUserProvider
+        );
     }
 
-    public function testConstructorSetsLogger(): void
+    public function testConstructorWithAllDependencies(): void
     {
+        $controller = new MockApiControllerForApiControllerBaseTest(
+            $this->logger,
+            $this->modelFactory,
+            $this->databaseConnector,
+            $this->metadataEngine,
+            $this->config,
+            $this->currentUserProvider
+        );
+        
+        $this->assertInstanceOf(MockApiControllerForApiControllerBaseTest::class, $controller);
+        $this->assertEquals($this->logger, $this->getPrivateProperty($controller, 'logger'));
+        $this->assertEquals($this->modelFactory, $this->getPrivateProperty($controller, 'modelFactory'));
+        $this->assertEquals($this->databaseConnector, $this->getPrivateProperty($controller, 'databaseConnector'));
+        $this->assertEquals($this->metadataEngine, $this->getPrivateProperty($controller, 'metadataEngine'));
+        $this->assertEquals($this->config, $this->getPrivateProperty($controller, 'config'));
+        $this->assertEquals($this->currentUserProvider, $this->getPrivateProperty($controller, 'currentUserProvider'));
+    }
+
+    public function testConstructorWithNullDependencies(): void
+    {
+        // Test backwards compatibility with null dependencies
         $controller = new MockApiControllerForApiControllerBaseTest();
         
-        $logger = $this->getPrivateProperty($controller, 'logger');
-        $this->assertInstanceOf(Logger::class, $logger);
+        $this->assertInstanceOf(MockApiControllerForApiControllerBaseTest::class, $controller);
+        $this->assertNull($this->getPrivateProperty($controller, 'logger'));
+        $this->assertNull($this->getPrivateProperty($controller, 'modelFactory'));
+        $this->assertNull($this->getPrivateProperty($controller, 'databaseConnector'));
+        $this->assertNull($this->getPrivateProperty($controller, 'metadataEngine'));
+        $this->assertNull($this->getPrivateProperty($controller, 'config'));
+        $this->assertNull($this->getPrivateProperty($controller, 'currentUserProvider'));
     }
 
     public function testRegisterRoutesIsAbstract(): void
@@ -43,50 +88,49 @@ class ApiControllerBaseTest extends TestCase
         $this->assertTrue($method->isAbstract());
     }
 
-    public function testJsonResponseWithDefaultStatus(): void
+    public function testGetCurrentUserWithValidProvider(): void
     {
-        $data = ['message' => 'success', 'data' => ['id' => 1]];
+        $mockUser = $this->createMock(\Gravitycar\Models\ModelBase::class);
         
-        // Capture output
-        ob_start();
+        $this->currentUserProvider->expects($this->once())
+            ->method('getCurrentUser')
+            ->willReturn($mockUser);
         
-        // Call protected method using reflection
-        $method = $this->getPrivateMethod($this->controller, 'jsonResponse');
-        $method->invoke($this->controller, $data);
+        $method = $this->getPrivateMethod($this->controller, 'getCurrentUser');
+        $result = $method->invoke($this->controller);
         
-        $output = ob_get_clean();
-        
-        // Verify JSON output
-        $this->assertEquals(json_encode($data), $output);
+        $this->assertSame($mockUser, $result);
     }
 
-    public function testJsonResponseWithCustomStatus(): void
+    public function testGetCurrentUserWithNullProvider(): void
     {
-        $data = ['error' => 'Not found'];
-        $status = 404;
+        $controller = new MockApiControllerForApiControllerBaseTest();
         
-        // Capture output
-        ob_start();
+        $method = $this->getPrivateMethod($controller, 'getCurrentUser');
+        $result = $method->invoke($controller);
         
-        // Call protected method using reflection
-        $method = $this->getPrivateMethod($this->controller, 'jsonResponse');
-        $method->invoke($this->controller, $data, $status);
+        $this->assertNull($result);
+    }
+
+    public function testGetCurrentUserReturnsNull(): void
+    {
+        $this->currentUserProvider->expects($this->once())
+            ->method('getCurrentUser')
+            ->willReturn(null);
         
-        $output = ob_get_clean();
+        $method = $this->getPrivateMethod($this->controller, 'getCurrentUser');
+        $result = $method->invoke($this->controller);
         
-        // Verify JSON output
-        $this->assertEquals(json_encode($data), $output);
+        $this->assertNull($result);
     }
 
     public function testRegisterRoutesReturnType(): void
     {
         $routes = $this->controller->registerRoutes();
-        
         $this->assertIsArray($routes);
         $this->assertEmpty($routes); // Mock implementation returns empty array
     }
 
-    // Helper methods
     private function setPrivateProperty(object $object, string $property, $value): void
     {
         $reflection = new ReflectionClass(get_class($object));
