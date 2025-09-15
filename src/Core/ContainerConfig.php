@@ -311,6 +311,22 @@ class ContainerConfig {
             'databaseConnector' => $di->lazyGet('database_connector'),
             'metadataEngine' => $di->lazyGet('metadata_engine')
         ];
+
+        // Documentation Services (using existing constructors)
+        $di->set('documentation_cache', $di->lazyNew(\Gravitycar\Services\DocumentationCache::class));
+        
+        $di->set('react_component_mapper', $di->lazyNew(\Gravitycar\Services\ReactComponentMapper::class));
+
+        $di->set('openapi_generator', $di->lazyNew(\Gravitycar\Services\OpenAPIGenerator::class));
+        $di->params[\Gravitycar\Services\OpenAPIGenerator::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'fieldFactory' => $di->lazyGet('field_factory'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'config' => $di->lazyGet('config'),
+            'componentMapper' => $di->lazyGet('react_component_mapper'),
+            'cache' => $di->lazyGet('documentation_cache')
+        ];
     }
 
     /**
@@ -827,5 +843,41 @@ class ContainerConfig {
                 return $instance;
             };
         }
+    }
+
+    /**
+     * Create OpenAPIGenerator instance with proper dependencies
+     */
+    public static function createOpenAPIGenerator(): \Gravitycar\Services\OpenAPIGenerator {
+        if (!class_exists('Gravitycar\\Services\\OpenAPIGenerator')) {
+            throw new \Gravitycar\Exceptions\GCException("OpenAPIGenerator class does not exist");
+        }
+        
+        $di = self::getContainer();
+        return $di->newInstance('Gravitycar\\Services\\OpenAPIGenerator');
+    }
+    
+    /**
+     * Create DocumentationCache instance with proper dependencies
+     */
+    public static function createDocumentationCache(): \Gravitycar\Services\DocumentationCache {
+        if (!class_exists('Gravitycar\\Services\\DocumentationCache')) {
+            throw new \Gravitycar\Exceptions\GCException("DocumentationCache class does not exist");
+        }
+        
+        $di = self::getContainer();
+        return $di->newInstance('Gravitycar\\Services\\DocumentationCache');
+    }
+    
+    /**
+     * Create ReactComponentMapper instance with proper dependencies
+     */
+    public static function createReactComponentMapper(): \Gravitycar\Services\ReactComponentMapper {
+        if (!class_exists('Gravitycar\\Services\\ReactComponentMapper')) {
+            throw new \Gravitycar\Exceptions\GCException("ReactComponentMapper class does not exist");
+        }
+        
+        $di = self::getContainer();
+        return $di->newInstance('Gravitycar\\Services\\ReactComponentMapper');
     }
 }
