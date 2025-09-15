@@ -27,7 +27,7 @@ class OpenAPIGenerator {
     /**
      * Pure dependency injection constructor - all dependencies explicitly provided
      * 
-     * @param Logger $logger
+     * @param LoggerInterface $logger
      * @param MetadataEngineInterface $metadataEngine
      * @param FieldFactory $fieldFactory
      * @param DatabaseConnectorInterface $databaseConnector
