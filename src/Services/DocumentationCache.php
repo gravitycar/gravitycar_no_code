@@ -1,23 +1,32 @@
 <?php
 namespace Gravitycar\Services;
 
-use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Core\Config;
 use Psr\Log\LoggerInterface;
-use Monolog\Logger;
 
 /**
  * DocumentationCache: Simple file-based caching for generated documentation
+ * 
+ * Migrated to Pure Dependency Injection - all dependencies explicitly injected
  */
 class DocumentationCache {
-    private ?Config $config;
-    private ?LoggerInterface $logger;
+    private Config $config;
+    private LoggerInterface $logger;
     private string $cacheDir;
     
-    public function __construct(Config $config = null, Logger $logger = null) {
-        $this->config = $config;
+    /**
+     * Constructor with explicit dependency injection
+     * 
+     * @param LoggerInterface $logger Logger for operation logging
+     * @param Config $config Configuration access
+     */
+    public function __construct(
+        LoggerInterface $logger,
+        Config $config
+    ) {
         $this->logger = $logger;
-        $this->cacheDir = $this->getConfig()->get('documentation.cache_directory', 'cache/documentation/');
+        $this->config = $config;
+        $this->cacheDir = $this->config->get('documentation.cache_directory', 'cache/documentation/');
         
         if (!is_dir($this->cacheDir)) {
             mkdir($this->cacheDir, 0755, true);
@@ -55,11 +64,11 @@ class DocumentationCache {
         $content = '<?php return ' . var_export($spec, true) . ';';
         
         if (file_put_contents($cacheFile, $content) !== false) {
-            if ($this->getConfig()->get('documentation.log_cache_operations', false)) {
-                $this->getLogger()->info("OpenAPI specification cached", ['file' => $cacheFile]);
+            if ($this->config->get('documentation.log_cache_operations', false)) {
+                $this->logger->info("OpenAPI specification cached", ['file' => $cacheFile]);
             }
         } else {
-            $this->getLogger()->warning("Failed to cache OpenAPI specification", ['file' => $cacheFile]);
+            $this->logger->warning("Failed to cache OpenAPI specification", ['file' => $cacheFile]);
         }
     }
     
@@ -94,11 +103,11 @@ class DocumentationCache {
         $content = '<?php return ' . var_export($metadata, true) . ';';
         
         if (file_put_contents($cacheFile, $content) !== false) {
-            if ($this->getConfig()->get('documentation.log_cache_operations', false)) {
-                $this->getLogger()->info("Model metadata cached", ['model' => $modelName, 'file' => $cacheFile]);
+            if ($this->config->get('documentation.log_cache_operations', false)) {
+                $this->logger->info("Model metadata cached", ['model' => $modelName, 'file' => $cacheFile]);
             }
         } else {
-            $this->getLogger()->warning("Failed to cache model metadata", ['model' => $modelName, 'file' => $cacheFile]);
+            $this->logger->warning("Failed to cache model metadata", ['model' => $modelName, 'file' => $cacheFile]);
         }
     }
     
@@ -133,11 +142,11 @@ class DocumentationCache {
         $content = '<?php return ' . var_export($modelsList, true) . ';';
         
         if (file_put_contents($cacheFile, $content) !== false) {
-            if ($this->getConfig()->get('documentation.log_cache_operations', false)) {
-                $this->getLogger()->info("Models list cached", ['file' => $cacheFile]);
+            if ($this->config->get('documentation.log_cache_operations', false)) {
+                $this->logger->info("Models list cached", ['file' => $cacheFile]);
             }
         } else {
-            $this->getLogger()->warning("Failed to cache models list", ['file' => $cacheFile]);
+            $this->logger->warning("Failed to cache models list", ['file' => $cacheFile]);
         }
     }
     
@@ -172,11 +181,11 @@ class DocumentationCache {
         $content = '<?php return ' . var_export($fieldTypes, true) . ';';
         
         if (file_put_contents($cacheFile, $content) !== false) {
-            if ($this->getConfig()->get('documentation.log_cache_operations', false)) {
-                $this->getLogger()->info("Field types cached", ['file' => $cacheFile]);
+            if ($this->config->get('documentation.log_cache_operations', false)) {
+                $this->logger->info("Field types cached", ['file' => $cacheFile]);
             }
         } else {
-            $this->getLogger()->warning("Failed to cache field types", ['file' => $cacheFile]);
+            $this->logger->warning("Failed to cache field types", ['file' => $cacheFile]);
         }
     }
     
@@ -193,7 +202,7 @@ class DocumentationCache {
             }
         }
         
-        $this->getLogger()->info("Documentation cache cleared", [
+        $this->logger->info("Documentation cache cleared", [
             'cleared_files' => $clearedCount,
             'directory' => $this->cacheDir
         ]);
@@ -206,30 +215,9 @@ class DocumentationCache {
         $cacheFile = $this->cacheDir . "model_{$modelName}.php";
         if (file_exists($cacheFile)) {
             unlink($cacheFile);
-            $this->getLogger()->info("Model cache cleared", ['model' => $modelName]);
+            $this->logger->info("Model cache cleared", ['model' => $modelName]);
         }
     }
-    
-    /**
-     * Get config instance lazily to avoid circular dependencies
-     */
-    protected function getConfig(): Config {
-        if ($this->config === null) {
-            $this->config = ServiceLocator::getConfig();
-        }
-        return $this->config;
-    }
-    
-    /**
-     * Get logger instance lazily to avoid circular dependencies
-     */
-    protected function getLogger(): LoggerInterface {
-        if ($this->logger === null) {
-            $this->logger = ServiceLocator::getLogger();
-        }
-        return $this->logger;
-    }
-    
     /**
      * Check if cached data is still valid based on configured TTL
      */

@@ -312,10 +312,18 @@ class ContainerConfig {
             'metadataEngine' => $di->lazyGet('metadata_engine')
         ];
 
-        // Documentation Services (using existing constructors)
+        // Documentation Services (using pure dependency injection)
         $di->set('documentation_cache', $di->lazyNew(\Gravitycar\Services\DocumentationCache::class));
+        $di->params[\Gravitycar\Services\DocumentationCache::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'config' => $di->lazyGet('config')
+        ];
         
         $di->set('react_component_mapper', $di->lazyNew(\Gravitycar\Services\ReactComponentMapper::class));
+        $di->params[\Gravitycar\Services\ReactComponentMapper::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'metadataEngine' => $di->lazyGet('metadata_engine')
+        ];
 
         $di->set('openapi_generator', $di->lazyNew(\Gravitycar\Services\OpenAPIGenerator::class));
         $di->params[\Gravitycar\Services\OpenAPIGenerator::class] = [

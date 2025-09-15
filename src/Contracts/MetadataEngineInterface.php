@@ -61,4 +61,9 @@ interface MetadataEngineInterface
      * Check if a model exists
      */
     public function modelExists(string $modelName): bool;
+    
+    /**
+     * Get field type definitions from cached metadata
+     */
+    public function getFieldTypeDefinitions(): array;
 }
