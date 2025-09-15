@@ -46,4 +46,24 @@ interface MetadataEngineInterface
      * Build model metadata file path
      */
     public function buildModelMetadataPath(string $modelName): string;
+    
+    /**
+     * Get cached metadata for all models
+     */
+    public function getCachedMetadata(): array;
+    
+    /**
+     * Get available model names
+     */
+    public function getAvailableModels(): array;
+    
+    /**
+     * Check if a model exists
+     */
+    public function modelExists(string $modelName): bool;
+    
+    /**
+     * Get field type definitions from cached metadata
+     */
+    public function getFieldTypeDefinitions(): array;
 }

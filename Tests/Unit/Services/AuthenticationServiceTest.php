@@ -4,11 +4,12 @@ namespace Gravitycar\Tests\Unit\Services;
 
 use PHPUnit\Framework\MockObject\MockObject;
 use Gravitycar\Services\AuthenticationService;
-use Gravitycar\Database\DatabaseConnector;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Core\Config;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Factories\ModelFactory;
-use Monolog\Logger;
+use Gravitycar\Services\GoogleOAuthService;
+use Psr\Log\LoggerInterface;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
 use Gravitycar\Tests\Unit\UnitTestCase;
@@ -16,18 +17,22 @@ use Gravitycar\Tests\Unit\UnitTestCase;
 class AuthenticationServiceTest extends UnitTestCase
 {
     private AuthenticationService $authService;
-    private DatabaseConnector|MockObject $mockDatabase;
-    private Logger|MockObject $mockLogger;
+    private DatabaseConnectorInterface|MockObject $mockDatabase;
+    private LoggerInterface|MockObject $mockLogger;
     private Config|MockObject $mockConfig;
+    private ModelFactory|MockObject $mockModelFactory;
+    private GoogleOAuthService|MockObject $mockGoogleOAuthService;
     private ModelBase|MockObject $mockUser;
 
     protected function setUp(): void
     {
         parent::setUp();
         
-        $this->mockDatabase = $this->createMock(DatabaseConnector::class);
-        $this->mockLogger = $this->createMock(Logger::class);
+        $this->mockLogger = $this->createMock(LoggerInterface::class);
+        $this->mockDatabase = $this->createMock(DatabaseConnectorInterface::class);
         $this->mockConfig = $this->createMock(Config::class);
+        $this->mockModelFactory = $this->createMock(ModelFactory::class);
+        $this->mockGoogleOAuthService = $this->createMock(GoogleOAuthService::class);
         $this->mockUser = $this->createMock(ModelBase::class);
         
         // Set up mock config to return test values
@@ -48,7 +53,13 @@ class AuthenticationServiceTest extends UnitTestCase
         $_ENV['JWT_ACCESS_TOKEN_LIFETIME'] = '3600';
         $_ENV['JWT_REFRESH_TOKEN_LIFETIME'] = '86400';
         
-        $this->authService = new AuthenticationService($this->mockDatabase, $this->mockLogger, $this->mockConfig);
+        $this->authService = new AuthenticationService(
+            $this->mockLogger,
+            $this->mockDatabase,
+            $this->mockConfig,
+            $this->mockModelFactory,
+            $this->mockGoogleOAuthService
+        );
     }
 
     /**

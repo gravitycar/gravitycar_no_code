@@ -1,7 +1,7 @@
 <?php
 namespace Gravitycar\Services;
 
-use Monolog\Logger;
+use Psr\Log\LoggerInterface;
 use Gravitycar\Core\Config;
 use Gravitycar\Core\Service;
 use Gravitycar\Core\Inject;
@@ -9,7 +9,7 @@ use Gravitycar\Core\Inject;
 #[Service(name: 'analytics_service', singleton: true)]
 class AnalyticsService {
     public function __construct(
-        #[Inject('logger')] private Logger $logger,
+        #[Inject('logger')] private LoggerInterface $logger,
         #[Inject('config')] private Config $config
     ) {
         $this->logger->info('AnalyticsService initialized as singleton');

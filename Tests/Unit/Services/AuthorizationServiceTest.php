@@ -4,31 +4,39 @@ namespace Gravitycar\Tests\Unit\Services;
 
 use PHPUnit\Framework\MockObject\MockObject;
 use Gravitycar\Services\AuthorizationService;
-use Gravitycar\Database\DatabaseConnector;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Models\ModelBase;
-use Gravitycar\Core\ServiceLocator;
-use Monolog\Logger;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\UserContextInterface;
+use Psr\Log\LoggerInterface;
 use Gravitycar\Tests\Unit\UnitTestCase;
-use Aura\Di\ContainerBuilder;
 
 class AuthorizationServiceTest extends UnitTestCase
 {
     private AuthorizationService $authzService;
-    private DatabaseConnector|MockObject $mockDatabase;
-    private Logger|MockObject $mockLogger;
+    private DatabaseConnectorInterface|MockObject $mockDatabase;
+    private LoggerInterface|MockObject $mockLogger;
+    private ModelFactory|MockObject $mockModelFactory;
+    private UserContextInterface|MockObject $mockUserContext;
     private ModelBase|MockObject $mockUser;
 
     protected function setUp(): void
     {
         parent::setUp();
         
-        $this->mockDatabase = $this->createMock(DatabaseConnector::class);
-        $this->mockLogger = $this->createMock(Logger::class);
+        $this->mockLogger = $this->createMock(LoggerInterface::class);
+        $this->mockModelFactory = $this->createMock(ModelFactory::class);
+        $this->mockDatabase = $this->createMock(DatabaseConnectorInterface::class);
+        $this->mockUserContext = $this->createMock(UserContextInterface::class);
         $this->mockUser = $this->createMock(ModelBase::class);
         
-        // For now, use the real ServiceLocator to avoid complex mocking issues
-        // TODO: Improve this to proper unit testing with better dependency injection
-        $this->authzService = new AuthorizationService();
+        // Create service with injected dependencies
+        $this->authzService = new AuthorizationService(
+            $this->mockLogger,
+            $this->mockModelFactory,
+            $this->mockDatabase,
+            $this->mockUserContext
+        );
     }
 
     protected function tearDown(): void

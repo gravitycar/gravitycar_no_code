@@ -4,7 +4,7 @@ namespace Gravitycar\Services;
 
 use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Gravitycar\Models\ModelBase;
-use Monolog\Logger;
+use Psr\Log\LoggerInterface;
 
 /**
  * CLICurrentUserProvider
@@ -15,9 +15,9 @@ use Monolog\Logger;
  */
 class CLICurrentUserProvider implements CurrentUserProviderInterface
 {
-    private Logger $logger;
+    private LoggerInterface $logger;
     
-    public function __construct(Logger $logger)
+    public function __construct(LoggerInterface $logger)
     {
         $this->logger = $logger;
     }

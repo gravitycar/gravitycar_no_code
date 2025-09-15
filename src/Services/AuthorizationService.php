@@ -2,36 +2,33 @@
 
 namespace Gravitycar\Services;
 
-use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Contracts\UserContextInterface;
-use Gravitycar\Services\UserContext;
-use Monolog\Logger;
+use Psr\Log\LoggerInterface;
 
 /**
  * AuthorizationService
- * Handles role-based access control and permission checking
+ * Handles role-based access control and permission checking with pure dependency injection
  */
 class AuthorizationService
 {
-    private Logger $logger;
+    private LoggerInterface $logger;
     private ModelFactory $modelFactory;
     private DatabaseConnectorInterface $databaseConnector;
     private UserContextInterface $userContext;
     
     public function __construct(
-        Logger $logger = null,
-        ModelFactory $modelFactory = null,
-        DatabaseConnectorInterface $databaseConnector = null,
-        UserContextInterface $userContext = null
+        LoggerInterface $logger,
+        ModelFactory $modelFactory,
+        DatabaseConnectorInterface $databaseConnector,
+        UserContextInterface $userContext
     ) {
-        // Backward compatibility: use ServiceLocator if dependencies not provided
-        $this->logger = $logger ?? $this->logger;
-        $this->modelFactory = $modelFactory ?? ServiceLocator::getModelFactory();
-        $this->databaseConnector = $databaseConnector ?? $this->databaseConnector;
-        $this->userContext = $userContext ?? new UserContext();
+        $this->logger = $logger;
+        $this->modelFactory = $modelFactory;
+        $this->databaseConnector = $databaseConnector;
+        $this->userContext = $userContext;
     }
     
     /**

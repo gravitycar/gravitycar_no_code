@@ -2,7 +2,7 @@
 namespace Gravitycar\Services;
 
 use Gravitycar\Contracts\UserContextInterface;
-use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Gravitycar\Models\ModelBase;
 
 /**
@@ -11,12 +11,19 @@ use Gravitycar\Models\ModelBase;
  */
 class UserContext implements UserContextInterface
 {
+    private CurrentUserProviderInterface $currentUserProvider;
+    
+    public function __construct(CurrentUserProviderInterface $currentUserProvider)
+    {
+        $this->currentUserProvider = $currentUserProvider;
+    }
+    
     /**
      * Get the current authenticated user
      * @return ModelBase|null The current user or null if not authenticated
      */
     public function getCurrentUser(): ?ModelBase
     {
-        return ServiceLocator::getCurrentUser();
+        return $this->currentUserProvider->getCurrentUser();
     }
 }

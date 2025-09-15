@@ -2,10 +2,9 @@
 
 namespace Gravitycar\Services;
 
-use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Core\Config;
 use Gravitycar\Exceptions\GCException;
-use Monolog\Logger;
+use Psr\Log\LoggerInterface;
 
 /**
  * GoogleBooksApiService
@@ -17,15 +16,15 @@ class GoogleBooksApiService
     private const API_BASE_URL = 'https://www.googleapis.com/books/v1';
     
     private string $apiKey;
-    private ?Config $config;
-    private ?Logger $logger;
+    private Config $config;
+    private LoggerInterface $logger;
     
-    public function __construct(Config $config = null, Logger $logger = null)
+    public function __construct(Config $config, LoggerInterface $logger)
     {
         $this->config = $config;
         $this->logger = $logger;
         
-        $this->apiKey = $this->getConfig()->getEnv('GOOGLE_BOOKS_API_KEY');
+        $this->apiKey = $this->config->getEnv('GOOGLE_BOOKS_API_KEY');
         
         if (!$this->apiKey) {
             throw new GCException('Google Books API key not found in configuration');
@@ -108,26 +107,6 @@ class GoogleBooksApiService
         $response = $this->makeApiRequest($url, $params);
         
         return $this->formatBookDetails($response);
-    }
-    
-    /**
-     * Get config instance lazily to avoid circular dependencies
-     */
-    protected function getConfig(): Config {
-        if ($this->config === null) {
-            $this->config = ServiceLocator::getConfig();
-        }
-        return $this->config;
-    }
-    
-    /**
-     * Get logger instance lazily to avoid circular dependencies
-     */
-    protected function getLogger(): Logger {
-        if ($this->logger === null) {
-            $this->logger = ServiceLocator::getLogger();
-        }
-        return $this->logger;
     }
     
     /**
@@ -297,7 +276,7 @@ class GoogleBooksApiService
      */
     private function makeApiRequest(string $url, array $params = []): array
     {
-        $logger = $this->getLogger();
+        $logger = $this->logger;
         
         $fullUrl = $url . '?' . http_build_query($params);
         

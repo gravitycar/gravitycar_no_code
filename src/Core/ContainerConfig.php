@@ -11,6 +11,7 @@ use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Metadata\MetadataEngine;
 use Gravitycar\Schema\SchemaGenerator;
 use Gravitycar\Factories\ValidationRuleFactory;
+use Gravitycar\Factories\APIControllerFactory;
 use Gravitycar\Services\AuthenticationService;
 use Gravitycar\Services\AuthorizationService;
 use Gravitycar\Services\GoogleOAuthService;
@@ -275,11 +276,11 @@ class ContainerConfig {
             'currentUserProvider' => $di->lazyGet('current_user_provider')
         ];
 
-        // Authentication services - Use new constructor signatures
+        // Authentication services - Use pure dependency injection
         $di->set('authentication_service', $di->lazyNew(\Gravitycar\Services\AuthenticationService::class));
         $di->params[\Gravitycar\Services\AuthenticationService::class] = [
-            'database' => $di->lazyGet('database_connector'),
             'logger' => $di->lazyGet('logger'),
+            'database' => $di->lazyGet('database_connector'),
             'config' => $di->lazyGet('config'),
             'modelFactory' => $di->lazyGet('model_factory'),
             'googleOAuthService' => $di->lazyGet('google_oauth_service')
@@ -289,7 +290,8 @@ class ContainerConfig {
         $di->params[\Gravitycar\Services\AuthorizationService::class] = [
             'logger' => $di->lazyGet('logger'),
             'modelFactory' => $di->lazyGet('model_factory'),
-            'databaseConnector' => $di->lazyGet('database_connector')
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'userContext' => $di->lazyGet('current_user_provider')
         ];
 
         $di->set('google_oauth_service', $di->lazyNew(\Gravitycar\Services\GoogleOAuthService::class));
@@ -317,10 +319,65 @@ class ContainerConfig {
 
         // TMDB Services
         $di->set('tmdb_api_service', $di->lazyNew(\Gravitycar\Services\TMDBApiService::class));
+        $di->params[\Gravitycar\Services\TMDBApiService::class] = [
+            'config' => $di->lazyGet('config'),
+            'logger' => $di->lazyGet('logger')
+        ];
         
         $di->set('movie_tmdb_integration_service', $di->lazyNew(\Gravitycar\Services\MovieTMDBIntegrationService::class));
         $di->params[\Gravitycar\Services\MovieTMDBIntegrationService::class] = [
             'tmdbService' => $di->lazyGet('tmdb_api_service')
+        ];
+
+        // OAuth Services
+        $di->set('google_oauth_service', $di->lazyNew(\Gravitycar\Services\GoogleOAuthService::class));
+        $di->params[\Gravitycar\Services\GoogleOAuthService::class] = [
+            'config' => $di->lazyGet('config'),
+            'logger' => $di->lazyGet('logger')
+        ];
+
+        // Google Books Services
+        $di->set('google_books_api_service', $di->lazyNew(\Gravitycar\Services\GoogleBooksApiService::class));
+        $di->params[\Gravitycar\Services\GoogleBooksApiService::class] = [
+            'config' => $di->lazyGet('config'),
+            'logger' => $di->lazyGet('logger')
+        ];
+
+        $di->set('book_google_books_integration_service', $di->lazyNew(\Gravitycar\Services\BookGoogleBooksIntegrationService::class));
+        $di->params[\Gravitycar\Services\BookGoogleBooksIntegrationService::class] = [
+            'googleBooksService' => $di->lazyGet('google_books_api_service')
+        ];
+
+        // User Context Services
+        $di->set('user_context', $di->lazyNew(\Gravitycar\Services\UserContext::class));
+        $di->params[\Gravitycar\Services\UserContext::class] = [
+            'currentUserProvider' => $di->lazyGet('current_user_provider')
+        ];
+
+        // Utility Services
+        $di->set('email_service', $di->lazyNew(\Gravitycar\Services\EmailService::class));
+        $di->params[\Gravitycar\Services\EmailService::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'config' => $di->lazyGet('config')
+        ];
+
+        $di->set('notification_service', $di->lazyNew(\Gravitycar\Services\NotificationService::class));
+        $di->params[\Gravitycar\Services\NotificationService::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'emailService' => $di->lazyGet('email_service')
+        ];
+
+        // Test Services
+        $di->set('test_current_user_provider', $di->lazyNew(\Gravitycar\Services\TestCurrentUserProvider::class));
+        $di->params[\Gravitycar\Services\TestCurrentUserProvider::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'testUser' => null,
+            'hasAuthenticatedUser' => false
+        ];
+
+        $di->set('cli_current_user_provider', $di->lazyNew(\Gravitycar\Services\CLICurrentUserProvider::class));
+        $di->params[\Gravitycar\Services\CLICurrentUserProvider::class] = [
+            'logger' => $di->lazyGet('logger')
         ];
 
         // API Controllers
@@ -430,6 +487,30 @@ class ContainerConfig {
 
         // ReactComponentMapper service
         $di->set('react_component_mapper', $di->lazyNew(\Gravitycar\Services\ReactComponentMapper::class));
+
+        // Documentation Services (using pure dependency injection)
+        $di->set('documentation_cache', $di->lazyNew(\Gravitycar\Services\DocumentationCache::class));
+        $di->params[\Gravitycar\Services\DocumentationCache::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'config' => $di->lazyGet('config')
+        ];
+        
+        $di->set('react_component_mapper', $di->lazyNew(\Gravitycar\Services\ReactComponentMapper::class));
+        $di->params[\Gravitycar\Services\ReactComponentMapper::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'metadataEngine' => $di->lazyGet('metadata_engine')
+        ];
+
+        $di->set('openapi_generator', $di->lazyNew(\Gravitycar\Services\OpenAPIGenerator::class));
+        $di->params[\Gravitycar\Services\OpenAPIGenerator::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'fieldFactory' => $di->lazyGet('field_factory'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'config' => $di->lazyGet('config'),
+            'componentMapper' => $di->lazyGet('react_component_mapper'),
+            'cache' => $di->lazyGet('documentation_cache')
+        ];
     }
 
     /**
@@ -946,5 +1027,41 @@ class ContainerConfig {
                 return $instance;
             };
         }
+    }
+
+    /**
+     * Create OpenAPIGenerator instance with proper dependencies
+     */
+    public static function createOpenAPIGenerator(): \Gravitycar\Services\OpenAPIGenerator {
+        if (!class_exists('Gravitycar\\Services\\OpenAPIGenerator')) {
+            throw new \Gravitycar\Exceptions\GCException("OpenAPIGenerator class does not exist");
+        }
+        
+        $di = self::getContainer();
+        return $di->newInstance('Gravitycar\\Services\\OpenAPIGenerator');
+    }
+    
+    /**
+     * Create DocumentationCache instance with proper dependencies
+     */
+    public static function createDocumentationCache(): \Gravitycar\Services\DocumentationCache {
+        if (!class_exists('Gravitycar\\Services\\DocumentationCache')) {
+            throw new \Gravitycar\Exceptions\GCException("DocumentationCache class does not exist");
+        }
+        
+        $di = self::getContainer();
+        return $di->newInstance('Gravitycar\\Services\\DocumentationCache');
+    }
+    
+    /**
+     * Create ReactComponentMapper instance with proper dependencies
+     */
+    public static function createReactComponentMapper(): \Gravitycar\Services\ReactComponentMapper {
+        if (!class_exists('Gravitycar\\Services\\ReactComponentMapper')) {
+            throw new \Gravitycar\Exceptions\GCException("ReactComponentMapper class does not exist");
+        }
+        
+        $di = self::getContainer();
+        return $di->newInstance('Gravitycar\\Services\\ReactComponentMapper');
     }
 }
