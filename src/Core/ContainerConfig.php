@@ -327,6 +327,38 @@ class ContainerConfig {
             'googleBooksService' => $di->lazyGet('google_books_api_service')
         ];
 
+        // User Context Services
+        $di->set('user_context', $di->lazyNew(\Gravitycar\Services\UserContext::class));
+        $di->params[\Gravitycar\Services\UserContext::class] = [
+            'currentUserProvider' => $di->lazyGet('current_user_provider')
+        ];
+
+        // Utility Services
+        $di->set('email_service', $di->lazyNew(\Gravitycar\Services\EmailService::class));
+        $di->params[\Gravitycar\Services\EmailService::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'config' => $di->lazyGet('config')
+        ];
+
+        $di->set('notification_service', $di->lazyNew(\Gravitycar\Services\NotificationService::class));
+        $di->params[\Gravitycar\Services\NotificationService::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'emailService' => $di->lazyGet('email_service')
+        ];
+
+        // Test Services
+        $di->set('test_current_user_provider', $di->lazyNew(\Gravitycar\Services\TestCurrentUserProvider::class));
+        $di->params[\Gravitycar\Services\TestCurrentUserProvider::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'testUser' => null,
+            'hasAuthenticatedUser' => false
+        ];
+
+        $di->set('cli_current_user_provider', $di->lazyNew(\Gravitycar\Services\CLICurrentUserProvider::class));
+        $di->params[\Gravitycar\Services\CLICurrentUserProvider::class] = [
+            'logger' => $di->lazyGet('logger')
+        ];
+
         // API Controllers
         $di->set('model_base_api_controller', $di->lazyNew(\Gravitycar\Models\Api\Api\ModelBaseAPIController::class));
         $di->params[\Gravitycar\Models\Api\Api\ModelBaseAPIController::class] = [

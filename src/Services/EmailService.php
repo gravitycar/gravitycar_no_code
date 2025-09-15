@@ -1,12 +1,12 @@
 <?php
 namespace Gravitycar\Services;
 
-use Monolog\Logger;
+use Psr\Log\LoggerInterface;
 use Gravitycar\Core\Config;
 
 class EmailService {
     public function __construct(
-        private Logger $logger,
+        private LoggerInterface $logger,
         private Config $config
     ) {
         $this->logger->info('EmailService created with auto-wired dependencies');
