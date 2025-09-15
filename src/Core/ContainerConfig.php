@@ -298,6 +298,10 @@ class ContainerConfig {
 
         // TMDB Services
         $di->set('tmdb_api_service', $di->lazyNew(\Gravitycar\Services\TMDBApiService::class));
+        $di->params[\Gravitycar\Services\TMDBApiService::class] = [
+            'config' => $di->lazyGet('config'),
+            'logger' => $di->lazyGet('logger')
+        ];
         
         $di->set('movie_tmdb_integration_service', $di->lazyNew(\Gravitycar\Services\MovieTMDBIntegrationService::class));
         $di->params[\Gravitycar\Services\MovieTMDBIntegrationService::class] = [

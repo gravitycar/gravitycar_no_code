@@ -2,14 +2,13 @@
 
 namespace Gravitycar\Services;
 
-use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Core\Config;
 use Gravitycar\Exceptions\GCException;
-use Monolog\Logger;
+use Psr\Log\LoggerInterface;
 
 /**
  * TMDBApiService
- * Service for interacting with The Movie Database (TMDB) API
+ * Service for interacting with The Movie Database (TMDB) API with pure dependency injection
  * Provides movie search and detailed movie information retrieval
  */
 class TMDBApiService
@@ -20,16 +19,16 @@ class TMDBApiService
     
     private string $apiKey;
     private string $readAccessToken;
-    private ?Config $config;
-    private ?Logger $logger;
+    private Config $config;
+    private LoggerInterface $logger;
     
-    public function __construct(Config $config = null, Logger $logger = null)
+    public function __construct(Config $config, LoggerInterface $logger)
     {
         $this->config = $config;
         $this->logger = $logger;
         
-        $this->apiKey = $this->getConfig()->getEnv('TMDB_API_KEY');
-        $this->readAccessToken = $this->getConfig()->getEnv('TMDB_API_READ_ACCESS_TOKEN');
+        $this->apiKey = $this->config->getEnv('TMDB_API_KEY');
+        $this->readAccessToken = $this->config->getEnv('TMDB_API_READ_ACCESS_TOKEN');
         
         if (!$this->apiKey) {
             throw new GCException('TMDB API key not found in configuration');
@@ -89,26 +88,6 @@ class TMDBApiService
         $response = $this->makeApiRequest($url, $params);
         
         return $this->formatMovieDetails($response);
-    }
-    
-    /**
-     * Get config instance lazily to avoid circular dependencies
-     */
-    protected function getConfig(): Config {
-        if ($this->config === null) {
-            $this->config = ServiceLocator::getConfig();
-        }
-        return $this->config;
-    }
-    
-    /**
-     * Get logger instance lazily to avoid circular dependencies
-     */
-    protected function getLogger(): Logger {
-        if ($this->logger === null) {
-            $this->logger = ServiceLocator::getLogger();
-        }
-        return $this->logger;
     }
     
     /**
@@ -292,8 +271,6 @@ class TMDBApiService
      */
     private function makeApiRequest(string $url, array $params = []): array
     {
-        $logger = $this->getLogger();
-        
         $fullUrl = $url . '?' . http_build_query($params);
         
         $context = stream_context_create([
@@ -303,13 +280,13 @@ class TMDBApiService
             ]
         ]);
         
-        $logger->info('Making TMDB API request', ['url' => $url, 'params' => $params]);
+        $this->logger->info('Making TMDB API request', ['url' => $url, 'params' => $params]);
         
         $response = @file_get_contents($fullUrl, false, $context);
         
         if ($response === false) {
             $error = error_get_last();
-            $logger->error('TMDB API request failed', [
+            $this->logger->error('TMDB API request failed', [
                 'url' => $url,
                 'error' => $error['message'] ?? 'Unknown error'
             ]);
@@ -322,7 +299,7 @@ class TMDBApiService
         $decodedResponse = json_decode($response, true);
         
         if (json_last_error() !== JSON_ERROR_NONE) {
-            $logger->error('TMDB API response decode failed', [
+            $this->logger->error('TMDB API response decode failed', [
                 'url' => $url,
                 'json_error' => json_last_error_msg()
             ]);
@@ -333,7 +310,7 @@ class TMDBApiService
         
         // Check for API errors
         if (isset($decodedResponse['success']) && $decodedResponse['success'] === false) {
-            $logger->error('TMDB API error response', [
+            $this->logger->error('TMDB API error response', [
                 'url' => $url,
                 'error' => $decodedResponse
             ]);
@@ -342,7 +319,7 @@ class TMDBApiService
             ]);
         }
         
-        $logger->info('TMDB API request successful', ['url' => $url]);
+        $this->logger->info('TMDB API request successful', ['url' => $url]);
         
         return $decodedResponse;
     }
