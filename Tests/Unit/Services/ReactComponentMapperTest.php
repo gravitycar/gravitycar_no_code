@@ -3,12 +3,17 @@
 namespace Tests\Unit\Services;
 
 use Gravitycar\Services\ReactComponentMapper;
+use Gravitycar\Contracts\MetadataEngineInterface;
 use Gravitycar\Metadata\MetadataEngine;
+use Psr\Log\LoggerInterface;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\MockObject\MockObject;
 
 class ReactComponentMapperTest extends TestCase
 {
     protected ReactComponentMapper $mapper;
+    protected LoggerInterface|MockObject $mockLogger;
+    protected MetadataEngineInterface|MockObject $mockMetadataEngine;
 
     protected function setUp(): void
     {
@@ -17,7 +22,20 @@ class ReactComponentMapperTest extends TestCase
         // Clear any existing cache files before each test
         $this->clearDocumentationCache();
         
-        $this->mapper = new ReactComponentMapper();
+        // Create mocks
+        $this->mockLogger = $this->createMock(LoggerInterface::class);
+        $this->mockMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        
+        // Configure mock metadata engine
+        $this->mockMetadataEngine->method('getFieldTypeDefinitions')->willReturn([
+            'Text' => ['react_component' => 'TextInput', 'validation_rules' => ['Required']],
+            'Email' => ['react_component' => 'EmailInput', 'validation_rules' => ['Required', 'Email']],
+            'Integer' => ['react_component' => 'NumberInput', 'validation_rules' => ['Numeric']],
+            'DateTime' => ['react_component' => 'DateTimePicker', 'validation_rules' => ['DateTime']]
+        ]);
+        
+        // Create service with injected dependencies
+        $this->mapper = new ReactComponentMapper($this->mockLogger, $this->mockMetadataEngine);
     }
 
     protected function tearDown(): void

@@ -3,19 +3,32 @@
 namespace Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\MockObject\MockObject;
 use Gravitycar\Services\TMDBApiService;
-use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Core\Config;
+use Psr\Log\LoggerInterface;
 use Gravitycar\Exceptions\GCException;
 
 class TMDBApiServiceTest extends TestCase
 {
     private TMDBApiService $tmdbService;
+    private Config|MockObject $mockConfig;
+    private LoggerInterface|MockObject $mockLogger;
     
     protected function setUp(): void
     {
-        // Initialize ServiceLocator for testing
-        ServiceLocator::initialize();
-        $this->tmdbService = new TMDBApiService();
+        // Create mocks
+        $this->mockConfig = $this->createMock(Config::class);
+        $this->mockLogger = $this->createMock(LoggerInterface::class);
+        
+        // Configure mock config to return test API key
+        $this->mockConfig->method('getEnv')->willReturnMap([
+            ['TMDB_API_KEY', null, 'test_api_key'],
+            ['TMDB_API_READ_ACCESS_TOKEN', null, 'test_access_token']
+        ]);
+        
+        // Create service with injected dependencies
+        $this->tmdbService = new TMDBApiService($this->mockConfig, $this->mockLogger);
     }
     
     public function testSearchMoviesWithValidQuery(): void

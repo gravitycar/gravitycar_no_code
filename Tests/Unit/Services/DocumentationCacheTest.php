@@ -3,13 +3,17 @@
 namespace Tests\Unit\Services;
 
 use Gravitycar\Services\DocumentationCache;
-use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Core\Config;
+use Psr\Log\LoggerInterface;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\MockObject\MockObject;
 
 class DocumentationCacheTest extends TestCase
 {
     protected DocumentationCache $cache;
     protected string $testCacheDir;
+    protected LoggerInterface|MockObject $mockLogger;
+    protected Config|MockObject $mockConfig;
 
     protected function setUp(): void
     {
@@ -18,8 +22,22 @@ class DocumentationCacheTest extends TestCase
         // Use a test-specific cache directory
         $this->testCacheDir = 'cache/test_documentation/';
         
-        // Mock the config to use test directory
-        $this->cache = new DocumentationCache();
+        // Create mocks
+        $this->mockLogger = $this->createMock(LoggerInterface::class);
+        $this->mockConfig = $this->createMock(Config::class);
+        
+        // Configure mock config
+        $this->mockConfig->method('get')->willReturnCallback(function($key, $default = null) {
+            $configValues = [
+                'documentation.cache_directory' => $this->testCacheDir,
+                'documentation.cache_enabled' => true,
+                'documentation.cache_ttl' => 3600
+            ];
+            return $configValues[$key] ?? $default;
+        });
+        
+        // Create service with injected dependencies
+        $this->cache = new DocumentationCache($this->mockLogger, $this->mockConfig);
         
         // Clean up any existing test cache
         $this->cleanTestCache();

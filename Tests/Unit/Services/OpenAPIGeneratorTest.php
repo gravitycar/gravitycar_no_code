@@ -3,12 +3,27 @@
 namespace Tests\Unit\Services;
 
 use Gravitycar\Services\OpenAPIGenerator;
+use Gravitycar\Contracts\MetadataEngineInterface;
 use Gravitycar\Metadata\MetadataEngine;
+use Gravitycar\Factories\FieldFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Core\Config;
+use Gravitycar\Services\ReactComponentMapper;
+use Gravitycar\Services\DocumentationCache;
+use Psr\Log\LoggerInterface;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\MockObject\MockObject;
 
 class OpenAPIGeneratorTest extends TestCase
 {
     protected OpenAPIGenerator $generator;
+    protected LoggerInterface|MockObject $mockLogger;
+    protected MetadataEngineInterface|MockObject $mockMetadataEngine;
+    protected FieldFactory|MockObject $mockFieldFactory;
+    protected DatabaseConnectorInterface|MockObject $mockDatabaseConnector;
+    protected Config|MockObject $mockConfig;
+    protected ReactComponentMapper|MockObject $mockComponentMapper;
+    protected DocumentationCache|MockObject $mockCache;
 
     protected function setUp(): void
     {
@@ -17,32 +32,38 @@ class OpenAPIGeneratorTest extends TestCase
         // Clear any existing cache files before each test
         $this->clearDocumentationCache();
         
-        // Create a mock config to disable caching for tests
-        $mockConfig = $this->createMock(\Gravitycar\Core\Config::class);
-        $mockConfig->method('get')->willReturnCallback(function($key, $default = null) {
-            if ($key === 'documentation.cache_enabled') {
-                return false; // Disable cache for tests
-            }
-            if ($key === 'documentation.openapi_version') {
-                return '3.0.3';
-            }
-            if ($key === 'documentation.api_title') {
-                return 'Test API';
-            }
-            if ($key === 'documentation.api_version') {
-                return '1.0.0';
-            }
-            if ($key === 'documentation.api_description') {
-                return 'Test API Description';
-            }
-            if ($key === 'documentation.validate_generated_schemas') {
-                return false; // Disable validation for tests
-            }
-            return $default;
+        // Create all mocks
+        $this->mockLogger = $this->createMock(LoggerInterface::class);
+        $this->mockMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        $this->mockFieldFactory = $this->createMock(FieldFactory::class);
+        $this->mockDatabaseConnector = $this->createMock(DatabaseConnectorInterface::class);
+        $this->mockConfig = $this->createMock(Config::class);
+        $this->mockComponentMapper = $this->createMock(ReactComponentMapper::class);
+        $this->mockCache = $this->createMock(DocumentationCache::class);
+        
+        // Configure mock config
+        $this->mockConfig->method('get')->willReturnCallback(function($key, $default = null) {
+            $configValues = [
+                'documentation.cache_enabled' => false, // Disable cache for tests
+                'documentation.openapi_version' => '3.0.3',
+                'documentation.api_title' => 'Test API',
+                'documentation.api_version' => '1.0.0',
+                'documentation.api_description' => 'Test API Description',
+                'documentation.validate_generated_schemas' => false // Disable validation for tests
+            ];
+            return $configValues[$key] ?? $default;
         });
         
-        // We'll need to inject this mock somehow, for now use real generator
-        $this->generator = new OpenAPIGenerator();
+        // Create service with injected dependencies
+        $this->generator = new OpenAPIGenerator(
+            $this->mockLogger,
+            $this->mockMetadataEngine,
+            $this->mockFieldFactory,
+            $this->mockDatabaseConnector,
+            $this->mockConfig,
+            $this->mockComponentMapper,
+            $this->mockCache
+        );
     }
 
     protected function tearDown(): void

@@ -14,13 +14,9 @@ class MovieTMDBIntegrationServiceTest extends TestCase {
         parent::setUp();
         
         $this->mockTMDBApi = $this->createMock(TMDBApiService::class);
-        $this->service = new MovieTMDBIntegrationService();
         
-        // Use reflection to inject mock
-        $reflection = new \ReflectionClass($this->service);
-        $property = $reflection->getProperty('tmdbService');
-        $property->setAccessible(true);
-        $property->setValue($this->service, $this->mockTMDBApi);
+        // Create service with injected dependency
+        $this->service = new MovieTMDBIntegrationService($this->mockTMDBApi);
     }
     
     public function testSearchMovieExactMatch(): void {
