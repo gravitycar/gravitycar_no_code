@@ -2,26 +2,26 @@
 
 namespace Gravitycar\Services;
 
-use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Core\Config;
-use Gravitycar\Database\DatabaseConnector;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Services\GoogleOAuthService;
-use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
-use Monolog\Logger;
+use Psr\Log\LoggerInterface;
 
 /**
  * AuthenticationService
  * Handles Google OAuth and traditional authentication with JWT token management
+ * 
+ * Migrated to Pure Dependency Injection - all dependencies explicitly injected
  */
 class AuthenticationService
 {
-    private DatabaseConnector $database;
-    private Logger $logger;
+    private DatabaseConnectorInterface $database;
+    private LoggerInterface $logger;
     private Config $config;
     private ModelFactory $modelFactory;
     private GoogleOAuthService $googleOAuthService;
@@ -30,18 +30,27 @@ class AuthenticationService
     private int $accessTokenLifetime;
     private int $refreshTokenLifetime;
     
+    /**
+     * Constructor with explicit dependency injection
+     * 
+     * @param LoggerInterface $logger Logger for operation logging
+     * @param DatabaseConnectorInterface $database Database operations
+     * @param Config $config Configuration access
+     * @param ModelFactory $modelFactory Model creation and management
+     * @param GoogleOAuthService $googleOAuthService Google OAuth integration
+     */
     public function __construct(
-        DatabaseConnector $database = null, 
-        Logger $logger = null, 
-        Config $config = null,
-        ModelFactory $modelFactory = null,
-        GoogleOAuthService $googleOAuthService = null
+        LoggerInterface $logger,
+        DatabaseConnectorInterface $database,
+        Config $config,
+        ModelFactory $modelFactory,
+        GoogleOAuthService $googleOAuthService
     ) {
-        $this->database = $database ?? ServiceLocator::getDatabaseConnector();
-        $this->logger = $logger ?? ServiceLocator::getLogger();
-        $this->config = $config ?? ServiceLocator::getConfig();
-        $this->modelFactory = $modelFactory ?? ServiceLocator::getModelFactory();
-        $this->googleOAuthService = $googleOAuthService ?? ServiceLocator::get(GoogleOAuthService::class);
+        $this->logger = $logger;
+        $this->database = $database;
+        $this->config = $config;
+        $this->modelFactory = $modelFactory;
+        $this->googleOAuthService = $googleOAuthService;
         
         // Get JWT configuration from environment
         $this->jwtSecret = $this->config->getEnv('JWT_SECRET_KEY', 'default-secret-change-in-production');
@@ -335,10 +344,8 @@ class AuthenticationService
     private function createUserFromGoogleProfile(array $userProfile): ?ModelBase
     {
         try {
-            $config = ServiceLocator::getConfig();
-            
             // Check if auto-creation is enabled
-            if (!$config->get('oauth.auto_create_users', true)) {
+            if (!$this->config->get('oauth.auto_create_users', true)) {
                 $this->logger->warning('User auto-creation disabled for OAuth', [
                     'email' => $userProfile['email']
                 ]);
@@ -400,10 +407,8 @@ class AuthenticationService
     private function syncGoogleProfile(ModelBase $user, array $userProfile): void
     {
         try {
-            $config = ServiceLocator::getConfig();
-            
             // Check if profile sync is enabled
-            if (!$config->get('oauth.sync_profile_on_login', true)) {
+            if (!$this->config->get('oauth.sync_profile_on_login', true)) {
                 $this->logger->debug('OAuth profile sync disabled');
                 return;
             }
@@ -450,7 +455,7 @@ class AuthenticationService
      */
     private function findUserByCredentials(string $username): ?ModelBase
     {
-        $user = \Gravitycar\Core\ServiceLocator::getModelFactory()->new('Users');
+        $user = $this->modelFactory->new('Users');
         
         // Try username first
         $users = $user->find(['username' => $username]);
@@ -473,7 +478,7 @@ class AuthenticationService
     private function storeRefreshToken(ModelBase $user, string $refreshToken): void
     {
         try {
-            $token = \Gravitycar\Core\ServiceLocator::getModelFactory()->new('JwtRefreshTokens');
+            $token = $this->modelFactory->new('JwtRefreshTokens');
             $token->set('user_id', $user->get('id'));
             $token->set('token_hash', hash('sha256', $refreshToken));
             $token->set('expires_at', date('Y-m-d H:i:s', time() + $this->refreshTokenLifetime));
@@ -494,7 +499,7 @@ class AuthenticationService
     private function verifyRefreshToken(int $userId, string $refreshToken): bool
     {
         try {
-            $token = \Gravitycar\Core\ServiceLocator::getModelFactory()->new('JwtRefreshTokens');
+            $token = $this->modelFactory->new('JwtRefreshTokens');
             $tokens = $token->find([
                 'user_id' => $userId,
                 'token_hash' => hash('sha256', $refreshToken),
@@ -524,7 +529,7 @@ class AuthenticationService
     {
         try {
             // Find and revoke old token
-            $token = \Gravitycar\Core\ServiceLocator::getModelFactory()->new('JwtRefreshTokens');
+            $token = $this->modelFactory->new('JwtRefreshTokens');
             $tokens = $token->find(['token_hash' => hash('sha256', $oldToken)]);
             
             if (!empty($tokens)) {
@@ -547,11 +552,10 @@ class AuthenticationService
     private function assignDefaultOAuthRole(ModelBase $user): void
     {
         try {
-            $config = ServiceLocator::getConfig();
-            $defaultRoleName = $config->get('oauth.default_role', 'user');
+            $defaultRoleName = $this->config->get('oauth.default_role', 'user');
             
             // Find the role by name from configuration
-            $role = \Gravitycar\Core\ServiceLocator::getModelFactory()->new('Roles');
+            $role = $this->modelFactory->new('Roles');
             $roles = $role->find(['name' => $defaultRoleName]);
             
             if (empty($roles)) {
@@ -608,7 +612,7 @@ class AuthenticationService
     {
         try {
             // Find and revoke all active refresh tokens for this user
-            $token = \Gravitycar\Core\ServiceLocator::getModelFactory()->new('JwtRefreshTokens');
+            $token = $this->modelFactory->new('JwtRefreshTokens');
             $tokens = $token->find([
                 'user_id' => $user->get('id'),
                 'is_revoked' => false
@@ -652,7 +656,7 @@ class AuthenticationService
             }
             
             // Create new user
-            $user = \Gravitycar\Core\ServiceLocator::getModelFactory()->new('Users');
+            $user = $this->modelFactory->new('Users');
             
             $user->set('email', $userData['email']);
             $user->set('username', $userData['username'] ?? $userData['email']);
@@ -735,7 +739,7 @@ class AuthenticationService
             }
             
             // Find user role for traditional registration
-            $role = \Gravitycar\Core\ServiceLocator::getModelFactory()->new('Roles');
+            $role = $this->modelFactory->new('Roles');
             $userRoles = $role->find(['name' => 'user']);
             
             if (empty($userRoles)) {

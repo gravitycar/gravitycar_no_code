@@ -255,11 +255,11 @@ class ContainerConfig {
             'serviceLocator' => $di->lazyGet('metadata_engine') // Backward compatibility - pass MetadataEngine as serviceLocator
         ]));
 
-        // Authentication services - Use new constructor signatures
+        // Authentication services - Use pure dependency injection
         $di->set('authentication_service', $di->lazyNew(\Gravitycar\Services\AuthenticationService::class));
         $di->params[\Gravitycar\Services\AuthenticationService::class] = [
-            'database' => $di->lazyGet('database_connector'),
             'logger' => $di->lazyGet('logger'),
+            'database' => $di->lazyGet('database_connector'),
             'config' => $di->lazyGet('config'),
             'modelFactory' => $di->lazyGet('model_factory'),
             'googleOAuthService' => $di->lazyGet('google_oauth_service')
