@@ -3,11 +3,15 @@
 namespace Gravitycar\Api;
 
 use Gravitycar\Models\ModelBase;
-use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Gravitycar\Core\Config;
 use Gravitycar\Models\movie_quote_trivia_games\Movie_Quote_Trivia_Games;
 use Gravitycar\Models\movie_quote_trivia_questions\Movie_Quote_Trivia_Questions;
 use Gravitycar\Exceptions\GCException;
+use Monolog\Logger;
 
 /**
  * API Controller for Movie Quote Trivia Game functionality
@@ -17,9 +21,31 @@ use Gravitycar\Exceptions\GCException;
  * - Submitting answers
  * - Completing games
  * - High scores display
+ * Pure dependency injection - all dependencies explicitly injected via constructor.
  */
 class TriviaGameAPIController extends ApiControllerBase
 {
+    /**
+     * Pure dependency injection constructor - all dependencies explicitly provided
+     * 
+     * @param Logger $logger = null
+     * @param ModelFactory $modelFactory = null
+     * @param DatabaseConnectorInterface $databaseConnector = null
+     * @param MetadataEngineInterface $metadataEngine = null
+     * @param Config $config = null
+     * @param CurrentUserProviderInterface $currentUserProvider = null
+     */
+    public function __construct(
+        Logger $logger = null,
+        ModelFactory $modelFactory = null,
+        DatabaseConnectorInterface $databaseConnector = null,
+        MetadataEngineInterface $metadataEngine = null,
+        Config $config = null,
+        CurrentUserProviderInterface $currentUserProvider = null
+    ) {
+        // All dependencies explicitly injected - no ServiceLocator fallbacks
+        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config, $currentUserProvider);
+    }
     /**
      * Register routes for trivia game endpoints
      */

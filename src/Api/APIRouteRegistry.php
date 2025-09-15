@@ -29,6 +29,10 @@ class APIRouteRegistry
         $this->modelsDirPath = 'src/models';
         $this->cacheFilePath = 'cache/api_routes.php';
         
+        if (is_null(self::$instance)) {
+            self::$instance = $this;
+        }
+        
         // Try to load from cache first, only discover routes if cache doesn't exist
         if (!$this->loadFromCache()) {
             $this->discoverAndRegisterRoutes();
@@ -94,6 +98,87 @@ class APIRouteRegistry
     {
         $this->logger->info("Starting automatic discovery of ApiControllerBase subclasses");
         
+        // Get container and factory for safe instantiation
+        try {
+            $container = \Gravitycar\Core\ContainerConfig::getContainer();
+            $factory = $container->get('api_controller_factory');
+            $this->logger->info("Successfully obtained APIControllerFactory for discovery");
+        } catch (\Exception $e) {
+            $this->logger->error("Failed to get APIControllerFactory, falling back to legacy discovery: " . $e->getMessage());
+            $this->discoverAPIControllersLegacy();
+            return;
+        }
+        
+        // First, register the global ModelBaseAPIController if it exists
+        $modelBaseAPIControllerClass = "Gravitycar\\Models\\Api\\Api\\ModelBaseAPIController";
+        if (class_exists($modelBaseAPIControllerClass)) {
+            $this->registerControllerWithFactory($factory, $modelBaseAPIControllerClass);
+        }
+        
+        // Discover all classes in src/Api directory that extend ApiControllerBase
+        $apiDir = 'src/Api';
+        if (!is_dir($apiDir)) {
+            $this->logger->warning("API directory not found: {$apiDir}");
+            return;
+        }
+        
+        $files = glob($apiDir . '/*Controller.php');
+        foreach ($files as $file) {
+            $className = $this->getClassNameFromFile($file);
+            if ($className && $this->extendsApiControllerBase($className)) {
+                $this->registerControllerWithFactory($factory, $className);
+            }
+        }
+        
+        // Also discover model-specific API controllers from directory structure
+        if (is_dir($this->modelsDirPath)) {
+            $dirs = scandir($this->modelsDirPath);
+            foreach ($dirs as $dir) {
+                if ($dir === '.' || $dir === '..') continue;
+
+                $controllerDir = $this->modelsDirPath . DIRECTORY_SEPARATOR . $dir . DIRECTORY_SEPARATOR . 'api';
+                if (!is_dir($controllerDir)) continue;
+
+                $files = scandir($controllerDir);
+                foreach ($files as $file) {
+                    if (preg_match('/^(.*)APIController\.php$/', $file, $matches)) {
+                        $className = "Gravitycar\\Models\\{$dir}\\Api\\{$matches[1]}APIController";
+                        if (class_exists($className) && $this->extendsApiControllerBase($className)) {
+                            $this->registerControllerWithFactory($factory, $className);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Register a controller using the APIControllerFactory with proper dependency injection
+     */
+    protected function registerControllerWithFactory($factory, string $className): void
+    {
+        try {
+            // Extract dependencies first
+            $dependencies = $this->extractDependenciesFromConstructor($className);
+            
+            // Create controller with proper dependencies
+            $controller = $factory->createControllerWithDependencyList($className, $dependencies);
+            
+            // Register its routes
+            $this->register($controller, $className);
+            $this->logger->info("Auto-discovered and registered: {$className}");
+        } catch (\Exception $e) {
+            $this->logger->error("Failed to register controller {$className}: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Legacy discovery method (fallback when factory is not available)
+     */
+    protected function discoverAPIControllersLegacy(): void
+    {
+        $this->logger->warning("Using legacy discovery - controllers may fail to instantiate due to missing dependencies");
+        
         // First, register the global ModelBaseAPIController if it exists
         $modelBaseAPIControllerClass = "Gravitycar\\Models\\Api\\Api\\ModelBaseAPIController";
         if (class_exists($modelBaseAPIControllerClass)) {
@@ -154,7 +239,7 @@ class APIRouteRegistry
             }
         }
         
-        $this->logger->info("Finished automatic discovery of API controllers");
+        $this->logger->info("Finished legacy discovery of API controllers");
     }
     
     /**
@@ -232,6 +317,82 @@ class APIRouteRegistry
     }
 
     /**
+     * Extract constructor dependencies from a controller class for caching
+     * 
+     * @param string $className Full class name
+     * @return array List of dependency service names required by constructor
+     * @throws GCException If reflection fails or constructor has non-resolvable parameters
+     */
+    protected function extractDependenciesFromConstructor(string $className): array
+    {
+        try {
+            $reflection = new \ReflectionClass($className);
+            $constructor = $reflection->getConstructor();
+            
+            if (!$constructor) {
+                return []; // No constructor, no dependencies
+            }
+            
+            $dependencies = [];
+            foreach ($constructor->getParameters() as $param) {
+                $type = $param->getType();
+                
+                if (!$type || !$type instanceof \ReflectionNamedType) {
+                    throw new GCException(
+                        "Constructor parameter '{$param->getName()}' in class '{$className}' must have a type hint",
+                        ['className' => $className, 'parameter' => $param->getName()]
+                    );
+                }
+                
+                $typeName = $type->getName();
+                
+                // Map type to service name (this mapping comes from our APIControllerFactory)
+                $serviceMap = [
+                    'Monolog\\Logger' => 'logger',
+                    'Psr\\Log\\LoggerInterface' => 'logger',
+                    'Gravitycar\\Contracts\\LoggerInterface' => 'logger',
+                    'Gravitycar\\Factories\\ModelFactory' => 'model_factory',
+                    'Gravitycar\\Contracts\\DatabaseConnectorInterface' => 'database_connector',
+                    'Gravitycar\\Database\\DatabaseConnector' => 'database_connector',
+                    'Gravitycar\\Contracts\\MetadataEngineInterface' => 'metadata_engine',
+                    'Gravitycar\\Metadata\\MetadataEngine' => 'metadata_engine',
+                    'Gravitycar\\Core\\Config' => 'config',
+                    'Gravitycar\\Contracts\\CurrentUserProviderInterface' => 'current_user_provider',
+                    'Gravitycar\\Services\\CurrentUserProvider' => 'current_user_provider',
+                    'Gravitycar\\Services\\AuthenticationService' => 'authentication_service',
+                    'Gravitycar\\Services\\GoogleOAuthService' => 'google_oauth_service',
+                    'Gravitycar\\Services\\MovieTMDBIntegrationService' => 'movie_tmdb_integration_service',
+                    'Gravitycar\\Services\\BookGoogleBooksIntegrationService' => 'book_google_books_integration_service',
+                    'Gravitycar\\Services\\GoogleBooksApiService' => 'google_books_api_service',
+                    'Gravitycar\\Services\\OpenAPIGenerator' => 'open_api_generator',
+                    'Gravitycar\\Api\\APIRouteRegistry' => 'api_route_registry',
+                    'Gravitycar\\Services\\DocumentationCache' => 'documentation_cache',
+                    'Gravitycar\\Services\\ReactComponentMapper' => 'react_component_mapper'
+                ];
+                
+                if (!isset($serviceMap[$typeName])) {
+                    throw new GCException(
+                        "Unknown dependency type '{$typeName}' for parameter '{$param->getName()}' in class '{$className}'. Add mapping to APIRouteRegistry service map.",
+                        ['className' => $className, 'parameter' => $param->getName(), 'typeName' => $typeName]
+                    );
+                }
+                
+                $dependencies[] = $serviceMap[$typeName];
+            }
+            
+            return $dependencies;
+            
+        } catch (\ReflectionException $e) {
+            throw new GCException(
+                "Failed to analyze constructor dependencies for class '{$className}': " . $e->getMessage(),
+                ['className' => $className, 'originalException' => $e->getMessage()],
+                0,
+                $e
+            );
+        }
+    }
+
+    /**
      * Register routes from an instantiated object (API controller or ModelBase)
      */
     protected function register(object $instance, string $className): void
@@ -268,12 +429,24 @@ class APIRouteRegistry
             // Resolve controller class name
             $route['resolvedApiClass'] = $this->resolveControllerClassName($route['apiClass']);
             
+            // Extract and cache controller dependencies for APIControllerFactory
+            try {
+                $route['controllerDependencies'] = $this->extractDependenciesFromConstructor($route['resolvedApiClass']);
+            } catch (GCException $e) {
+                $this->logger->warning(
+                    "Failed to extract dependencies for {$route['resolvedApiClass']}, will attempt runtime resolution: " . $e->getMessage(),
+                    ['route' => $route]
+                );
+                $route['controllerDependencies'] = []; // Fallback to empty array
+            }
+            
             $this->routes[] = $route;
             
-            $this->logger->debug("Registered route", [
+            $this->logger->debug("Registered route with dependencies", [
                 'method' => $route['method'],
                 'path' => $route['path'],
-                'apiClass' => $route['apiClass']
+                'apiClass' => $route['apiClass'],
+                'dependencies' => $route['controllerDependencies']
             ]);
         } catch (GCException $e) {
             $this->logger->error("Failed to register route: " . $e->getMessage(), ['route' => $route]);

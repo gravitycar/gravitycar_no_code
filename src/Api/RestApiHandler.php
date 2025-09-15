@@ -97,8 +97,7 @@ class RestApiHandler {
 
             // Get services from ServiceLocator
             $this->logger = ServiceLocator::getLogger();
-            $metadataEngine = ServiceLocator::getContainer()->get('metadata_engine');
-            $this->router = new Router($metadataEngine);
+            $this->router = ServiceLocator::getContainer()->get('router');
 
             $this->logger->info('REST API: Application bootstrapped successfully');
 

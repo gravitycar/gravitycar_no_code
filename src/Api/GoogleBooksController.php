@@ -10,52 +10,58 @@ use Gravitycar\Exceptions\GCException;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Gravitycar\Core\Config;
-use Gravitycar\Core\ServiceLocator;
 use Monolog\Logger;
 
 /**
  * GoogleBooksController
  * API controller for Google Books integration endpoints
+ * Pure dependency injection - all dependencies explicitly injected via constructor.
  */
 class GoogleBooksController extends ApiControllerBase
 {
-    private ?GoogleBooksApiService $googleBooksService = null;
-    private ?BookGoogleBooksIntegrationService $integrationService = null;
+    private ?GoogleBooksApiService $googleBooksService;
+    private ?BookGoogleBooksIntegrationService $integrationService;
     
+    /**
+     * Pure dependency injection constructor - all dependencies explicitly provided
+     * For backwards compatibility during route discovery, all parameters are optional with null defaults
+     * 
+     * @param Logger $logger
+     * @param ModelFactory $modelFactory
+     * @param DatabaseConnectorInterface $databaseConnector
+     * @param MetadataEngineInterface $metadataEngine
+     * @param Config $config
+     * @param CurrentUserProviderInterface $currentUserProvider
+     * @param GoogleBooksApiService $googleBooksService
+     * @param BookGoogleBooksIntegrationService $integrationService
+     */
     public function __construct(
         Logger $logger = null,
         ModelFactory $modelFactory = null,
         DatabaseConnectorInterface $databaseConnector = null,
         MetadataEngineInterface $metadataEngine = null,
-        Config $config = null
+        Config $config = null,
+        CurrentUserProviderInterface $currentUserProvider = null,
+        GoogleBooksApiService $googleBooksService = null,
+        BookGoogleBooksIntegrationService $integrationService = null
     )
     {
-        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config);
+        // All dependencies explicitly injected - no ServiceLocator fallbacks
+        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config, $currentUserProvider);
+        $this->googleBooksService = $googleBooksService;
+        $this->integrationService = $integrationService;
     }
     
-    private function getGoogleBooksService(): GoogleBooksApiService
+    private function getGoogleBooksService(): ?GoogleBooksApiService
     {
-        if ($this->googleBooksService === null) {
-            $this->googleBooksService = new GoogleBooksApiService();
-        }
         return $this->googleBooksService;
     }
     
-    private function getIntegrationService(): BookGoogleBooksIntegrationService
+    private function getIntegrationService(): ?BookGoogleBooksIntegrationService
     {
-        if ($this->integrationService === null) {
-            $this->integrationService = new BookGoogleBooksIntegrationService();
-        }
         return $this->integrationService;
-    }
-    
-    protected function getLogger(): Logger
-    {
-        if ($this->logger === null) {
-            $this->logger = ServiceLocator::getLogger();
-        }
-        return $this->logger;
     }
     
     public function registerRoutes(): array
@@ -108,7 +114,7 @@ class GoogleBooksController extends ApiControllerBase
             ];
             
         } catch (GCException $e) {
-            $this->getLogger()->error('Google Books search failed', [
+            $this->logger->error('Google Books search failed', [
                 'query' => $request->get('q') ?? $request->get('query'),
                 'error' => $e->getMessage()
             ]);
@@ -116,7 +122,7 @@ class GoogleBooksController extends ApiControllerBase
             throw $e;
             
         } catch (\Exception $e) {
-            $this->getLogger()->error('Unexpected error during Google Books search', [
+            $this->logger->error('Unexpected error during Google Books search', [
                 'query' => $request->get('q') ?? $request->get('query'),
                 'error' => $e->getMessage()
             ]);

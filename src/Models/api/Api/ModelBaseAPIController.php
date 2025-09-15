@@ -2,7 +2,7 @@
 namespace Gravitycar\Models\Api\Api;
 
 use Gravitycar\Api\Request;
-use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Api\ApiControllerBase;
 use Gravitycar\Exceptions\APIException;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Exceptions\NotFoundException;
@@ -15,6 +15,8 @@ use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Relationships\RelationshipBase;
 use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Gravitycar\Core\Config;
 use Monolog\Logger;
 
 /**
@@ -22,24 +24,32 @@ use Monolog\Logger;
  * Provides default CRUD and relationship operations using wildcard routing patterns.
  * Uses scoring-based routing where specific controllers automatically take precedence.
  */
-class ModelBaseAPIController {
+class ModelBaseAPIController extends ApiControllerBase {
     
-    protected Logger $logger;
-    protected ModelFactory $modelFactory;
-    protected DatabaseConnectorInterface $databaseConnector;
-    protected MetadataEngineInterface $metadataEngine;
+    protected ?CurrentUserProviderInterface $currentUserProvider;
 
+    /**
+     * Pure dependency injection constructor - all dependencies explicitly provided
+     * For backwards compatibility during route discovery, all parameters are optional with null defaults
+     * 
+     * @param Logger $logger
+     * @param ModelFactory $modelFactory
+     * @param DatabaseConnectorInterface $databaseConnector
+     * @param MetadataEngineInterface $metadataEngine
+     * @param Config $config
+     * @param CurrentUserProviderInterface $currentUserProvider
+     */
     public function __construct(
         Logger $logger = null,
         ModelFactory $modelFactory = null,
         DatabaseConnectorInterface $databaseConnector = null,
-        MetadataEngineInterface $metadataEngine = null
+        MetadataEngineInterface $metadataEngine = null,
+        Config $config = null,
+        CurrentUserProviderInterface $currentUserProvider = null
     ) {
-        // Backward compatibility: use ServiceLocator if dependencies not provided
-        $this->logger = $logger ?? ServiceLocator::getLogger();
-        $this->modelFactory = $modelFactory ?? ServiceLocator::getModelFactory();
-        $this->databaseConnector = $databaseConnector ?? ServiceLocator::get('database_connector');
-        $this->metadataEngine = $metadataEngine ?? ServiceLocator::get('metadata_engine');
+        // All dependencies explicitly injected - no ServiceLocator fallbacks
+        parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config, $currentUserProvider);
+        $this->currentUserProvider = $currentUserProvider;
     }
 
     /**
@@ -796,7 +806,7 @@ class ModelBaseAPIController {
             $relatedModelName = $this->extractModelNameFromClass($relatedModelClass);
             
             // Create new related model instance
-            $relatedModel = \Gravitycar\Core\ServiceLocator::getModelFactory()->new($relatedModelName);
+            $relatedModel = $this->modelFactory->new($relatedModelName);
             $relatedModel->populateFromAPI($data);
             
             // Create the related record first
@@ -881,8 +891,8 @@ class ModelBaseAPIController {
             $relatedModelClass = $model->getRelatedModelClass($relationship);
             $relatedModelName = $this->extractModelNameFromClass($relatedModelClass);
             
-            // Use \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve() for direct database retrieval
-            $relatedModel = \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve($relatedModelName, $idToLink);
+            // Use ModelFactory retrieve for direct database retrieval
+            $relatedModel = $this->modelFactory->retrieve($relatedModelName, $idToLink);
             
             if (!$relatedModel) {
                 throw new GCException('Related record not found', [
@@ -963,8 +973,8 @@ class ModelBaseAPIController {
             $relatedModelClass = $model->getRelatedModelClass($relationship);
             $relatedModelName = $this->extractModelNameFromClass($relatedModelClass);
             
-            // Use \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve() for direct database retrieval
-            $relatedModel = \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve($relatedModelName, $idToUnlink);
+            // Use ModelFactory retrieve for direct database retrieval
+            $relatedModel = $this->modelFactory->retrieve($relatedModelName, $idToUnlink);
             
             if (!$relatedModel) {
                 throw new GCException('Related record not found', [
@@ -1094,8 +1104,8 @@ class ModelBaseAPIController {
      */
     protected function getValidModel(string $modelName, string $id): ModelBase {
         try {
-            // Use \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve() for direct database retrieval
-            $model = \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve($modelName, $id);
+            // Use ModelFactory retrieve for direct database retrieval
+            $model = $this->modelFactory->retrieve($modelName, $id);
             
             if (!$model) {
                 throw new GCException('Record not found', [
@@ -1187,8 +1197,7 @@ class ModelBaseAPIController {
     protected function extractRelationshipFields(string $modelName, array $data): array {
         try {
             // Get model metadata to identify relationship fields
-            $metadataEngine = ServiceLocator::getMetadataEngine();
-            $metadata = $metadataEngine->getModelMetadata($modelName);
+            $metadata = $this->metadataEngine->getModelMetadata($modelName);
             
             $relationshipData = [];
             $relationshipFields = $metadata['ui']['relationshipFields'] ?? [];
@@ -1281,7 +1290,7 @@ class ModelBaseAPIController {
         
         // Get the parent model
         $parentModelName = $config['relatedModel'];
-        $parentModel = \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve($parentModelName, $parentId);
+        $parentModel = $this->modelFactory->retrieve($parentModelName, $parentId);
         
         if (!$parentModel) {
             throw new NotFoundException("Parent {$parentModelName} with ID {$parentId} not found");
@@ -1312,7 +1321,7 @@ class ModelBaseAPIController {
             foreach ($existingRelations as $existingRelation) {
                 $existingParentId = $existingRelation['one_' . strtolower($parentModelName) . '_id'];
                 // Create parent model instance to remove relationship
-                $existingParent = \Gravitycar\Core\ServiceLocator::getModelFactory()->retrieve($parentModelName, $existingParentId);
+                $existingParent = $this->modelFactory->retrieve($parentModelName, $existingParentId);
                 if ($existingParent) {
                     $childModel->removeRelation($relationshipName, $existingParent);
                     $this->logger->debug('Removed existing relationship', [
