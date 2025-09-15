@@ -2,73 +2,42 @@
 
 namespace Gravitycar\Services;
 
-use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Core\Config;
 use Gravitycar\Contracts\DatabaseConnectorInterface;
-use Monolog\Logger;
+use Psr\Log\LoggerInterface;
 
 /**
  * UserService
- * Handles user management operations
+ * Handles user management operations with pure dependency injection
  */
 class UserService
 {
-    private Logger $logger;
+    private LoggerInterface $logger;
     private ModelFactory $modelFactory;
     private Config $config;
     private DatabaseConnectorInterface $databaseConnector;
     
     public function __construct(
-        Logger $logger = null,
-        ModelFactory $modelFactory = null,
-        Config $config = null,
-        DatabaseConnectorInterface $databaseConnector = null
+        LoggerInterface $logger,
+        ModelFactory $modelFactory,
+        Config $config,
+        DatabaseConnectorInterface $databaseConnector
     ) {
-        // Use dependency injection if provided, otherwise fall back to ServiceLocator during transition
-        $this->logger = $logger ?? ServiceLocator::getLogger();
-        $this->modelFactory = $modelFactory ?? ServiceLocator::getModelFactory();
-        $this->config = $config ?? ServiceLocator::getConfig();
-        $this->databaseConnector = $databaseConnector ?? ServiceLocator::getDatabaseConnector();
+        $this->logger = $logger;
+        $this->modelFactory = $modelFactory;
+        $this->config = $config;
+        $this->databaseConnector = $databaseConnector;
     }
 
-    /**
-     * Get logger (lazy getter for transition support)
-     */
-    protected function getLogger(): Logger {
-        return $this->logger;
-    }
-
-    /**
-     * Get model factory (lazy getter for transition support)
-     */
-    protected function getModelFactory(): ModelFactory {
-        return $this->modelFactory;
-    }
-
-    /**
-     * Get config (lazy getter for transition support)
-     */
-    protected function getConfig(): Config {
-        return $this->config;
-    }
-
-    /**
-     * Get database connector (lazy getter for transition support)
-     */
-    protected function getDatabaseConnector(): DatabaseConnectorInterface {
-        return $this->databaseConnector;
-    }
     /**
      * Create new user with traditional registration
      */
     public function createUser(array $userData): \Gravitycar\Models\ModelBase
     {
-        $logger = $this->getLogger();
-        
         try {
-            $user = $this->getModelFactory()->new('Users');
+            $user = $this->modelFactory->new('Users');
             
             // Set user data
             foreach ($userData as $field => $value) {
@@ -88,7 +57,7 @@ class UserService
             $user->set('email_verified_at', date('Y-m-d H:i:s')); // Assume verified for manual creation
             
             if ($user->create()) {
-                $logger->info('User created successfully', [
+                $this->logger->info('User created successfully', [
                     'user_id' => $user->get('id'),
                     'username' => $user->get('username'),
                     'email' => $user->get('email')
@@ -103,7 +72,7 @@ class UserService
             }
             
         } catch (\Exception $e) {
-            $logger->error('User creation failed', [
+            $this->logger->error('User creation failed', [
                 'error' => $e->getMessage(),
                 'user_data' => array_diff_key($userData, ['password' => '']) // Exclude password from logs
             ]);
@@ -162,14 +131,12 @@ class UserService
      */
     public function getUserByCredentials(string $username, string $password): ?\Gravitycar\Models\ModelBase
     {
-        $logger = $this->getLogger();
-        
         try {
-            $user = $this->getModelFactory()->new('Users');
+            $user = $this->modelFactory->new('Users');
             $users = $user->find(['username' => $username], [], ['limit' => 1]);
             
             if (empty($users)) {
-                $logger->debug('User not found by username', ['username' => $username]);
+                $this->logger->debug('User not found by username', ['username' => $username]);
                 return null;
             }
             
@@ -177,7 +144,7 @@ class UserService
             $storedPasswordHash = $foundUser->get('password');
             
             if (empty($storedPasswordHash)) {
-                $logger->debug('User has no password (OAuth-only account)', [
+                $this->logger->debug('User has no password (OAuth-only account)', [
                     'user_id' => $foundUser->get('id'),
                     'username' => $username
                 ]);
@@ -185,18 +152,18 @@ class UserService
             }
             
             if (password_verify($password, $storedPasswordHash)) {
-                $logger->debug('Password verification successful', [
+                $this->logger->debug('Password verification successful', [
                     'user_id' => $foundUser->get('id'),
                     'username' => $username
                 ]);
                 return $foundUser;
             } else {
-                $logger->debug('Password verification failed', ['username' => $username]);
+                $this->logger->debug('Password verification failed', ['username' => $username]);
                 return null;
             }
             
         } catch (\Exception $e) {
-            $logger->error('Failed to get user by credentials', [
+            $this->logger->error('Failed to get user by credentials', [
                 'username' => $username,
                 'error' => $e->getMessage()
             ]);
@@ -228,13 +195,13 @@ class UserService
     public function findUserByEmail(string $email): ?\Gravitycar\Models\ModelBase
     {
         try {
-            $user = $this->getModelFactory()->new('Users');
+            $user = $this->modelFactory->new('Users');
             $users = $user->find(['email' => $email], [], ['limit' => 1]);
             
             return !empty($users) ? $users[0] : null;
             
         } catch (\Exception $e) {
-            $this->getLogger()->error('Failed to find user by email', [
+            $this->logger->error('Failed to find user by email', [
                 'email' => $email,
                 'error' => $e->getMessage()
             ]);
@@ -249,13 +216,13 @@ class UserService
     public function findUserByGoogleId(string $googleId): ?\Gravitycar\Models\ModelBase
     {
         try {
-            $user = $this->getModelFactory()->new('Users');
+            $user = $this->modelFactory->new('Users');
             $users = $user->find(['google_id' => $googleId], [], ['limit' => 1]);
             
             return !empty($users) ? $users[0] : null;
             
         } catch (\Exception $e) {
-            $this->getLogger()->error('Failed to find user by Google ID', [
+            $this->logger->error('Failed to find user by Google ID', [
                 'google_id' => $googleId,
                 'error' => $e->getMessage()
             ]);
@@ -269,10 +236,8 @@ class UserService
      */
     public function createUserFromGoogleProfile(array $googleProfile): \Gravitycar\Models\ModelBase
     {
-        $logger = $this->getLogger();
-        
         try {
-            $user = $this->getModelFactory()->new('Users');
+            $user = $this->modelFactory->new('Users');
             
             // Map Google profile to user fields
             $user->set('google_id', $googleProfile['id']);
@@ -291,12 +256,11 @@ class UserService
             }
             
             // Set default user type
-            $config = $this->getConfig();
-            $defaultRole = $config->get('oauth.default_role', 'user');
+            $defaultRole = $this->config->get('oauth.default_role', 'user');
             $user->set('user_type', $defaultRole);
             
             if ($user->create()) {
-                $logger->info('User created from Google profile', [
+                $this->logger->info('User created from Google profile', [
                     'user_id' => $user->get('id'),
                     'google_id' => $googleProfile['id'],
                     'email' => $googleProfile['email']
@@ -311,7 +275,7 @@ class UserService
             }
             
         } catch (\Exception $e) {
-            $logger->error('Failed to create user from Google profile', [
+            $this->logger->error('Failed to create user from Google profile', [
                 'google_id' => $googleProfile['id'] ?? null,
                 'email' => $googleProfile['email'] ?? null,
                 'error' => $e->getMessage()
@@ -326,8 +290,6 @@ class UserService
      */
     public function syncUserWithGoogleProfile(\Gravitycar\Models\ModelBase $user, array $googleProfile): \Gravitycar\Models\ModelBase
     {
-        $logger = $this->getLogger();
-        
         try {
             // Update profile fields from Google
             $fieldsToSync = [
@@ -354,7 +316,7 @@ class UserService
                 $user->set('last_google_sync', date('Y-m-d H:i:s'));
                 $user->update();
                 
-                $logger->info('User profile synced with Google', [
+                $this->logger->info('User profile synced with Google', [
                     'user_id' => $user->get('id'),
                     'synced_fields' => array_keys(array_filter($fieldsToSync))
                 ]);
@@ -363,7 +325,7 @@ class UserService
             return $user;
             
         } catch (\Exception $e) {
-            $logger->error('Failed to sync user with Google profile', [
+            $this->logger->error('Failed to sync user with Google profile', [
                 'user_id' => $user->get('id'),
                 'error' => $e->getMessage()
             ]);
@@ -379,11 +341,10 @@ class UserService
     private function assignDefaultRole(\Gravitycar\Models\ModelBase $user): void
     {
         try {
-            $config = $this->getConfig();
-            $defaultRoleName = $config->get('oauth.default_role', 'user');
+            $defaultRoleName = $this->config->get('oauth.default_role', 'user');
             
             // Find the default role
-            $roleModel = $this->getModelFactory()->new('Roles');
+            $roleModel = $this->modelFactory->new('Roles');
             $roles = $roleModel->find(['name' => $defaultRoleName], [], ['limit' => 1]);
             
             if (!empty($roles)) {
@@ -392,7 +353,7 @@ class UserService
             }
             
         } catch (\Exception $e) {
-            $this->getLogger()->error('Failed to assign default role', [
+            $this->logger->error('Failed to assign default role', [
                 'user_id' => $user->get('id'),
                 'error' => $e->getMessage()
             ]);
@@ -406,7 +367,7 @@ class UserService
     {
         try {
             // Find the OAuth default role
-            $roleModel = $this->getModelFactory()->new('Roles');
+            $roleModel = $this->modelFactory->new('Roles');
             $roles = $roleModel->find(['is_oauth_default' => true], [], ['limit' => 1]);
             
             if (!empty($roles)) {
@@ -418,7 +379,7 @@ class UserService
             }
             
         } catch (\Exception $e) {
-            $this->getLogger()->error('Failed to assign default OAuth role', [
+            $this->logger->error('Failed to assign default OAuth role', [
                 'user_id' => $user->get('id'),
                 'error' => $e->getMessage()
             ]);
@@ -431,8 +392,7 @@ class UserService
     private function assignUserRole(\Gravitycar\Models\ModelBase $user, \Gravitycar\Models\ModelBase $role): void
     {
         try {
-            $dbConnector = $this->getDatabaseConnector();
-            $conn = $dbConnector->getConnection();
+            $conn = $this->databaseConnector->getConnection();
             
             // Check if role is already assigned
             $queryBuilder = $conn->createQueryBuilder();
@@ -463,14 +423,14 @@ class UserService
                 
             $insertBuilder->executeStatement();
             
-            $this->getLogger()->info('Role assigned to user', [
+            $this->logger->info('Role assigned to user', [
                 'user_id' => $user->get('id'),
                 'role_id' => $role->get('id'),
                 'role_name' => $role->get('name')
             ]);
             
         } catch (\Exception $e) {
-            $this->getLogger()->error('Failed to assign role to user', [
+            $this->logger->error('Failed to assign role to user', [
                 'user_id' => $user->get('id'),
                 'role_id' => $role->get('id'),
                 'error' => $e->getMessage()
