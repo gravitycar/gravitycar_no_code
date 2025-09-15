@@ -355,7 +355,8 @@ class MetadataAPIController extends ApiControllerBase {
         try {
             /** @var MetadataEngine $metadataEngine */
             $metadataEngine = $this->metadataEngine;
-            $relationships = $metadataEngine->getAllRelationships();
+            $metadata = $metadataEngine->getCachedMetadata();
+            $relationships = $metadata['relationships'] ?? [];
             
             return [
                 'success' => true,
@@ -443,7 +444,59 @@ class MetadataAPIController extends ApiControllerBase {
      * Generate fresh models list without cache
      */
     private function generateModelsListFresh(): array {
-        return $this->getModels();
+        try {
+            /** @var MetadataEngine $metadataEngine */
+            $metadataEngine = $this->metadataEngine;
+            $cachedMetadata = $metadataEngine->getCachedMetadata();
+            if (empty($cachedMetadata['models'])) {
+                throw new NotFoundException('No models found in metadata cache');
+            }
+            
+            $models = [];
+            foreach ($cachedMetadata['models'] as $modelName => $modelData) {
+                // Respect internal field exposure configuration
+                if (!$this->shouldExposeModel($modelName, $modelData)) {
+                    continue;
+                }
+                
+                $routes = $this->getRouteRegistry()->getModelRoutes($modelName);
+                
+                $models[$modelName] = [
+                    'name' => $modelName,
+                    'endpoint' => $this->extractPrimaryEndpoint($routes),
+                    'operations' => $this->getAvailableOperations($routes),
+                    'description' => $modelData['description'] ?? "Model for {$modelName}",
+                    'table' => $modelData['table'] ?? strtolower($modelName)
+                ];
+            }
+            
+            $result = [
+                'success' => true,
+                'status' => 200,
+                'data' => $models,
+                'timestamp' => date('c')
+            ];
+            
+            // Include debug info if configured
+            if ($this->config->get('documentation.enable_debug_info', false)) {
+                $result['debug'] = [
+                    'cache_hit' => false,
+                    'models_count' => count($models),
+                    'source' => 'metadata_engine'
+                ];
+            }
+            
+            return $result;
+            
+        } catch (NotFoundException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            throw new InternalServerErrorException(
+                'Failed to generate models list',
+                ['original_error' => $e->getMessage()],
+                $e
+            );
+        }
     }
     
     /**
