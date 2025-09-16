@@ -6,6 +6,9 @@ use Gravitycar\Tests\Unit\DatabaseTestCase;
 use Gravitycar\Utils\GuestUserManager;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Aura\Di\Container;
+use Monolog\Logger;
 
 /**
  * Integration tests for GuestUserManager class
@@ -16,10 +19,30 @@ use Gravitycar\Exceptions\GCException;
 class GuestUserManagerIntegrationTest extends DatabaseTestCase
 {
     private GuestUserManager $guestUserManager;
+    private ModelFactory $modelFactory;
     
     protected function setUp(): void
     {
         parent::setUp();
+        
+        // Create ModelFactory with proper dependencies for integration testing
+        $mockContainer = $this->createMock(Container::class);
+        $mockMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        
+        // Configure MetadataEngine to support the models we'll use
+        $mockMetadataEngine->method('getAvailableModels')
+            ->willReturn(['Users', 'Movies', 'Roles']);
+        
+        // Create ModelFactory instance using the real database connector from DatabaseTestCase
+        // @phpstan-ignore-next-line - Mock objects are compatible at runtime
+        /** @var Container $mockContainer */
+        /** @var MetadataEngineInterface $mockMetadataEngine */
+        $this->modelFactory = new ModelFactory(
+            $mockContainer,
+            $this->logger, // From parent UnitTestCase
+            $this->db,     // From parent DatabaseTestCase
+            $mockMetadataEngine
+        );
         
         // Clear any cached guest user before each test
         GuestUserManager::clearCache();
@@ -137,7 +160,7 @@ class GuestUserManagerIntegrationTest extends DatabaseTestCase
         $this->assertTrue($this->guestUserManager->isGuestUser($guestUser));
         
         // Create a regular user for comparison
-        $regularUser = ModelFactory::new('Users');
+        $regularUser = $this->modelFactory->new('Users');
         $regularUser->set('username', 'test@example.com');
         $regularUser->set('email', 'test@example.com');
         $regularUser->set('password', password_hash('testpass123', PASSWORD_DEFAULT));
@@ -206,7 +229,7 @@ class GuestUserManagerIntegrationTest extends DatabaseTestCase
         $guestUser = $this->guestUserManager->getGuestUser();
         
         // Create a movie using the guest user context
-        $movie = ModelFactory::new('Movies');
+        $movie = $this->modelFactory->new('Movies');
         $movie->set('name', 'Test Movie for Guest Audit');
         $movie->set('synopsis', 'Test movie created by guest user');
         
@@ -230,7 +253,7 @@ class GuestUserManagerIntegrationTest extends DatabaseTestCase
     private function cleanupGuestUser(): void
     {
         try {
-            $userModel = ModelFactory::new('Users');
+            $userModel = $this->modelFactory->new('Users');
             $existingGuestUsers = $userModel->find(['email' => 'guest@gravitycar.com']);
             
             foreach ($existingGuestUsers as $guestUser) {
