@@ -66,4 +66,9 @@ interface MetadataEngineInterface
      * Get field type definitions from cached metadata
      */
     public function getFieldTypeDefinitions(): array;
+    
+    /**
+     * Get validation rule definitions from cached metadata
+     */
+    public function getValidationRuleDefinitions(): array;
 }

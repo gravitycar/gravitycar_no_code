@@ -210,8 +210,12 @@ class ContainerConfig {
      * Configure factory services
      */
     private static function configureFactories(Container $di): void {
-        // ValidationRuleFactory - singleton
+        // ValidationRuleFactory - singleton with pure DI dependencies
         $di->set('validation_rule_factory', $di->lazyNew(ValidationRuleFactory::class));
+        $di->params[ValidationRuleFactory::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'metadataEngine' => $di->lazyGet('metadata_engine')
+        ];
         
         // FieldFactory - singleton with proper DI dependencies
         $di->set('field_factory', $di->lazyNew(\Gravitycar\Factories\FieldFactory::class));

@@ -2,61 +2,62 @@
 namespace Gravitycar\Factories;
 
 use Gravitycar\Validation\ValidationRuleBase;
-use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Core\ContainerConfig;
+use Gravitycar\Contracts\MetadataEngineInterface;
 use Monolog\Logger;
 use Gravitycar\Exceptions\GCException;
 
 /**
- * Factory for creating validation rule instances based on metadata.
- * Discovers available validation rule types and instantiates them dynamically.
+ * Factory for creating validation rule instances based on cached metadata.
+ * Uses pure dependency injection and cached validation rule definitions.
  */
 class ValidationRuleFactory {
-    /** @var Logger */
-    protected Logger $logger;
-    /** @var array */
-    protected array $availableValidationRules = [];
-
-    public function __construct() {
-        $this->logger = ServiceLocator::getLogger();
-        $this->discoverValidationRules();
-    }
-
     /**
-     * Scan src/Validation directory for available validation rule types
+     * Constructor with pure dependency injection
      */
-    protected function discoverValidationRules(): void {
-        $validationDir = __DIR__ . '/../Validation';
-        if (!is_dir($validationDir)) {
-            $this->logger->warning("Validation directory not found: $validationDir");
-            return;
-        }
-        $files = scandir($validationDir);
-        foreach ($files as $file) {
-            if (preg_match('/^(.*)Validation\.php$/', $file, $matches)) {
-                $type = $matches[1];
-                $this->availableValidationRules[$type] = "Gravitycar\\Validation\\{$type}Validation";
-            }
-        }
+    public function __construct(
+        private Logger $logger,
+        private MetadataEngineInterface $metadataEngine
+    ) {
+        // All dependencies explicitly injected
+        // No ServiceLocator calls
+        // No filesystem operations
+        // Ready for immediate use
     }
 
     /**
-     * Create a validation rule instance from name
+     * Create a validation rule instance from name using cached metadata
      */
     public function createValidationRule(string $ruleName): ValidationRuleBase {
-        $className = $this->availableValidationRules[$ruleName] ?? null;
-        if (!$className || !class_exists($className)) {
-            throw new GCException("Validation rule class not found for rule: $ruleName",
-                ['rule_name' => $ruleName, 'expected_class' => $className]);
+        // Get class name from cached metadata
+        $rules = $this->metadataEngine->getValidationRuleDefinitions();
+        $ruleData = $rules[$ruleName] ?? null;
+        
+        if (!$ruleData || !isset($ruleData['class'])) {
+            throw new GCException("Validation rule not found: $ruleName", [
+                'rule_name' => $ruleName,
+                'available_rules' => array_keys($rules)
+            ]);
+        }
+        
+        $className = $ruleData['class'];
+        
+        if (!class_exists($className)) {
+            throw new GCException("Validation rule class does not exist: $className", [
+                'rule_name' => $ruleName,
+                'class_name' => $className
+            ]);
         }
 
-        // Use ServiceLocator to create validation rule with proper dependencies
-        return \Gravitycar\Core\ServiceLocator::create($className);
+        // Use container for creation (pure DI approach)
+        return ContainerConfig::getContainer()->newInstance($className);
     }
 
     /**
-     * Get all available validation rule types
+     * Get all available validation rule types from cached metadata
      */
     public function getAvailableValidationRules(): array {
-        return array_keys($this->availableValidationRules);
+        $rules = $this->metadataEngine->getValidationRuleDefinitions();
+        return array_keys($rules);
     }
 }
