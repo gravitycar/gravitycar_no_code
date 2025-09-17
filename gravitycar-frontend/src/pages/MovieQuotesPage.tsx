@@ -5,16 +5,16 @@ import type { MovieQuote, ModelMetadata } from '../types';
 /**
  * Custom grid renderer for movie quotes with quote display
  */
-const movieQuoteGridRenderer = (quote: MovieQuote, metadata: ModelMetadata, onEdit: (quote: MovieQuote) => void, onDelete: (quote: MovieQuote) => void) => (
+const movieQuoteGridRenderer = (quote: MovieQuote, _metadata: ModelMetadata, onEdit: (quote: MovieQuote) => void, onDelete: (quote: MovieQuote) => void) => (
   <div className="bg-white rounded-lg shadow border border-gray-200 p-6 hover:shadow-lg transition-shadow">
     <div className="mb-4">
       <blockquote className="text-gray-900 italic text-lg mb-3">
-        "{quote.quote_text}"
+        "{quote.quote}"
       </blockquote>
       
-      {quote.character_name && (
+      {quote.movie && (
         <p className="text-gray-600 text-sm">
-          — {quote.character_name}
+          — {quote.movie}
         </p>
       )}
     </div>

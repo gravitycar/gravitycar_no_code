@@ -2,11 +2,13 @@
 
 namespace Gravitycar\Utils;
 
+use Aura\Di\Container;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Exceptions\GCException;
 use Monolog\Logger;
+use Gravitycar\Core\ContainerConfig;
 
 /**
  * Guest User Manager
@@ -124,7 +126,8 @@ class GuestUserManager
     {
         try {
             $guestUser = $this->getModelFactory()->new('Users');
-            
+            $this->createRawGuestUserRecord($guestUser);
+        
             // Set guest user fields
             $guestUser->set('username', self::GUEST_USERNAME);
             $guestUser->set('email', self::GUEST_EMAIL);
@@ -165,6 +168,54 @@ class GuestUserManager
             ], 0, $e);
         }
     }
+
+
+    // To avoid circular dependency issues during setup, we can create the guest user record
+    // directly via SQL if needed. This is a fallback method and should not be used in
+    // normal operation.
+    private function createRawGuestUserRecord(ModelBase $guestUser): bool
+    {
+
+        $guestID = 'e32da63d-a37a-4a50-8a2a-01c7899698e7';
+        $guestData = [
+            'id' => $guestID,
+            'username' => 'guest@gravitycar.com',
+            'email' => 'guest@gravitycar.com',
+            'first_name' => 'Guest',
+            'last_name' => 'User',
+            'last_login' => NULL,
+            'user_type' => 'user',
+            'user_timezone' => 'UTC',
+            'created_at' => date('Y-m-d H:i:s'),
+            'updated_at' => date('Y-m-d H:i:s'),
+            'deleted_at' => date('Y-m-d H:i:s'),
+            'created_by' => $guestID,
+            'updated_by' => $guestID,
+            'deleted_by' => NULL,
+            'google_id' => NULL,
+            'auth_provider' => 'system',
+            'last_login_method' => 'guest',
+            'email_verified_at' => NULL,
+            'profile_picture_url' => NULL,
+            'last_google_sync' => NULL,
+            'is_active' => 1,
+        ];
+
+        $db = ContainerConfig::getContainer()->get('database_connector');        
+        $conn = $db->getConnection();
+        $queryBuilder = $conn->createQueryBuilder();
+        $queryBuilder->insert($guestUser->getTableName());
+        
+        foreach ($guestData as $field => $value) {
+            $queryBuilder->setValue($field, ":$field");
+            $queryBuilder->setParameter($field, $value);
+        }
+
+        $result = $queryBuilder->executeStatement();
+
+        return $result !== false;
+    }
+
     
     /**
      * Generate a secure, complex password for the guest user

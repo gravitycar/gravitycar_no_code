@@ -59,8 +59,8 @@ const RelatedRecordSelect: React.FC<EnhancedRelatedRecordProps> = ({
   relationshipContext,
   showPreview = false,
   allowDirectEdit = false,
-  displayTemplate,
-  showRelatedCount = false,
+  // displayTemplate,
+  // showRelatedCount = false,
   onRelatedChange,
   preFilterOptions,
   onCreateNew

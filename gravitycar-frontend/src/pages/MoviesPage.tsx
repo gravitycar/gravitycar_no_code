@@ -5,7 +5,7 @@ import type { Movie, ModelMetadata } from '../types';
 /**
  * Custom grid renderer for movies with poster images
  */
-const movieGridRenderer = (movie: Movie, metadata: ModelMetadata, onEdit: (movie: Movie) => void, onDelete: (movie: Movie) => void) => (
+const movieGridRenderer = (movie: Movie, _metadata: ModelMetadata, onEdit: (movie: Movie) => void, onDelete: (movie: Movie) => void) => (
   <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
     {/* Movie poster */}
     {movie.poster && (

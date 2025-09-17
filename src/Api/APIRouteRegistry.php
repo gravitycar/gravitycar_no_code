@@ -110,7 +110,7 @@ class APIRouteRegistry
         }
         
         // First, register the global ModelBaseAPIController if it exists
-        $modelBaseAPIControllerClass = "Gravitycar\\Models\\Api\\Api\\ModelBaseAPIController";
+        $modelBaseAPIControllerClass = "Gravitycar\\Models\\api\\Api\\ModelBaseAPIController";
         if (class_exists($modelBaseAPIControllerClass)) {
             $this->registerControllerWithFactory($factory, $modelBaseAPIControllerClass);
         }

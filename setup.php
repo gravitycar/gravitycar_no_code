@@ -59,10 +59,10 @@ function seedAuthenticationData() {
     
     // Create default roles
     $roles = [
-        ['name' => 'admin', 'description' => 'System administrator', 'is_oauth_default' => false],
-        ['name' => 'manager', 'description' => 'Manager with elevated permissions', 'is_oauth_default' => false],
-        ['name' => 'user', 'description' => 'Standard user', 'is_oauth_default' => true],
-        ['name' => 'guest', 'description' => 'Guest user with limited access', 'is_oauth_default' => false]
+        ['name' => 'admin', 'description' => 'System administrator', 'is_oauth_default' => 0, 'is_system_role' => 0],
+        ['name' => 'manager', 'description' => 'Manager with elevated permissions', 'is_oauth_default' => 0, 'is_system_role' => 0],
+        ['name' => 'user', 'description' => 'Standard user', 'is_oauth_default' => 0, 'is_system_role' => 0],
+        ['name' => 'guest', 'description' => 'Guest user with limited access', 'is_oauth_default' => 0, 'is_system_role' => 0]
     ];
     
     foreach ($roles as $roleData) {
@@ -71,6 +71,7 @@ function seedAuthenticationData() {
             $role->set('name', $roleData['name']);
             $role->set('description', $roleData['description']);
             $role->set('is_oauth_default', $roleData['is_oauth_default']);
+            $role->set('is_system_role', $roleData['is_system_role']);
             $role->create();
             printSuccess("Created role: " . $roleData['name']);
         } catch (Exception $e) {
@@ -115,6 +116,7 @@ function seedAuthenticationData() {
             $permission->set('action', $permData['action']);
             $permission->set('model', $permData['model']);
             $permission->set('description', $permData['description']);
+            $permission->set('is_route_permission', 0);
             $permission->create();
             printSuccess("Created permission: " . $permData['action'] . " (" . ($permData['model'] ?: 'global') . ")");
         } catch (Exception $e) {
@@ -228,7 +230,8 @@ try {
     
     // Clear DocumentationCache as well
     printInfo("Clearing DocumentationCache...");
-    $documentationCache = new \Gravitycar\Services\DocumentationCache();
+    $config = $container->get('config');
+    $documentationCache = new \Gravitycar\Services\DocumentationCache($logger, $config);
     $documentationCache->clearCache();
     printSuccess("DocumentationCache cleared");
     
