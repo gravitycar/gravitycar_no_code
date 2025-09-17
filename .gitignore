@@ -1,6 +1,5 @@
 /vendor
 *.idea
-/*.xml
 /composer.lock
 /logs
 /cache
