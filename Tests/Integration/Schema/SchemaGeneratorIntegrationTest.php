@@ -8,6 +8,7 @@ use Gravitycar\Core\Config;
 use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Metadata\CoreFieldsMetadata;
 use Gravitycar\Metadata\MetadataEngine;
+use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Exceptions\GCException;
 use Monolog\Logger;
 
@@ -20,6 +21,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
     private SchemaGenerator $schemaGenerator;
     private DatabaseConnector $dbConnector;
     private MetadataEngine $metadataEngine;
+    private ModelFactory $modelFactory;
     private string $testDatabaseName;
     private array $expectedModels = [
         ['class' => '\\Gravitycar\\Models\\Users\\Users', 'name' => 'Users'],
@@ -42,9 +44,10 @@ class SchemaGeneratorIntegrationTest extends TestCase
         // Override database name for testing (fix: use dbname not name)
         $this->config->set('database.dbname', $this->testDatabaseName);
 
-        $this->dbConnector = new DatabaseConnector();
+        $this->dbConnector = new DatabaseConnector($this->logger, $this->config);
         $this->schemaGenerator = new SchemaGenerator();
         $this->metadataEngine = MetadataEngine::getInstance();
+        $this->modelFactory = ServiceLocator::getModelFactory();
         
         // Create test database in setUp to avoid connection errors
         $this->schemaGenerator->createDatabaseIfNotExists();
@@ -104,13 +107,14 @@ class SchemaGeneratorIntegrationTest extends TestCase
 
         foreach ($this->expectedModels as $model) {
             $modelName = $model['name'];
-            // Get model class
+            // Get model class and name
             $modelClass = $model['class'];
+            $modelName = $model['name'];
 
             $this->assertTrue(class_exists($modelClass), "Model class {$modelClass} should exist");
 
             // Create model instance to trigger metadata loading
-            $modelInstance = new $modelClass($this->logger);
+            $modelInstance = $this->modelFactory->new($modelName);
 
             // Verify model has fields (including core fields)
             $fields = $modelInstance->getFields();
@@ -146,7 +150,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
             $modelName = $model['name'];
             // Get model instance to determine table name
             $modelClass = $model['class'];
-            $modelInstance = new $modelClass($this->logger);
+            $modelInstance = $this->modelFactory->new($modelName);
             $tableName = $modelInstance->getTableName();
 
             $this->assertTrue($this->tableExists($tableName),
@@ -172,7 +176,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
 
         // Test specific table for core fields using the first model
         $firstModel = $this->expectedModels[0];
-        $userModel = new $firstModel['class']($this->logger);
+        $userModel = $this->modelFactory->new($firstModel['name']);
         $tableName = $userModel->getTableName();
 
         $this->verifyCoreFieldsExist($tableName, [
@@ -220,8 +224,9 @@ class SchemaGeneratorIntegrationTest extends TestCase
         if (!$relatedRecordFieldFound) {
             foreach ($this->expectedModels as $model) {
                 $modelClass = $model['class'];
+                $modelName = $model['name'];
                 if (class_exists($modelClass)) {
-                    $modelInstance = new $modelClass($this->logger);
+                    $modelInstance = $this->modelFactory->new($modelName);
                     $fields = $modelInstance->getFields();
 
                     foreach ($fields as $fieldName => $field) {
@@ -250,8 +255,9 @@ class SchemaGeneratorIntegrationTest extends TestCase
         // Always assert that at least some tables were created
         foreach ($this->expectedModels as $model) {
             $modelClass = $model['class'];
+            $modelName = $model['name'];
             if (class_exists($modelClass)) {
-                $modelInstance = new $modelClass($this->logger);
+                $modelInstance = $this->modelFactory->new($modelName);
                 $tableName = $modelInstance->getTableName();
                 $this->assertTrue($this->tableExists($tableName),
                     "Table {$tableName} should exist after schema generation");
@@ -277,7 +283,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
                 continue;
             }
 
-            $modelInstance = new $modelClass($this->logger);
+            $modelInstance = $this->modelFactory->new($modelName);
             $tableName = $modelInstance->getTableName();
             $modelFields = array_keys($modelInstance->getFields());
 

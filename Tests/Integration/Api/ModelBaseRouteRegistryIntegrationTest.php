@@ -5,6 +5,8 @@ namespace Tests\Integration\Api;
 use Gravitycar\Api\APIRouteRegistry;
 use Gravitycar\Models\users\Users;
 use Gravitycar\Models\movies\Movies;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Core\ServiceLocator;
 use Monolog\Logger;
 use Monolog\Handler\NullHandler;
 use PHPUnit\Framework\TestCase;
@@ -13,6 +15,7 @@ class ModelBaseRouteRegistryIntegrationTest extends TestCase
 {
     protected Logger $logger;
     protected $registry;
+    protected ModelFactory $modelFactory;
 
     protected function setUp(): void
     {
@@ -21,6 +24,9 @@ class ModelBaseRouteRegistryIntegrationTest extends TestCase
         // Create a real logger
         $this->logger = new Logger('test');
         $this->logger->pushHandler(new NullHandler());
+        
+        // Get ModelFactory from ServiceLocator for proper dependency injection
+        $this->modelFactory = ServiceLocator::getModelFactory();
         
         // Create registry without automatic discovery to control what gets registered
         $this->registry = $this->createPartialMock(APIRouteRegistry::class, ['discoverAndRegisterRoutes']);
@@ -34,7 +40,7 @@ class ModelBaseRouteRegistryIntegrationTest extends TestCase
     {
         try {
             // Create Users model and register its routes
-            $userModel = new Users($this->logger);
+            $userModel = $this->modelFactory->new('Users');
             $routes = $userModel->registerRoutes();
             
             // Manually register the routes to test the integration
@@ -62,7 +68,7 @@ class ModelBaseRouteRegistryIntegrationTest extends TestCase
     {
         try {
             // Create Users model and test route validation
-            $userModel = new Users($this->logger);
+            $userModel = $this->modelFactory->new('Users');
             $routes = $userModel->registerRoutes();
             
             // Test each route passes validation
@@ -92,7 +98,7 @@ class ModelBaseRouteRegistryIntegrationTest extends TestCase
     {
         try {
             // Create Users model and register its routes
-            $userModel = new Users($this->logger);
+            $userModel = $this->modelFactory->new('Users');
             $routes = $userModel->registerRoutes();
             
             // Manually add routes to the registry
@@ -137,10 +143,10 @@ class ModelBaseRouteRegistryIntegrationTest extends TestCase
     {
         try {
             // Test with multiple models
-            $userModel = new Users($this->logger);
+            $userModel = $this->modelFactory->new('Users');
             $userRoutes = $userModel->registerRoutes();
             
-            $movieModel = new Movies($this->logger);
+            $movieModel = $this->modelFactory->new('Movies');
             $movieRoutes = $movieModel->registerRoutes();
             
             // Combine routes from both models
@@ -168,7 +174,7 @@ class ModelBaseRouteRegistryIntegrationTest extends TestCase
     public function testParameterNamesInModelRoutes(): void
     {
         try {
-            $userModel = new Users($this->logger);
+            $userModel = $this->modelFactory->new('Users');
             $routes = $userModel->registerRoutes();
             
             // Find the read route and test parameter names
