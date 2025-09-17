@@ -6,6 +6,7 @@ use Gravitycar\Tests\Integration\IntegrationTestCase;
 use Gravitycar\Api\Router;
 use Gravitycar\Api\ApiControllerBase;
 use Gravitycar\Tests\Fixtures\FixtureFactory;
+use Gravitycar\Core\ServiceLocator;
 
 /**
  * Integration tests for API endpoints and routing.
@@ -19,7 +20,27 @@ class ApiIntegrationTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $this->router = new Router($this->metadataEngine, $this->logger);
+        // Get Router dependencies from ServiceLocator
+        $routeRegistry = ServiceLocator::getAPIRouteRegistry();
+        $pathScorer = ServiceLocator::get('api_path_scorer');
+        $controllerFactory = ServiceLocator::get('api_controller_factory');
+        $modelFactory = ServiceLocator::getModelFactory();
+        $authenticationService = ServiceLocator::getAuthenticationService();
+        $authorizationService = ServiceLocator::getAuthorizationService();
+        $currentUserProvider = ServiceLocator::get('current_user_provider');
+
+        // Router constructor: logger, metadataEngine, routeRegistry, pathScorer, controllerFactory, modelFactory, authenticationService, authorizationService, currentUserProvider
+        $this->router = new Router(
+            $this->logger,
+            $this->metadataEngine,
+            $routeRegistry,
+            $pathScorer,
+            $controllerFactory,
+            $modelFactory,
+            $authenticationService,
+            $authorizationService,
+            $currentUserProvider
+        );
 
         // Set up API environment
         $_SERVER['REQUEST_METHOD'] = 'GET';

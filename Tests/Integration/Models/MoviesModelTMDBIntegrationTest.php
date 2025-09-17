@@ -4,18 +4,27 @@ namespace Tests\Integration\Models;
 use Gravitycar\Tests\TestCase;
 use Gravitycar\Models\movies\Movies;
 use Gravitycar\Services\MovieTMDBIntegrationService;
+use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Database\DatabaseConnector;
 use PHPUnit\Framework\MockObject\MockObject;
 
 class MoviesModelTMDBIntegrationTest extends TestCase {
     private Movies $movie;
     private MovieTMDBIntegrationService|MockObject $mockTMDBService;
+    private ModelFactory $modelFactory;
+    private array $createdMovieIds = []; // Track created movie IDs for cleanup
     
     protected function setUp(): void {
         parent::setUp();
         
+        // Get database connection from ServiceLocator for consistency with integration tests
+        $this->db = ServiceLocator::getDatabaseConnector();
+        
         $this->setupTestDatabase();
         
-        $this->movie = new Movies();
+        $this->modelFactory = ServiceLocator::getModelFactory();
+        $this->movie = $this->modelFactory->new('Movies');
         $this->mockTMDBService = $this->createMock(MovieTMDBIntegrationService::class);
         
         // Use reflection to inject mock TMDB service
@@ -26,6 +35,7 @@ class MoviesModelTMDBIntegrationTest extends TestCase {
     }
     
     protected function tearDown(): void {
+        $this->cleanupCreatedRecords();
         $this->cleanupTestDatabase();
         parent::tearDown();
     }
@@ -33,7 +43,7 @@ class MoviesModelTMDBIntegrationTest extends TestCase {
     public function testSearchTMDBMovies(): void {
         $expectedResult = [
             'exact_match' => [
-                'tmdb_id' => 603,
+                'tmdb_id' => 6030000,
                 'title' => 'The Matrix',
                 'release_year' => 1999
             ],
@@ -54,7 +64,7 @@ class MoviesModelTMDBIntegrationTest extends TestCase {
     
     public function testEnrichFromTMDB(): void {
         $enrichmentData = [
-            'tmdb_id' => 603,
+            'tmdb_id' => 6030000,
             'synopsis' => 'A computer hacker learns from mysterious rebels about the true nature of his reality.',
             'poster_url' => 'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
             'trailer_url' => 'https://www.youtube.com/watch?v=vKQi3bBA1y8',
@@ -65,16 +75,16 @@ class MoviesModelTMDBIntegrationTest extends TestCase {
         $this->mockTMDBService
             ->expects($this->once())
             ->method('enrichMovieData')
-            ->with(603)
+            ->with(6030000)
             ->willReturn($enrichmentData);
         
         // Set up movie with basic data
         $this->movie->set('name', 'The Matrix');
         
-        $this->movie->enrichFromTMDB(603);
-        
+        $this->movie->enrichFromTMDB(6030000);
+
         // Verify fields were set
-        $this->assertEquals(603, $this->movie->get('tmdb_id'));
+        $this->assertEquals(6030000, $this->movie->get('tmdb_id'));
         $this->assertEquals($enrichmentData['synopsis'], $this->movie->get('synopsis'));
         $this->assertEquals($enrichmentData['poster_url'], $this->movie->get('poster_url'));
         $this->assertEquals($enrichmentData['trailer_url'], $this->movie->get('trailer_url'));
@@ -84,7 +94,7 @@ class MoviesModelTMDBIntegrationTest extends TestCase {
     
     public function testEnrichFromTMDBSkipsEmptyValues(): void {
         $enrichmentData = [
-            'tmdb_id' => 603,
+            'tmdb_id' => 6030000,
             'synopsis' => '',  // Empty value should be skipped
             'poster_url' => 'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
             'trailer_url' => null,  // Null value should be skipped
@@ -95,19 +105,19 @@ class MoviesModelTMDBIntegrationTest extends TestCase {
         $this->mockTMDBService
             ->expects($this->once())
             ->method('enrichMovieData')
-            ->with(603)
+            ->with(6030000)
             ->willReturn($enrichmentData);
         
         // Set original synopsis that should not be overwritten
         $this->movie->set('synopsis', 'Original synopsis');
         
-        $this->movie->enrichFromTMDB(603);
+        $this->movie->enrichFromTMDB(6030000);
         
         // Verify empty values didn't overwrite existing data
         $this->assertEquals('Original synopsis', $this->movie->get('synopsis'));
         
         // Verify non-empty values were set
-        $this->assertEquals(603, $this->movie->get('tmdb_id'));
+        $this->assertEquals(6030000, $this->movie->get('tmdb_id'));
         $this->assertEquals($enrichmentData['poster_url'], $this->movie->get('poster_url'));
         $this->assertEquals($enrichmentData['obscurity_score'], $this->movie->get('obscurity_score'));
         $this->assertEquals($enrichmentData['release_year'], $this->movie->get('release_year'));
@@ -126,6 +136,12 @@ class MoviesModelTMDBIntegrationTest extends TestCase {
         $result = $this->movie->create();
         $this->assertTrue($result, 'Movie creation should succeed');
         
+        // Track created movie for cleanup
+        $movieId = $this->movie->get('id');
+        if ($movieId) {
+            $this->createdMovieIds[] = $movieId;
+        }
+        
         // Check that name field is now read-only
         $nameFieldAfter = $this->movie->getField('name');
         $this->assertTrue($nameFieldAfter->isReadOnly(), 'Name field should be read-only after creation');
@@ -133,7 +149,7 @@ class MoviesModelTMDBIntegrationTest extends TestCase {
     
     public function testCreateWithTMDBEnrichment(): void {
         $enrichmentData = [
-            'tmdb_id' => 603,
+            'tmdb_id' => 6030000,
             'synopsis' => 'A computer hacker learns from mysterious rebels about the true nature of his reality.',
             'poster_url' => 'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
             'trailer_url' => 'https://www.youtube.com/watch?v=vKQi3bBA1y8',
@@ -144,12 +160,12 @@ class MoviesModelTMDBIntegrationTest extends TestCase {
         $this->mockTMDBService
             ->expects($this->once())
             ->method('enrichMovieData')
-            ->with(603)
+            ->with(6030000)
             ->willReturn($enrichmentData);
         
         // Set up movie with TMDB enrichment
         $this->movie->set('name', 'The Matrix');
-        $this->movie->enrichFromTMDB(603);
+        $this->movie->enrichFromTMDB(6030000);
         
         // Create the movie
         $result = $this->movie->create();
@@ -159,11 +175,39 @@ class MoviesModelTMDBIntegrationTest extends TestCase {
         $savedMovieId = $this->movie->get('id');
         $this->assertNotEmpty($savedMovieId);
         
+        // Track created movie for cleanup
+        if ($savedMovieId) {
+            $this->createdMovieIds[] = $savedMovieId;
+        }
+        
         // Verify the current movie object has the correct data
         $this->assertEquals('The Matrix', $this->movie->get('name'));
-        $this->assertEquals(603, $this->movie->get('tmdb_id'));
+        $this->assertEquals(6030000, $this->movie->get('tmdb_id'));
         $this->assertEquals($enrichmentData['synopsis'], $this->movie->get('synopsis'));
         $this->assertEquals($enrichmentData['poster_url'], $this->movie->get('poster_url'));
+    }
+    
+    /**
+     * Clean up individual movie records created during tests
+     */
+    private function cleanupCreatedRecords(): void {
+        if (empty($this->createdMovieIds) || !$this->db) {
+            return;
+        }
+        
+        foreach ($this->createdMovieIds as $movieId) {
+            try {
+                // Delete the movie record using the actual movies table
+                $sql = "DELETE FROM movies WHERE id = ?";
+                $this->db->getConnection()->executeStatement($sql, [$movieId]);
+            } catch (\Exception $e) {
+                // Log but don't fail the test if cleanup fails
+                error_log("Failed to cleanup movie record {$movieId}: " . $e->getMessage());
+            }
+        }
+        
+        // Clear the tracking array
+        $this->createdMovieIds = [];
     }
     
     /**
@@ -174,9 +218,10 @@ class MoviesModelTMDBIntegrationTest extends TestCase {
             return;
         }
         
-        // Create a test movies table if it doesn't exist
+        // Ensure the movies table exists with the proper schema
+        // This will create the table if it doesn't exist, or do nothing if it does
         $sql = "
-            CREATE TABLE IF NOT EXISTS movies_test (
+            CREATE TABLE IF NOT EXISTS movies (
                 id CHAR(36) PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
                 synopsis TEXT,
@@ -186,27 +231,22 @@ class MoviesModelTMDBIntegrationTest extends TestCase {
                 obscurity_score INT,
                 release_year INT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                deleted_at TIMESTAMP NULL,
+                created_by CHAR(36) NULL,
+                updated_by CHAR(36) NULL,
+                deleted_by CHAR(36) NULL
             )
         ";
         
         $this->db->getConnection()->executeStatement($sql);
-        
-        // Override the table name for testing
-        $reflection = new \ReflectionClass($this->movie);
-        $property = $reflection->getProperty('tableName');
-        $property->setAccessible(true);
-        $property->setValue($this->movie, 'movies_test');
     }
     
     /**
      * Clean up test database
      */
     private function cleanupTestDatabase(): void {
-        if (!$this->db) {
-            return;
-        }
-        
-        $this->db->getConnection()->executeStatement("DROP TABLE IF EXISTS movies_test");
+        // No longer dropping the entire table since we're using the real movies table
+        // Individual record cleanup is handled in cleanupCreatedRecords()
     }
 }

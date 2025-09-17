@@ -32,8 +32,18 @@ class RestApiBootstrapTest extends TestCase {
         $metadataEngine = $container->get('metadata_engine');
         $this->assertInstanceOf(\Gravitycar\Metadata\MetadataEngine::class, $metadataEngine);
         
-        // Test router creation
-        $router = new \Gravitycar\Api\Router($metadataEngine);
+        // Test router creation with proper dependency injection
+        $router = new \Gravitycar\Api\Router(
+            $logger,
+            $metadataEngine,
+            $container->get('api_route_registry'),
+            $container->get('api_path_scorer'),
+            $container->get('api_controller_factory'),
+            $container->get('model_factory'),
+            $container->get('authentication_service'),
+            $container->get('authorization_service'),
+            $container->get('current_user_provider')
+        );
         $this->assertInstanceOf(\Gravitycar\Api\Router::class, $router);
     }
     

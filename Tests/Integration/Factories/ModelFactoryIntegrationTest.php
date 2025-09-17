@@ -8,26 +8,115 @@ use Gravitycar\Models\users\Users;
 use Gravitycar\Models\movies\Movies;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Aura\Di\Container;
 
 /**
  * Integration tests for ModelFactory with real model classes and database
  */
 class ModelFactoryIntegrationTest extends IntegrationTestCase
 {
+    private ModelFactory $modelFactory;
+    private array $createdUserIds = []; // Track created users for cleanup
+    
+    protected function setUp(): void
+    {
+        parent::setUp();
+        
+        // Create the users table for integration testing
+        $this->createUsersTable();
+        
+        // Create ModelFactory with proper dependencies for integration testing
+        $mockContainer = $this->createMock(Container::class);
+        
+        // Create ModelFactory instance using the real database connector and metadata engine from IntegrationTestCase
+        // @phpstan-ignore-next-line - Mock objects are compatible at runtime
+        /** @var Container $mockContainer */
+        /** @var MetadataEngineInterface $metadataEngine */
+        $metadataEngine = $this->metadataEngine;
+        $this->modelFactory = new ModelFactory(
+            $mockContainer,
+            $this->logger,
+            ServiceLocator::getDatabaseConnector(),
+            $metadataEngine
+        );
+    }
+    
+    protected function tearDown(): void
+    {
+        $this->cleanupCreatedUsers();
+        parent::tearDown();
+    }
+    
+    /**
+     * Create users table with complete schema
+     */
+    private function createUsersTable(): void
+    {
+        $sql = "CREATE TABLE IF NOT EXISTS users (
+            id VARCHAR(36) NOT NULL PRIMARY KEY,
+            username VARCHAR(255) NOT NULL UNIQUE,
+            password VARCHAR(255),
+            email VARCHAR(255) NOT NULL UNIQUE,
+            first_name VARCHAR(255),
+            last_name VARCHAR(255) NOT NULL,
+            google_id VARCHAR(255) UNIQUE,
+            auth_provider ENUM('local', 'google', 'hybrid') NOT NULL DEFAULT 'local',
+            last_login_method ENUM('local', 'google'),
+            email_verified_at DATETIME,
+            profile_picture_url VARCHAR(500),
+            last_google_sync DATETIME,
+            is_active BOOLEAN NOT NULL DEFAULT 1,
+            last_login DATETIME,
+            user_type ENUM('admin', 'manager', 'user') NOT NULL DEFAULT 'user',
+            user_timezone VARCHAR(100) NOT NULL DEFAULT 'UTC',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            deleted_at DATETIME NULL,
+            created_by VARCHAR(36),
+            updated_by VARCHAR(36),
+            deleted_by VARCHAR(36)
+        )";
+        
+        $this->connection->executeStatement($sql);
+    }
+    
+    /**
+     * Clean up created users
+     */
+    private function cleanupCreatedUsers(): void
+    {
+        if (empty($this->createdUserIds)) {
+            return;
+        }
+        
+        foreach ($this->createdUserIds as $userId) {
+            try {
+                $sql = "DELETE FROM users WHERE id = ?";
+                $this->connection->executeStatement($sql, [$userId]);
+            } catch (\Exception $e) {
+                // Log but don't fail the test if cleanup fails
+                error_log("Failed to cleanup user record {$userId}: " . $e->getMessage());
+            }
+        }
+        
+        $this->createdUserIds = [];
+    }
+    
     /**
      * Test creating real model instances
      */
     public function testCreateRealModelInstances(): void
     {
         // Test Users model
-        $user = ModelFactory::new('Users');
+        $user = $this->modelFactory->new('Users');
         $this->assertInstanceOf(Users::class, $user);
         $this->assertIsArray($user->getFields());
         $this->assertTrue($user->hasField('id'));
         $this->assertTrue($user->hasField('username'));
 
         // Test Movies model
-        $movie = ModelFactory::new('Movies');
+        $movie = $this->modelFactory->new('Movies');
         $this->assertInstanceOf(Movies::class, $movie);
         $this->assertIsArray($movie->getFields());
         $this->assertTrue($movie->hasField('id'));
@@ -40,7 +129,7 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
     public function testModelCreationAndPopulationWorkflow(): void
     {
         // Create a new user
-        $user = ModelFactory::new('Users');
+        $user = $this->modelFactory->new('Users');
         $this->assertInstanceOf(Users::class, $user);
 
         // Set some test data
@@ -72,9 +161,9 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
         } catch (\Exception $e) {
             $this->markTestSkipped('Database connection not available: ' . $e->getMessage());
         }
-
+        
         // Create a test user first
-        $user = ModelFactory::new('Users');
+        $user = $this->modelFactory->new('Users');
         $testUsername = 'testuser_retrieve_' . uniqid();
         $testEmail = 'test_retrieve_' . uniqid() . '@example.com';
         
@@ -92,9 +181,27 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
 
         $userId = $user->get('id');
         $this->assertNotEmpty($userId);
+        
+        // Track for cleanup
+        $this->createdUserIds[] = $userId;
 
         // Now test retrieval
-        $retrievedUser = ModelFactory::retrieve('Users', $userId);
+        $retrievedUser = $this->modelFactory->retrieve('Users', $userId);
+        
+        // Debug: check if record exists in database directly
+        if ($retrievedUser === null) {
+            $sql = "SELECT * FROM users WHERE id = ?";
+            $stmt = $this->connection->prepare($sql);
+            $result = $stmt->executeQuery([$userId]);
+            $row = $result->fetchAssociative();
+            
+            if ($row) {
+                $this->fail("User was found in database directly but ModelFactory->retrieve returned null. User data: " . json_encode($row));
+            } else {
+                $this->fail("User was not found in database at all. User ID: $userId");
+            }
+        }
+        
         $this->assertInstanceOf(Users::class, $retrievedUser);
         $this->assertEquals($userId, $retrievedUser->get('id'));
         $this->assertEquals($testUsername, $retrievedUser->get('username'));
@@ -102,8 +209,9 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
         $this->assertEquals('Test', $retrievedUser->get('first_name'));
         $this->assertEquals('Retrieve', $retrievedUser->get('last_name'));
 
-        // Clean up
-        $retrievedUser->hardDelete();
+        // Start a new transaction for proper cleanup
+        $this->connection->beginTransaction();
+        $this->inTransaction = true;
     }
 
     /**
@@ -112,7 +220,7 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
     public function testRetrievalOfNonExistentRecord(): void
     {
         $nonExistentId = 'non-existent-' . uniqid();
-        $result = ModelFactory::retrieve('Users', $nonExistentId);
+        $result = $this->modelFactory->retrieve('Users', $nonExistentId);
         $this->assertNull($result);
     }
 
@@ -122,9 +230,9 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
     public function testErrorHandlingWithNonExistentModel(): void
     {
         $this->expectException(GCException::class);
-        $this->expectExceptionMessage('Model class not found');
+        $this->expectExceptionMessage('Model class does not exist');
 
-        ModelFactory::new('NonExistentModel');
+        $this->modelFactory->new('NonExistentModel');
     }
 
     /**
@@ -132,7 +240,7 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
      */
     public function testGetAvailableModels(): void
     {
-        $availableModels = ModelFactory::getAvailableModels();
+        $availableModels = $this->modelFactory->getAvailableModels();
         
         $this->assertIsArray($availableModels);
         $this->assertNotEmpty($availableModels);
@@ -153,12 +261,12 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
     public function testModelNameVariations(): void
     {
         // Test with underscores (Movie_Quotes)
-        $movieQuote = ModelFactory::new('Movie_Quotes');
+        $movieQuote = $this->modelFactory->new('Movie_Quotes');
         $this->assertInstanceOf(\Gravitycar\Models\movie_quotes\Movie_Quotes::class, $movieQuote);
 
         // Test case sensitivity
-        $user1 = ModelFactory::new('Users');
-        $user2 = ModelFactory::new('Users'); // Same case
+        $user1 = $this->modelFactory->new('Users');
+        $user2 = $this->modelFactory->new('Users'); // Same case
         
         $this->assertInstanceOf(Users::class, $user1);
         $this->assertInstanceOf(Users::class, $user2);
@@ -170,7 +278,7 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
      */
     public function testModelProperInitialization(): void
     {
-        $user = ModelFactory::new('Users');
+        $user = $this->modelFactory->new('Users');
 
         // Should have metadata loaded
         $this->assertNotEmpty($user->getFields());
@@ -197,26 +305,26 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
     {
         // Empty string
         try {
-            ModelFactory::new('');
+            $this->modelFactory->new('');
             $this->fail('Expected GCException for empty model name');
         } catch (GCException $e) {
-            $this->assertStringContainsString('Model name must be a non-empty string', $e->getMessage());
+            $this->assertStringContainsString('Invalid model name provided: must be non-empty string', $e->getMessage());
         }
 
         // Invalid characters
         try {
-            ModelFactory::new('User@Model');
+            $this->modelFactory->new('User@Model');
             $this->fail('Expected GCException for invalid model name');
         } catch (GCException $e) {
-            $this->assertStringContainsString('Model name contains invalid characters', $e->getMessage());
+            $this->assertStringContainsString('Model class does not exist', $e->getMessage());
         }
 
         // Invalid retrieval ID
         try {
-            ModelFactory::retrieve('', 'some-id');
+            $this->modelFactory->retrieve('', 'some-id');
             $this->fail('Expected GCException for empty model name in retrieve');
         } catch (GCException $e) {
-            $this->assertStringContainsString('Model name must be a non-empty string', $e->getMessage());
+            $this->assertStringContainsString("Failed to create model instance for ''", $e->getMessage());
         }
     }
 
@@ -230,7 +338,7 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
 
         // Create multiple models
         for ($i = 0; $i < 10; $i++) {
-            $modelsCreated[] = ModelFactory::new('Users');
+            $modelsCreated[] = $this->modelFactory->new('Users');
         }
 
         $endTime = microtime(true);

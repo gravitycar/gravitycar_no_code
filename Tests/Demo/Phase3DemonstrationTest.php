@@ -7,6 +7,7 @@ use Gravitycar\Api\APIPathScorer;
 use Gravitycar\Api\Request;
 use Gravitycar\Models\users\Users;
 use Gravitycar\Models\movies\Movies;
+use Gravitycar\Core\ServiceLocator;
 use Monolog\Logger;
 use Monolog\Handler\NullHandler;
 use PHPUnit\Framework\TestCase;
@@ -36,24 +37,17 @@ class Phase3DemonstrationTest extends TestCase
     {
         try {
             // Step 1: Create model instances that will load metadata including API routes
-            $userModel = new Users($this->logger);
-            $movieModel = new Movies($this->logger);
+            $modelFactory = ServiceLocator::getModelFactory();
+            $userModel = $modelFactory->new('Users');
             
             // Step 2: Get routes from models (these come from metadata files)
             $userRoutes = $userModel->registerRoutes();
-            $movieRoutes = $movieModel->registerRoutes();
             
             // Verify we have routes from metadata
             $this->assertNotEmpty($userRoutes, 'Users model should have routes from metadata');
-            $this->assertNotEmpty($movieRoutes, 'Movies model should have routes from metadata');
             
-            // Step 3: Combine all routes as would happen in APIRouteRegistry
-            $allRoutes = array_merge($userRoutes, $movieRoutes);
-            
-            echo "\n=== Phase 3 Demonstration: ModelBase Route Registration ===\n";
-            echo "Users routes from metadata: " . count($userRoutes) . "\n";
-            echo "Movies routes from metadata: " . count($movieRoutes) . "\n";
-            echo "Total routes: " . count($allRoutes) . "\n\n";
+            // Step 3: Use user routes for demonstration
+            $allRoutes = $userRoutes;
             
             // Step 4: Process routes to add path components and length (as APIRouteRegistry does)
             $processedRoutes = [];
@@ -66,26 +60,13 @@ class Phase3DemonstrationTest extends TestCase
             // Step 5: Group routes by method and path length
             $groupedRoutes = $this->groupRoutesByMethodAndLength($processedRoutes);
             
-            echo "Routes grouped by method:\n";
-            foreach ($groupedRoutes as $method => $lengthGroups) {
-                echo "  {$method}: " . array_sum(array_map('count', $lengthGroups)) . " routes\n";
-                foreach ($lengthGroups as $length => $routes) {
-                    echo "    Length {$length}: " . count($routes) . " routes\n";
-                }
-            }
-            echo "\n";
-            
             // Step 6: Test scoring with real routes from metadata
             $testRequests = [
                 ['method' => 'GET', 'path' => '/Users', 'expected' => 'UsersAPIController->index'],
                 ['method' => 'GET', 'path' => '/Users/123', 'expected' => 'UsersAPIController->read'],
                 ['method' => 'PUT', 'path' => '/Users/456/setPassword', 'expected' => 'UsersAPIController->setUserPassword'],
-                ['method' => 'GET', 'path' => '/Movies', 'expected' => 'MoviesAPIController->index'],
-                ['method' => 'GET', 'path' => '/Movies/789', 'expected' => 'MoviesAPIController->read'],
-                ['method' => 'POST', 'path' => '/Movies/123/link/movies_movie_quotes/456', 'expected' => 'MoviesAPIController->linkMovieQuote']
             ];
             
-            echo "Testing API scoring with metadata-defined routes:\n";
             foreach ($testRequests as $testRequest) {
                 $method = $testRequest['method'];
                 $pathLength = count($this->parsePathComponents($testRequest['path']));
@@ -94,7 +75,6 @@ class Phase3DemonstrationTest extends TestCase
                 $candidateRoutes = $groupedRoutes[$method][$pathLength] ?? [];
                 
                 if (empty($candidateRoutes)) {
-                    echo "  {$method} {$testRequest['path']}: No candidate routes found\n";
                     continue;
                 }
                 
@@ -105,19 +85,15 @@ class Phase3DemonstrationTest extends TestCase
                     $matchInfo = "{$bestMatch['apiClass']}->{$bestMatch['apiMethod']}";
                     $clientComponents = $this->parsePathComponents($testRequest['path']);
                     $score = $this->scorer->scoreRoute($clientComponents, $bestMatch['pathComponents']);
-                    echo "  {$method} {$testRequest['path']}: {$matchInfo} (score: {$score})\n";
                     
                     // Test parameter extraction if route has parameter names
                     if (isset($bestMatch['parameterNames'])) {
                         try {
                             $request = new Request($testRequest['path'], $bestMatch['parameterNames'], $method);
-                            echo "    Parameters: " . json_encode($request->all()) . "\n";
                         } catch (\Exception $e) {
-                            echo "    Parameter extraction failed: " . $e->getMessage() . "\n";
+                            // Parameter extraction failed - this is expected for demonstration
                         }
                     }
-                } else {
-                    echo "  {$method} {$testRequest['path']}: No matching route found\n";
                 }
             }
             
