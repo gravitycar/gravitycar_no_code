@@ -70,3 +70,4 @@
 - [X] The FieldFactory needs to take a Model so it can know what table the field belongs to. We need a setModel() method or something.
 - [] GoogleAuthTokens::cleanupExpiredTokens() should be using a DatabaseConnector method instead of building its own SQL.
 - [X] ContainerConfig hard-codes model names to register them. BAD! Make it ues the MetadataEngine.
+- [] ValidationRuleFactory is scanning its directory to discover rules. Very bad.

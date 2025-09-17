@@ -7,7 +7,11 @@ use Gravitycar\Api\AuthController;
 use Gravitycar\Api\Request;
 use Gravitycar\Services\AuthenticationService;
 use Gravitycar\Services\GoogleOAuthService;
-use Gravitycar\Core\ServiceLocator;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Gravitycar\Core\Config;
 use Gravitycar\Models\ModelBase;
 use Monolog\Logger;
 use Gravitycar\Tests\Unit\UnitTestCase;
@@ -15,29 +19,42 @@ use Gravitycar\Tests\Unit\UnitTestCase;
 class AuthControllerTest extends UnitTestCase
 {
     private AuthController $controller;
+    private Logger|MockObject $mockLogger;
+    private ModelFactory|MockObject $mockModelFactory;
+    private DatabaseConnectorInterface|MockObject $mockDatabaseConnector;
+    private MetadataEngineInterface|MockObject $mockMetadataEngine;
+    private Config|MockObject $mockConfig;
+    private CurrentUserProviderInterface|MockObject $mockCurrentUserProvider;
     private AuthenticationService|MockObject $mockAuthService;
     private GoogleOAuthService|MockObject $mockOAuthService;
-    private Logger|MockObject $mockLogger;
     private Request|MockObject $mockRequest;
 
     protected function setUp(): void
     {
         parent::setUp();
         
+        // Create all required mock dependencies
         $this->mockLogger = $this->createMock(Logger::class);
+        $this->mockModelFactory = $this->createMock(ModelFactory::class);
+        $this->mockDatabaseConnector = $this->createMock(DatabaseConnectorInterface::class);
+        $this->mockMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        $this->mockConfig = $this->createMock(Config::class);
+        $this->mockCurrentUserProvider = $this->createMock(CurrentUserProviderInterface::class);
         $this->mockAuthService = $this->createMock(AuthenticationService::class);
         $this->mockOAuthService = $this->createMock(GoogleOAuthService::class);
         $this->mockRequest = $this->createMock(Request::class);
         
-        // Reset ServiceLocator to clear any cached instances
-        ServiceLocator::reset();
-        
-        // Mock ServiceLocator to return our mocks
-        ServiceLocator::getContainer()->set('logger', $this->mockLogger);
-        ServiceLocator::getContainer()->set(AuthenticationService::class, $this->mockAuthService);
-        ServiceLocator::getContainer()->set(GoogleOAuthService::class, $this->mockOAuthService);
-        
-        $this->controller = new AuthController();
+        // Create AuthController with proper dependency injection
+        $this->controller = new AuthController(
+            $this->mockLogger,
+            $this->mockModelFactory,
+            $this->mockDatabaseConnector,
+            $this->mockMetadataEngine,
+            $this->mockConfig,
+            $this->mockCurrentUserProvider,
+            $this->mockAuthService,
+            $this->mockOAuthService
+        );
     }
 
     protected function tearDown(): void

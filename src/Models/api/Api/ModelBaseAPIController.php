@@ -1,5 +1,5 @@
 <?php
-namespace Gravitycar\Models\Api\Api;
+namespace Gravitycar\Models\api\Api;
 
 use Gravitycar\Api\Request;
 use Gravitycar\Api\ApiControllerBase;
@@ -63,28 +63,28 @@ class ModelBaseAPIController extends ApiControllerBase {
                 'method' => 'GET',
                 'path' => '/?',
                 'parameterNames' => ['modelName'],
-                'apiClass' => 'Gravitycar\Models\Api\Api\ModelBaseAPIController',
+                'apiClass' => 'Gravitycar\Models\api\Api\ModelBaseAPIController',
                 'apiMethod' => 'list'
             ],
             [
                 'method' => 'GET',
                 'path' => '/?/?',
                 'parameterNames' => ['modelName', 'id'],
-                'apiClass' => 'Gravitycar\Models\Api\Api\ModelBaseAPIController',
+                'apiClass' => 'Gravitycar\Models\api\Api\ModelBaseAPIController',
                 'apiMethod' => 'retrieve'
             ],
             [
                 'method' => 'GET',
                 'path' => '/?/deleted',
                 'parameterNames' => ['modelName', ''],
-                'apiClass' => 'Gravitycar\Models\Api\Api\ModelBaseAPIController',
+                'apiClass' => 'Gravitycar\Models\api\Api\ModelBaseAPIController',
                 'apiMethod' => 'listDeleted'
             ],
             [
                 'method' => 'GET',
                 'path' => '/?/?/link/?',
                 'parameterNames' => ['modelName', 'id', '', 'relationshipName'],
-                'apiClass' => 'Gravitycar\Models\Api\Api\ModelBaseAPIController',
+                'apiClass' => 'Gravitycar\Models\api\Api\ModelBaseAPIController',
                 'apiMethod' => 'listRelated'
             ],
             
@@ -93,14 +93,14 @@ class ModelBaseAPIController extends ApiControllerBase {
                 'method' => 'POST',
                 'path' => '/?',
                 'parameterNames' => ['modelName'],
-                'apiClass' => 'Gravitycar\Models\Api\Api\ModelBaseAPIController',
+                'apiClass' => 'Gravitycar\Models\api\Api\ModelBaseAPIController',
                 'apiMethod' => 'create'
             ],
             [
                 'method' => 'POST',
                 'path' => '/?/?/link/?',
                 'parameterNames' => ['modelName', 'id', '', 'relationshipName'],
-                'apiClass' => 'Gravitycar\Models\Api\Api\ModelBaseAPIController',
+                'apiClass' => 'Gravitycar\Models\api\Api\ModelBaseAPIController',
                 'apiMethod' => 'createAndLink'
             ],
             
@@ -109,21 +109,21 @@ class ModelBaseAPIController extends ApiControllerBase {
                 'method' => 'PUT',
                 'path' => '/?/?',
                 'parameterNames' => ['modelName', 'id'],
-                'apiClass' => 'Gravitycar\Models\Api\Api\ModelBaseAPIController',
+                'apiClass' => 'Gravitycar\Models\api\Api\ModelBaseAPIController',
                 'apiMethod' => 'update'
             ],
             [
                 'method' => 'PUT',
                 'path' => '/?/?/restore',
                 'parameterNames' => ['modelName', 'id', ''],
-                'apiClass' => 'Gravitycar\Models\Api\Api\ModelBaseAPIController',
+                'apiClass' => 'Gravitycar\Models\api\Api\ModelBaseAPIController',
                 'apiMethod' => 'restore'
             ],
             [
                 'method' => 'PUT',
                 'path' => '/?/?/link/?/?',
                 'parameterNames' => ['modelName', 'id', '', 'relationshipName', 'idToLink'],
-                'apiClass' => 'Gravitycar\Models\Api\Api\ModelBaseAPIController',
+                'apiClass' => 'Gravitycar\Models\api\Api\ModelBaseAPIController',
                 'apiMethod' => 'link'
             ],
             
@@ -132,14 +132,14 @@ class ModelBaseAPIController extends ApiControllerBase {
                 'method' => 'DELETE',
                 'path' => '/?/?',
                 'parameterNames' => ['modelName', 'id'],
-                'apiClass' => 'Gravitycar\Models\Api\Api\ModelBaseAPIController',
+                'apiClass' => 'Gravitycar\Models\api\Api\ModelBaseAPIController',
                 'apiMethod' => 'delete'
             ],
             [
                 'method' => 'DELETE',
                 'path' => '/?/?/link/?/?',
                 'parameterNames' => ['modelName', 'id', '', 'relationshipName', 'idToLink'],
-                'apiClass' => 'Gravitycar\Models\Api\Api\ModelBaseAPIController',
+                'apiClass' => 'Gravitycar\Models\api\Api\ModelBaseAPIController',
                 'apiMethod' => 'unlink'
             ]
         ];

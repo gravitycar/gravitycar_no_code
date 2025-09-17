@@ -7,7 +7,7 @@ import type { MovieQuote, ModelMetadata } from '../types';
  */
 const enhancedMovieQuoteGridRenderer = (
   quote: MovieQuote, 
-  metadata: ModelMetadata, 
+  _metadata: ModelMetadata, 
   onEdit: (quote: MovieQuote) => void, 
   onDelete: (quote: MovieQuote) => void
 ) => (

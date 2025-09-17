@@ -3,14 +3,33 @@
 namespace Tests\Unit\Api;
 
 use Gravitycar\Api\MetadataAPIController;
+use Gravitycar\Api\APIRouteRegistry;
+use Gravitycar\Services\DocumentationCache;
+use Gravitycar\Services\ReactComponentMapper;
 use Gravitycar\Metadata\MetadataEngine;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
+use Gravitycar\Core\Config;
 use Gravitycar\Exceptions\NotFoundException;
 use Gravitycar\Exceptions\InternalServerErrorException;
+use Monolog\Logger;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\MockObject\MockObject;
 
 class MetadataAPIControllerTest extends TestCase
 {
     protected MetadataAPIController $controller;
+    protected Logger|MockObject $mockLogger;
+    protected ModelFactory|MockObject $mockModelFactory;
+    protected DatabaseConnectorInterface|MockObject $mockDatabaseConnector;
+    protected MetadataEngineInterface|MockObject $mockMetadataEngine;
+    protected Config|MockObject $mockConfig;
+    protected CurrentUserProviderInterface|MockObject $mockCurrentUserProvider;
+    protected APIRouteRegistry|MockObject $mockRouteRegistry;
+    protected DocumentationCache|MockObject $mockCache;
+    protected ReactComponentMapper|MockObject $mockComponentMapper;
 
     protected function setUp(): void
     {
@@ -19,7 +38,104 @@ class MetadataAPIControllerTest extends TestCase
         // Clear any existing cache files before each test
         $this->clearDocumentationCache();
         
-        $this->controller = new MetadataAPIController();
+        // Create all required mock dependencies
+        $this->mockLogger = $this->createMock(Logger::class);
+        $this->mockModelFactory = $this->createMock(ModelFactory::class);
+        $this->mockDatabaseConnector = $this->createMock(DatabaseConnectorInterface::class);
+        $this->mockMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        $this->mockConfig = $this->createMock(Config::class);
+        $this->mockCurrentUserProvider = $this->createMock(CurrentUserProviderInterface::class);
+        $this->mockRouteRegistry = $this->createMock(APIRouteRegistry::class);
+        $this->mockCache = $this->createMock(DocumentationCache::class);
+        $this->mockComponentMapper = $this->createMock(ReactComponentMapper::class);
+        
+        // Create MetadataAPIController with proper dependency injection
+        $this->controller = new MetadataAPIController(
+            $this->mockLogger,
+            $this->mockModelFactory,
+            $this->mockDatabaseConnector,
+            $this->mockMetadataEngine,
+            $this->mockConfig,
+            $this->mockCurrentUserProvider,
+            $this->mockRouteRegistry,
+            $this->mockCache,
+            $this->mockComponentMapper
+        );
+        
+        // Configure mock behaviors for common test scenarios
+        $this->setupMockBehaviors();
+    }
+    
+    private function setupMockBehaviors(): void
+    {
+        // Mock MetadataEngine->getAllMetadata() to return sample model data
+        $sampleModelsData = [
+            'models' => [
+                'Users' => [
+                    'name' => 'Users',
+                    'table' => 'users',
+                    'description' => 'User management',
+                    'fields' => ['id' => ['type' => 'ID'], 'name' => ['type' => 'Text']],
+                    'relationships' => []
+                ]
+            ]
+        ];
+        
+        $this->mockMetadataEngine->method('getAllMetadata')->willReturn($sampleModelsData);
+        $this->mockMetadataEngine->method('getCachedMetadata')->willReturn($sampleModelsData);
+        $this->mockMetadataEngine->method('getAvailableModels')->willReturn(['Users', 'Movies']);
+        $this->mockMetadataEngine->method('getModelMetadata')->willReturnCallback(function($modelName) {
+            if ($modelName === 'Users' || $modelName === 'TestModel') {
+                return [
+                    'name' => $modelName,
+                    'table' => strtolower($modelName),
+                    'fields' => ['id' => ['type' => 'ID'], 'name' => ['type' => 'Text']]
+                ];
+            }
+            throw new \Gravitycar\Exceptions\NotFoundException("Model {$modelName} not found");
+        });
+        $this->mockMetadataEngine->method('getFieldTypeDefinitions')->willReturn([
+            'Text' => ['type' => 'Text', 'class' => 'TextField']
+        ]);
+        
+        // Mock RouteRegistry->getRoutes() to return sample routes
+        $this->mockRouteRegistry->method('getRoutes')->willReturn([
+            ['method' => 'GET', 'path' => '/Users', 'apiClass' => 'MockController', 'apiMethod' => 'list', 'parameterNames' => []]
+        ]);
+        
+        $this->mockRouteRegistry->method('getModelRoutes')->willReturn([
+            ['method' => 'GET', 'path' => '/Users', 'apiClass' => 'MockController', 'apiMethod' => 'list', 'parameterNames' => []]
+        ]);
+        
+        $this->mockRouteRegistry->method('getEndpointDocumentation')->willReturn([
+            'description' => 'Mock endpoint description'
+        ]);
+        
+        // Mock DocumentationCache methods (void method, no return value needed)
+        $this->mockCache->expects($this->any())->method('clearCache');
+        $this->mockCache->method('getCachedModelsList')->willReturn(null);
+        $this->mockCache->expects($this->any())->method('cacheModelsList');
+        
+        // Mock Config methods
+        $this->mockConfig->method('get')->willReturnCallback(function($key, $default = null) {
+            switch ($key) {
+                case 'documentation.cache_enabled':
+                    return true;
+                case 'documentation.enable_debug_info':
+                    return false;
+                case 'documentation.api_version':
+                    return '1.0.0';
+                case 'documentation.api_description':
+                    return 'Test API';
+                default:
+                    return $default;
+            }
+        });
+        
+        // Mock ReactComponentMapper methods
+        $this->mockComponentMapper->method('getFieldToComponentMap')->willReturn([
+            'Text' => ['component' => 'TextInput', 'props' => ['placeholder' => 'Enter text']]
+        ]);
     }
 
     protected function tearDown(): void

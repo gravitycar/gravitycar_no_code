@@ -6,6 +6,9 @@ use Gravitycar\Tests\Unit\DatabaseTestCase;
 use Gravitycar\Utils\GuestUserManager;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Exceptions\GCException;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Aura\Di\Container;
+use Monolog\Logger;
 
 /**
  * Edge case tests for GuestUserManager class
@@ -16,10 +19,30 @@ use Gravitycar\Exceptions\GCException;
 class GuestUserManagerEdgeCaseTest extends DatabaseTestCase
 {
     private GuestUserManager $guestUserManager;
+    private ModelFactory $modelFactory;
     
     protected function setUp(): void
     {
         parent::setUp();
+        
+        // Create ModelFactory with proper dependencies for integration testing
+        $mockContainer = $this->createMock(Container::class);
+        $mockMetadataEngine = $this->createMock(MetadataEngineInterface::class);
+        
+        // Configure MetadataEngine to support the models we'll use
+        $mockMetadataEngine->method('getAvailableModels')
+            ->willReturn(['Users', 'Movies', 'Roles']);
+        
+        // Create ModelFactory instance using the real database connector from DatabaseTestCase
+        // @phpstan-ignore-next-line - Mock objects are compatible at runtime
+        /** @var Container $mockContainer */
+        /** @var MetadataEngineInterface $mockMetadataEngine */
+        $this->modelFactory = new ModelFactory(
+            $mockContainer,
+            $this->logger, // From parent UnitTestCase
+            $this->db,     // From parent DatabaseTestCase
+            $mockMetadataEngine
+        );
         
         // Clear any cached guest user before each test
         GuestUserManager::clearCache();
@@ -60,7 +83,7 @@ class GuestUserManagerEdgeCaseTest extends DatabaseTestCase
         $this->assertEquals($userId1, $userId2);
         
         // Verify only one guest user exists in database
-        $userModel = ModelFactory::new('Users');
+        $userModel = $this->modelFactory->new('Users');
         $guestUsers = $userModel->find(['email' => 'guest@gravitycar.com']);
         $this->assertCount(1, $guestUsers);
     }
@@ -181,17 +204,17 @@ class GuestUserManagerEdgeCaseTest extends DatabaseTestCase
         $this->assertTrue($this->guestUserManager->isGuestUser($guestUser));
         
         // Test with user having similar but different email
-        $similarUser = ModelFactory::new('Users');
+        $similarUser = $this->modelFactory->new('Users');
         $similarUser->set('email', 'guest2@gravitycar.com');
         $this->assertFalse($this->guestUserManager->isGuestUser($similarUser));
         
         // Test with user having empty email
-        $emptyEmailUser = ModelFactory::new('Users');
+        $emptyEmailUser = $this->modelFactory->new('Users');
         $emptyEmailUser->set('email', '');
         $this->assertFalse($this->guestUserManager->isGuestUser($emptyEmailUser));
         
         // Test with user having null email
-        $nullEmailUser = ModelFactory::new('Users');
+        $nullEmailUser = $this->modelFactory->new('Users');
         $nullEmailUser->set('email', null);
         $this->assertFalse($this->guestUserManager->isGuestUser($nullEmailUser));
     }
@@ -244,7 +267,7 @@ class GuestUserManagerEdgeCaseTest extends DatabaseTestCase
     private function cleanupGuestUser(): void
     {
         try {
-            $userModel = ModelFactory::new('Users');
+            $userModel = $this->modelFactory->new('Users');
             $existingGuestUsers = $userModel->find(['email' => 'guest@gravitycar.com']);
             
             foreach ($existingGuestUsers as $guestUser) {

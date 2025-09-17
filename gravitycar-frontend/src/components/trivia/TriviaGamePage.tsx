@@ -4,7 +4,7 @@ import TriviaGameComplete from './TriviaGameComplete.tsx';
 import TriviaHighScores from './TriviaHighScores.tsx';
 import useGameState from '../../hooks/useGameState.ts';
 import { ErrorBoundary } from '../error/ErrorBoundary';
-import type { TriviaGame } from './types';
+// import type { TriviaGame } from './types';
 
 /**
  * Main Trivia Game Component

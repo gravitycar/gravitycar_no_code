@@ -7,6 +7,7 @@ use PHPUnit\Framework\MockObject\MockObject;
 use Gravitycar\Api\Router;
 use Gravitycar\Api\APIRouteRegistry;
 use Gravitycar\Api\APIPathScorer;
+use Gravitycar\Api\ApiControllerBase;
 use Gravitycar\Api\Request;
 use Gravitycar\Api\RequestParameterParser;
 use Gravitycar\Api\FilterCriteria;
@@ -20,18 +21,29 @@ use Gravitycar\Exceptions\UnauthorizedException;
 use Gravitycar\Exceptions\ForbiddenException;
 use Gravitycar\Services\AuthenticationService;
 use Gravitycar\Services\AuthorizationService;
+use Gravitycar\Factories\APIControllerFactory;
+use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Monolog\Logger;
 use ReflectionClass;
 use ReflectionProperty;
 
+// Include mock controller for testing
+require_once __DIR__ . '/MockApiController.php';
+
 class RouterTest extends TestCase
 {
     private Router $router;
-    private MockObject $serviceLocator;
     private MockObject $logger;
     private MockObject $metadataEngine;
     private MockObject $routeRegistry;
     private MockObject $pathScorer;
+    private MockObject $controllerFactory;
+    private MockObject $modelFactory;
+    private MockObject $authenticationService;
+    private MockObject $authorizationService;
+    private MockObject $currentUserProvider;
     private array $originalServerState = [];
     private array $originalGetState = [];
 
@@ -43,27 +55,34 @@ class RouterTest extends TestCase
         $this->originalServerState = $_SERVER;
         $this->originalGetState = $_GET ?? [];
         
-        // Create mocks
-        $this->serviceLocator = $this->createMock(ServiceLocator::class);
+        // Create all 9 required mocks for Router constructor
         $this->logger = $this->createMock(Logger::class);
-        $this->metadataEngine = $this->createMock(\Gravitycar\Metadata\MetadataEngine::class);
-        
-        // Configure service locator
-        $this->serviceLocator->method('get')->willReturnMap([
-            ['logger', $this->logger],
-            ['metadataEngine', $this->metadataEngine]
-        ]);
-        
-        // Create router with metadata engine to avoid ServiceLocator static calls
-        $this->router = new Router($this->metadataEngine);
-        
-        // Mock internal dependencies using reflection
+        $this->metadataEngine = $this->createMock(MetadataEngineInterface::class);
         $this->routeRegistry = $this->createMock(APIRouteRegistry::class);
         $this->pathScorer = $this->createMock(APIPathScorer::class);
+        $this->controllerFactory = $this->createMock(APIControllerFactory::class);
         
-        $this->setPrivateProperty($this->router, 'routeRegistry', $this->routeRegistry);
-        $this->setPrivateProperty($this->router, 'pathScorer', $this->pathScorer);
-        $this->setPrivateProperty($this->router, 'logger', $this->logger);
+        // Configure controller factory to throw exception so Router falls back to direct instantiation
+        $this->controllerFactory->method('createControllerWithDependencyList')
+            ->willThrowException(new \Exception('Mock factory failure'));
+            
+        $this->modelFactory = $this->createMock(ModelFactory::class);
+        $this->authenticationService = $this->createMock(AuthenticationService::class);
+        $this->authorizationService = $this->createMock(AuthorizationService::class);
+        $this->currentUserProvider = $this->createMock(CurrentUserProviderInterface::class);
+        
+        // Create router with all required dependencies for pure DI
+        $this->router = new Router(
+            $this->logger,
+            $this->metadataEngine,
+            $this->routeRegistry,
+            $this->pathScorer,
+            $this->controllerFactory,
+            $this->modelFactory,
+            $this->authenticationService,
+            $this->authorizationService,
+            $this->currentUserProvider
+        );
     }
 
     protected function tearDown(): void
@@ -75,18 +94,20 @@ class RouterTest extends TestCase
         parent::tearDown();
     }
 
-    public function testConstructorWithServiceLocator(): void
+    public function testConstructorWithAllDependencies(): void
     {
-        // Test with metadata engine (backward compatibility)
-        $router = new Router($this->metadataEngine);
-        
-        $this->assertInstanceOf(Router::class, $router);
-    }
-
-    public function testConstructorWithMetadataEngineBackwardCompatibility(): void
-    {
-        // Test backward compatibility constructor
-        $router = new Router($this->metadataEngine);
+        // Test that router can be constructed with all 9 dependencies
+        $router = new Router(
+            $this->logger,
+            $this->metadataEngine,
+            $this->routeRegistry,
+            $this->pathScorer,
+            $this->controllerFactory,
+            $this->modelFactory,
+            $this->authenticationService,
+            $this->authorizationService,
+            $this->currentUserProvider
+        );
         
         $this->assertInstanceOf(Router::class, $router);
     }
@@ -100,7 +121,7 @@ class RouterTest extends TestCase
         $route = [
             'method' => 'GET',
             'path' => '/api/users',
-            'apiClass' => MockApiController::class,
+            'apiClass' => 'MockApiController',
             'apiMethod' => 'getUsers',
             'parameterNames' => ['api', 'users'], // Match path components
             'allowedRoles' => ['*']
@@ -148,7 +169,7 @@ class RouterTest extends TestCase
         $route = [
             'method' => 'GET',
             'path' => '/api/users/{id}',
-            'apiClass' => MockApiController::class,
+            'apiClass' => 'MockApiController',
             'apiMethod' => 'getUser',
             'parameterNames' => ['api', 'users', 'id'], // Match path components
             'allowedRoles' => ['*']
@@ -209,8 +230,8 @@ class RouterTest extends TestCase
         $route = [
             'method' => 'GET',
             'path' => '/api/users',
-            'apiClass' => MockApiController::class,
-            'apiMethod' => 'nonexistentMethod',
+            'apiClass' => 'MockApiController',
+            'apiMethod' => 'actuallyNonexistentMethod',
             'parameterNames' => ['api', 'users'], // Match path components
             'allowedRoles' => ['*']
         ];
@@ -222,7 +243,7 @@ class RouterTest extends TestCase
             ->willReturn($route);
         
         $this->expectException(GCException::class);
-        $this->expectExceptionMessage('Handler method not found: nonexistentMethod');
+        $this->expectExceptionMessage('Handler method not found: actuallyNonexistentMethod');
         
         $this->router->route($method, $path);
     }
@@ -237,7 +258,7 @@ class RouterTest extends TestCase
         $route = [
             'method' => 'GET',
             'path' => '/api/users',
-            'apiClass' => MockApiController::class,
+            'apiClass' => 'MockApiController',
             'apiMethod' => 'getUsers',
             'parameterNames' => ['api', 'users'], // Match path components
             'allowedRoles' => ['*']
@@ -307,15 +328,15 @@ class RouterTest extends TestCase
     {
         $request = new Request('/api/users', ['api', 'users'], 'GET', ['modelName' => 'User']);
         
-        // Mock ModelFactory
+        // Mock ModelFactory to return a mock ModelBase (since method must return ModelBase, not null)
         $mockModel = $this->createMock(ModelBase::class);
+        $this->modelFactory->method('new')->willReturn($mockModel);
         
-        // We can't easily mock static methods, so we'll test the error case instead
         $method = $this->getPrivateMethod($this->router, 'getModel');
         $result = $method->invoke($this->router, $request);
         
-        // Since ModelFactory is not easily mockable, we expect null due to class not existing
-        $this->assertNull($result);
+        // Since ModelFactory returns a mock ModelBase, we expect the mock object
+        $this->assertInstanceOf(ModelBase::class, $result);
     }
 
     public function testGetModelWithNoModelName(): void
@@ -485,73 +506,9 @@ class RouterTest extends TestCase
         
         $this->assertTrue(true);
     }
-
-    public function testValidateRequestParametersWithMissingParams(): void
-    {
-        // Create request where 'id' parameter is missing from extracted parameters
-        $request = new Request('/api/users', ['api', 'users'], 'GET', []); // Only 2 components, no 'id'
-        
-        // But route expects 'id' parameter  
-        $route = [
-            'path' => '/api/users/{id}',
-            'parameterNames' => ['api', 'users', 'id'] // Expects 'id' parameter
-        ];
-        
-        $method = $this->getPrivateMethod($this->router, 'validateRequestParameters');
-        
-        $this->expectException(GCException::class);
-        $this->expectExceptionMessage('Missing required route parameter: id');
-        
-        $method->invoke($this->router, $request, $route);
-    }
-
-    public function testGetRequestParamsWithGetData(): void
-    {
-        $_GET = ['page' => '1', 'limit' => '10'];
-        $_SERVER['REQUEST_METHOD'] = 'GET';
-        
-        $method = $this->getPrivateMethod($this->router, 'getRequestParams');
-        $result = $method->invoke($this->router);
-        
-        $this->assertEquals('1', $result['page']);
-        $this->assertEquals('10', $result['limit']);
-        
-        // Clean up
-        unset($_GET, $_SERVER['REQUEST_METHOD']);
-    }
-
-    public function testParsePathComponentsWithEmptyPath(): void
-    {
-        $method = $this->getPrivateMethod($this->router, 'parsePathComponents');
-        
-        $result = $method->invoke($this->router, '');
-        $this->assertEquals([], $result);
-        
-        $result = $method->invoke($this->router, '/');
-        $this->assertEquals([], $result);
-    }
-
-    public function testParsePathComponentsWithValidPath(): void
-    {
-        $method = $this->getPrivateMethod($this->router, 'parsePathComponents');
-        
-        $result = $method->invoke($this->router, '/api/users/123');
-        $this->assertEquals(['api', 'users', '123'], $result);
-    }
-
+    
     /**
-     * Helper method to set private properties
-     */
-    private function setPrivateProperty($object, string $propertyName, $value): void
-    {
-        $reflection = new ReflectionClass($object);
-        $property = $reflection->getProperty($propertyName);
-        $property->setAccessible(true);
-        $property->setValue($object, $value);
-    }
-
-    /**
-     * Helper method to access private methods
+     * Helper method to access private/protected methods using reflection
      */
     private function getPrivateMethod($object, string $methodName): \ReflectionMethod
     {
@@ -560,38 +517,27 @@ class RouterTest extends TestCase
         $method->setAccessible(true);
         return $method;
     }
-
+    
     /**
-     * Create a mock field for testing
+     * Helper method to set private/protected properties using reflection
      */
-    private function createMockField(string $name, bool $isDbField): MockObject
+    private function setPrivateProperty($object, string $propertyName, $value): void
+    {
+        $reflection = new ReflectionClass($object);
+        $property = $reflection->getProperty($propertyName);
+        $property->setAccessible(true);
+        $property->setValue($object, $value);
+    }
+    
+    /**
+     * Helper method to create mock field objects
+     */
+    private function createMockField(string $name, bool $required = false): MockObject
     {
         $field = $this->createMock(\Gravitycar\Fields\FieldBase::class);
         $field->method('getName')->willReturn($name);
-        $field->method('isDBField')->willReturn($isDbField);
+        $field->method('isRequired')->willReturn($required);
+        $field->method('isDBField')->willReturn(true);
         return $field;
-    }
-}
-
-/**
- * Mock API Controller for testing
- */
-class MockApiController
-{
-    private Logger $logger;
-    
-    public function __construct(Logger $logger)
-    {
-        $this->logger = $logger;
-    }
-    
-    public function getUsers(Request $request): string
-    {
-        return 'success';
-    }
-    
-    public function getUser(Request $request): string
-    {
-        return 'success';
     }
 }

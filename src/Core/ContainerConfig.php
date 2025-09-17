@@ -329,6 +329,18 @@ class ContainerConfig {
             'tmdbService' => $di->lazyGet('tmdb_api_service')
         ];
 
+        // Configure Movies model with TMDB integration service
+        $di->params[\Gravitycar\Models\movies\Movies::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'fieldFactory' => $di->lazyGet('field_factory'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'relationshipFactory' => $di->lazyGet('relationship_factory'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'currentUserProvider' => $di->lazyGet('current_user_provider'),
+            'tmdbIntegration' => $di->lazyGet('movie_tmdb_integration_service')
+        ];
+
         // OAuth Services
         $di->set('google_oauth_service', $di->lazyNew(\Gravitycar\Services\GoogleOAuthService::class));
         $di->params[\Gravitycar\Services\GoogleOAuthService::class] = [

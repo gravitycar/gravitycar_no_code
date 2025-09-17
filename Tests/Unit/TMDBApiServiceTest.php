@@ -9,9 +9,16 @@ use Gravitycar\Core\Config;
 use Psr\Log\LoggerInterface;
 use Gravitycar\Exceptions\GCException;
 
+/**
+ * TMDBApiServiceTest with HTTP Mocking
+ * 
+ * This test class uses a testable TMDBApiService subclass to mock HTTP requests
+ * instead of making real API calls to TMDB. This approach ensures tests are
+ * fast, reliable, and don't depend on external services.
+ */
 class TMDBApiServiceTest extends TestCase
 {
-    private TMDBApiService $tmdbService;
+    private TestableHTTPTMDBApiService $tmdbService;
     private Config|MockObject $mockConfig;
     private LoggerInterface|MockObject $mockLogger;
     
@@ -27,16 +34,44 @@ class TMDBApiServiceTest extends TestCase
             ['TMDB_API_READ_ACCESS_TOKEN', null, 'test_access_token']
         ]);
         
-        // Create service with injected dependencies
-        $this->tmdbService = new TMDBApiService($this->mockConfig, $this->mockLogger);
+        // Create testable service with injected dependencies and HTTP mocking capability
+        $this->tmdbService = new TestableHTTPTMDBApiService($this->mockConfig, $this->mockLogger);
     }
+    
     
     public function testSearchMoviesWithValidQuery(): void
     {
+        // Mock successful search response for "Matrix"
+        $mockSearchResponse = [
+            'results' => [
+                [
+                    'id' => 603,
+                    'title' => 'The Matrix',
+                    'release_date' => '1999-03-31',
+                    'overview' => 'A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers.',
+                    'poster_path' => '/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
+                    'popularity' => 85.965,
+                    'adult' => false
+                ],
+                [
+                    'id' => 604,
+                    'title' => 'The Matrix Reloaded',
+                    'release_date' => '2003-05-15',
+                    'overview' => 'Six months after the events depicted in The Matrix, Neo has proved to be a good omen for the free humans.',
+                    'poster_path' => '/9TGHDvWrqKBzwDxDodHYXEmOE6J.jpg',
+                    'popularity' => 42.123,
+                    'adult' => false
+                ]
+            ]
+        ];
+        
+        $this->tmdbService->setMockResponse($mockSearchResponse);
+        
         $results = $this->tmdbService->searchMovies('Matrix');
         
         $this->assertIsArray($results);
         $this->assertNotEmpty($results);
+        $this->assertCount(2, $results);
         
         // Check structure of first result
         $firstResult = $results[0];
@@ -47,6 +82,12 @@ class TMDBApiServiceTest extends TestCase
         $this->assertArrayHasKey('poster_url', $firstResult);
         $this->assertArrayHasKey('obscurity_score', $firstResult);
         $this->assertArrayHasKey('popularity', $firstResult);
+        
+        // Validate actual values
+        $this->assertEquals(603, $firstResult['tmdb_id']);
+        $this->assertEquals('The Matrix', $firstResult['title']);
+        $this->assertEquals(1999, $firstResult['release_year']);
+        $this->assertEquals('https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg', $firstResult['poster_url']);
         
         // Validate obscurity score range
         $this->assertGreaterThanOrEqual(1, $firstResult['obscurity_score']);
@@ -61,9 +102,93 @@ class TMDBApiServiceTest extends TestCase
         $this->tmdbService->searchMovies('');
     }
     
+    public function testSearchMoviesWithNetworkError(): void
+    {
+        // Mock network failure
+        $this->tmdbService->setMockException(
+            new GCException('Failed to connect to TMDB API', ['error' => 'Connection timeout'])
+        );
+        
+        $this->expectException(GCException::class);
+        $this->expectExceptionMessage('Failed to connect to TMDB API');
+        
+        $this->tmdbService->searchMovies('Matrix');
+    }
+    
+    public function testSearchMoviesWithInvalidJsonResponse(): void
+    {
+        // Mock invalid JSON response scenario
+        $this->tmdbService->setMockException(
+            new GCException('Invalid JSON response from TMDB API', ['json_error' => 'Syntax error'])
+        );
+        
+        $this->expectException(GCException::class);
+        $this->expectExceptionMessage('Invalid JSON response from TMDB API');
+        
+        $this->tmdbService->searchMovies('Matrix');
+    }
+    
+    public function testSearchMoviesWithApiError(): void
+    {
+        // Mock TMDB API error response
+        $mockErrorResponse = [
+            'success' => false,
+            'status_code' => 401,
+            'status_message' => 'Invalid API key: You must be granted a valid key.'
+        ];
+        
+        $this->tmdbService->setMockResponse($mockErrorResponse);
+        
+        $this->expectException(GCException::class);
+        $this->expectExceptionMessage('TMDB API error: Invalid API key: You must be granted a valid key.');
+        
+        $this->tmdbService->searchMovies('Matrix');
+    }
+    
+    public function testGetMovieDetailsWithNetworkError(): void
+    {
+        // Mock network failure for movie details
+        $this->tmdbService->setMockException(
+            new GCException('Failed to connect to TMDB API', ['error' => 'Connection timeout'])
+        );
+        
+        $this->expectException(GCException::class);
+        $this->expectExceptionMessage('Failed to connect to TMDB API');
+        
+        $this->tmdbService->getMovieDetails(603);
+    }
+    
     public function testGetMovieDetailsWithValidId(): void
     {
-        // Using The Matrix (ID: 603) as test case
+        // Mock movie details response for The Matrix (ID: 603)
+        $mockDetailsResponse = [
+            'id' => 603,
+            'title' => 'The Matrix',
+            'release_date' => '1999-03-31',
+            'overview' => 'A computer hacker learns from mysterious rebels about the true nature of his reality and his role in the war against its controllers.',
+            'poster_path' => '/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
+            'backdrop_path' => '/fNG7i7RqMErkcqhohV2a6cV1Ehy.jpg',
+            'popularity' => 85.965,
+            'runtime' => 136,
+            'imdb_id' => 'tt0133093',
+            'genres' => [
+                ['id' => 28, 'name' => 'Action'],
+                ['id' => 878, 'name' => 'Science Fiction']
+            ],
+            'videos' => [
+                'results' => [
+                    [
+                        'type' => 'Trailer',
+                        'site' => 'YouTube',
+                        'key' => 'vKQi3bBA1y8',
+                        'official' => true
+                    ]
+                ]
+            ]
+        ];
+        
+        $this->tmdbService->setMockResponse($mockDetailsResponse);
+        
         $details = $this->tmdbService->getMovieDetails(603);
         
         $this->assertIsArray($details);
@@ -86,6 +211,11 @@ class TMDBApiServiceTest extends TestCase
         $this->assertEquals(603, $details['tmdb_id']);
         $this->assertEquals('The Matrix', $details['title']);
         $this->assertEquals(1999, $details['release_year']);
+        $this->assertEquals('https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg', $details['poster_url']);
+        $this->assertEquals('https://image.tmdb.org/t/p/w1280/fNG7i7RqMErkcqhohV2a6cV1Ehy.jpg', $details['backdrop_url']);
+        $this->assertEquals('https://www.youtube.com/watch?v=vKQi3bBA1y8', $details['trailer_url']);
+        $this->assertEquals(136, $details['runtime']);
+        $this->assertEquals('tt0133093', $details['imdb_id']);
         $this->assertIsArray($details['genres']);
         $this->assertNotEmpty($details['genres']);
         
@@ -183,5 +313,73 @@ class TMDBApiServiceTest extends TestCase
         $expectedSizes = ['w300', 'w780', 'w1280', 'original'];
         
         $this->assertEquals($expectedSizes, $sizes);
+    }
+}
+
+/**
+ * TestableHTTPTMDBApiService
+ * 
+ * Test-specific subclass of TMDBApiService that allows mocking HTTP responses
+ * without making real API calls. This enables fast, reliable unit tests.
+ */
+class TestableHTTPTMDBApiService extends TMDBApiService
+{
+    private ?array $mockResponse = null;
+    private bool $shouldThrowException = false;
+    private ?GCException $exceptionToThrow = null;
+    
+    /**
+     * Set a mock response for the next API call
+     * 
+     * @param array $response Mock response data
+     */
+    public function setMockResponse(array $response): void
+    {
+        $this->mockResponse = $response;
+        $this->shouldThrowException = false;
+        $this->exceptionToThrow = null;
+    }
+    
+    /**
+     * Set an exception to throw on the next API call
+     * 
+     * @param GCException $exception Exception to throw
+     */
+    public function setMockException(GCException $exception): void
+    {
+        $this->shouldThrowException = true;
+        $this->exceptionToThrow = $exception;
+        $this->mockResponse = null;
+    }
+    
+    /**
+     * Override makeApiRequest to use mocked responses instead of real HTTP calls
+     * 
+     * @param string $url API endpoint URL
+     * @param array $params Query parameters
+     * @return array Mocked response data
+     * @throws GCException If configured to throw an exception
+     */
+    protected function makeApiRequest(string $url, array $params = []): array
+    {
+        // If configured to throw an exception, do so
+        if ($this->shouldThrowException && $this->exceptionToThrow) {
+            throw $this->exceptionToThrow;
+        }
+        
+        // If we have a mock response, return it
+        if ($this->mockResponse !== null) {
+            // Check for API error responses and handle them like the parent class does
+            if (isset($this->mockResponse['success']) && $this->mockResponse['success'] === false) {
+                throw new GCException('TMDB API error: ' . ($this->mockResponse['status_message'] ?? 'Unknown error'), [
+                    'tmdb_error' => $this->mockResponse
+                ]);
+            }
+            
+            return $this->mockResponse;
+        }
+        
+        // Default fallback - should not happen in tests
+        throw new GCException('No mock response configured for test');
     }
 }

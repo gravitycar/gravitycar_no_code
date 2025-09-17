@@ -103,14 +103,45 @@ class RelationshipBaseRemoveMethodTest extends UnitTestCase
 class TestableRelationshipForRemoveTest extends RelationshipBase
 {
     private bool $testMode = false;
+    private array $fieldValues = [];
 
     public function __construct(?string $relationshipName = null)
     {
-        // Skip parent constructor in test mode
-        if (!$this->testMode) {
-            $this->relationshipName = $relationshipName;
-            $this->logger = new Logger('test');
-        }
+        // Skip parent constructor to avoid dependency injection complexity
+        $this->relationshipName = $relationshipName;
+        $this->logger = new Logger('test');
+    }
+    
+    /**
+     * Override set method to avoid fieldFactory dependency
+     */
+    public function set(string $fieldName, mixed $value): void
+    {
+        $this->fieldValues[$fieldName] = $value;
+    }
+    
+    /**
+     * Override get method to return stored values
+     */
+    public function get(string $fieldName): mixed
+    {
+        return $this->fieldValues[$fieldName] ?? null;
+    }
+    
+    /**
+     * Override hasField method for testing
+     */
+    public function hasField(string $fieldName): bool
+    {
+        return in_array($fieldName, ['id', 'one_modela_id', 'many_modelb_id', 'created_at', 'deleted_at', 'deleted_by']);
+    }
+    
+    /**
+     * Override getCurrentUserId for testing
+     */
+    public function getCurrentUserId(): ?string
+    {
+        return 'test-user-123';
     }
 
     public function setTestMetadata(array $metadata): void
@@ -244,10 +275,5 @@ class TestableRelationshipForRemoveTest extends RelationshipBase
     protected function getDatabaseConnector(): DatabaseConnector
     {
         throw new \RuntimeException('Database testing requires integration tests');
-    }
-
-    protected function getCurrentUserId(): ?string
-    {
-        return 'test-user-id';
     }
 }

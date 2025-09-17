@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiService } from '../../services/api';
-import { useModelMetadata } from '../../hooks/useModelMetadata';
+// import { useModelMetadata } from '../../hooks/useModelMetadata';
 
 // Simple error handling function
 const getErrorMessage = (error: any): string => {
@@ -288,9 +288,9 @@ const ManyToManyManager: React.FC<ManyToManyManagerProps> = ({
   sourceId,
   relationship,
   targetModel,
-  displayColumns,
-  allowBulkAssign = true,
-  allowBulkRemove = true,
+  // displayColumns,
+  // allowBulkAssign = true,
+  // allowBulkRemove = true,
   showHistory = false,
   searchable = true,
   filterable = false,
@@ -304,7 +304,7 @@ const ManyToManyManager: React.FC<ManyToManyManagerProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { metadata } = useModelMetadata(targetModel);
+  // const { metadata } = useModelMetadata(targetModel);
 
   // Load assigned items
   const loadAssignedItems = useCallback(async () => {

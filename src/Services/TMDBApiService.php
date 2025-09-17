@@ -269,7 +269,7 @@ class TMDBApiService
      * @return array Decoded JSON response
      * @throws GCException
      */
-    private function makeApiRequest(string $url, array $params = []): array
+    protected function makeApiRequest(string $url, array $params = []): array
     {
         $fullUrl = $url . '?' . http_build_query($params);
         

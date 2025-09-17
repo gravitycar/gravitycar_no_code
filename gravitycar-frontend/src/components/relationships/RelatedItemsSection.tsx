@@ -193,7 +193,7 @@ const RelatedItemsSection: React.FC<RelatedItemsSectionProps> = ({
   actions = ['create', 'edit', 'delete'],
   createFields,
   allowInlineCreate = true,
-  sortable = false,
+  // sortable = false,
   permissions = { canCreate: true, canEdit: true, canDelete: true, canReorder: false }
 }) => {
   // State management
@@ -235,23 +235,23 @@ const RelatedItemsSection: React.FC<RelatedItemsSectionProps> = ({
   }, [loadRelatedItems]);
   
   // CRUD operations
-  const handleCreate = useCallback(async (data: any) => {
-    try {
-      // Auto-populate parent relationship field
-      const createData = {
-        ...data,
-        [`${parentModel.toLowerCase()}_id`]: parentId
-      };
-      
-      await apiService.create(relatedModel, createData);
-      await loadRelatedItems();
-      setIsCreateModalOpen(false);
-      setShowInlineCreate(false);
-      notify.success(`${relatedModel} created successfully`);
-    } catch (err) {
-      notify.error(`Failed to create ${relatedModel}: ${getErrorMessage(err)}`);
-    }
-  }, [parentModel, parentId, relatedModel, loadRelatedItems, notify]);
+  // const handleCreate = useCallback(async (data: any) => {
+  //   try {
+  //     // Auto-populate parent relationship field
+  //     const createData = {
+  //       ...data,
+  //       [`${parentModel.toLowerCase()}_id`]: parentId
+  //     };
+  //     
+  //     await apiService.create(relatedModel, createData);
+  //     await loadRelatedItems();
+  //     setIsCreateModalOpen(false);
+  //     setShowInlineCreate(false);
+  //     notify.success(`${relatedModel} created successfully`);
+  //   } catch (err) {
+  //     notify.error(`Failed to create ${relatedModel}: ${getErrorMessage(err)}`);
+  //   }
+  // }, [parentModel, parentId, relatedModel, loadRelatedItems, notify]);
   
   const handleEdit = useCallback(async (item: any, data: any) => {
     try {
