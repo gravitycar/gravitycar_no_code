@@ -230,10 +230,12 @@ class MetadataEngine implements MetadataEngineInterface {
         $models = $this->scanAndLoadMetadata($this->modelsDirPath);
         $relationships = $this->scanAndLoadMetadata($this->relationshipsDirPath);
         $fieldTypes = $this->scanAndLoadFieldTypes();
+        $validationRules = $this->scanAndLoadValidationRules();
         $metadata = [
             'models' => $models,
             'relationships' => $relationships,
             'field_types' => $fieldTypes,
+            'validation_rules' => $validationRules,
         ];
         $this->validateMetadata($metadata);
         $this->cacheMetadata($metadata);
@@ -470,6 +472,14 @@ class MetadataEngine implements MetadataEngineInterface {
     }
     
     /**
+     * Get validation rule definitions from cache (dynamically discovered)
+     */
+    public function getValidationRuleDefinitions(): array {
+        $cachedMetadata = $this->getCachedMetadata();
+        return $cachedMetadata['validation_rules'] ?? [];
+    }
+    
+    /**
      * Check if model exists in cache
      */
     public function modelExists(string $modelName): bool {
@@ -539,6 +549,66 @@ class MetadataEngine implements MetadataEngineInterface {
     }
 
     /**
+     * Scan and discover all ValidationRuleBase subclasses dynamically
+     */
+    protected function scanAndLoadValidationRules(): array {
+        $validationRules = [];
+        $validationDir = 'src/Validation';
+        
+        if (!is_dir($validationDir)) {
+            $this->logger->warning("Validation directory not found: {$validationDir}");
+            return $validationRules;
+        }
+        
+        $files = glob($validationDir . '/*Validation.php');
+        foreach ($files as $filePath) {
+            $fileName = basename($filePath, '.php');
+            
+            // Skip base classes
+            if (in_array($fileName, ['ValidationRuleBase'])) {
+                continue;
+            }
+            
+            try {
+                $className = "Gravitycar\\Validation\\{$fileName}";
+                
+                if (!class_exists($className)) {
+                    continue;
+                }
+                
+                $reflection = new \ReflectionClass($className);
+                
+                // Skip abstract classes and interfaces
+                if ($reflection->isAbstract() || $reflection->isInterface()) {
+                    continue;
+                }
+                
+                // Check if it's a ValidationRuleBase subclass
+                if (!$reflection->isSubclassOf('Gravitycar\\Validation\\ValidationRuleBase')) {
+                    continue;
+                }
+                
+                $ruleName = $this->extractRuleNameFromClass($fileName);
+                $ruleInstance = new $className();
+                
+                $validationRuleData = [
+                    'name' => $ruleName,
+                    'class' => $className,
+                    'description' => $this->getValidationRuleDescription($ruleInstance),
+                    'javascript_validation' => $this->getJavaScriptValidation($ruleInstance)
+                ];
+                
+                $validationRules[$ruleName] = $validationRuleData;
+                
+            } catch (\Exception $e) {
+                $this->logger->warning("Error processing validation rule {$fileName}: " . $e->getMessage());
+            }
+        }
+        
+        return $validationRules;
+    }
+
+    /**
      * Extract field type from class name for FieldFactory
      */
     private function extractFieldTypeFromClassName(string $className): string {
@@ -594,39 +664,18 @@ class MetadataEngine implements MetadataEngineInterface {
      * Get supported validation rules for a field type (what it CAN support, not what's configured)
      */
     private function getSupportedValidationRulesForFieldType(string $fieldType): array {
-        // Get all available validation rules from validation directory
+        // Use cached validation rules instead of scanning directory
+        $cachedRules = $this->getValidationRuleDefinitions();
+        
+        // Convert cached format to the format expected by field types
         $supportedRules = [];
-        $validationDir = 'src/Validation';
-        
-        if (!is_dir($validationDir)) {
-            return $supportedRules;
-        }
-        
-        $files = glob($validationDir . '/*Validation.php');
-        foreach ($files as $filePath) {
-            $fileName = basename($filePath, '.php');
-            $className = "Gravitycar\\Validation\\{$fileName}";
-            
-            if (class_exists($className)) {
-                try {
-                    $reflection = new \ReflectionClass($className);
-                    if (!$reflection->isAbstract() && 
-                        $reflection->isSubclassOf('Gravitycar\\Validation\\ValidationRuleBase')) {
-                        
-                        $ruleName = $this->extractRuleNameFromClass($fileName);
-                        $ruleInstance = new $className();
-                        
-                        $supportedRules[] = [
-                            'name' => $ruleName,
-                            'class' => $className,
-                            'description' => $this->getValidationRuleDescription($ruleInstance),
-                            'javascript_validation' => $this->getJavaScriptValidation($ruleInstance)
-                        ];
-                    }
-                } catch (\Exception $e) {
-                    $this->logger->warning("Error processing validation rule {$fileName}: " . $e->getMessage());
-                }
-            }
+        foreach ($cachedRules as $ruleName => $ruleData) {
+            $supportedRules[] = [
+                'name' => $ruleData['name'],
+                'class' => $ruleData['class'],
+                'description' => $ruleData['description'],
+                'javascript_validation' => $ruleData['javascript_validation']
+            ];
         }
         
         return $supportedRules;
