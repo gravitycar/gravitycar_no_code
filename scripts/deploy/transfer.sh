@@ -125,16 +125,27 @@ create_remote_backup() {
     ssh "$PRODUCTION_USER@$PRODUCTION_HOST" "
         mkdir -p /home/$PRODUCTION_USER/backups
         
-        # Backup current application if it exists
-        if [ -d '/home/$PRODUCTION_USER/public_html' ]; then
-            cp -r /home/$PRODUCTION_USER/public_html '$backup_dir'
-            echo 'Application backup created: $backup_dir'
+        # Backup current backend application if it exists
+        if [ -d '/home/$PRODUCTION_USER/public_html/api.gravitycar.com' ]; then
+            mkdir -p '$backup_dir'
+            cp -r /home/$PRODUCTION_USER/public_html/api.gravitycar.com '$backup_dir/'
+            echo 'Backend application backup created: $backup_dir/api.gravitycar.com'
         else
-            echo 'No existing application found to backup'
+            echo 'No existing backend application found to backup'
+        fi
+        
+        # Backup current frontend application if it exists
+        if [ -d '/home/$PRODUCTION_USER/public_html/react.gravitycar.com' ]; then
+            mkdir -p '$backup_dir'
+            cp -r /home/$PRODUCTION_USER/public_html/react.gravitycar.com '$backup_dir/'
+            echo 'Frontend application backup created: $backup_dir/react.gravitycar.com'
+        else
+            echo 'No existing frontend application found to backup'
         fi
         
         # Backup database
         if command -v mysqldump >/dev/null 2>&1; then
+            mkdir -p '$backup_dir'
             mysqldump --single-transaction --routines --triggers gravitycar > '$backup_dir/database_backup.sql' 2>/dev/null || echo 'Database backup failed or not configured'
         fi
         
@@ -176,31 +187,31 @@ deploy_backend() {
     log_info "Deploying backend to production..."
     
     ssh "$PRODUCTION_USER@$PRODUCTION_HOST" "
-        # Create public_html directory if it doesn't exist
-        mkdir -p /home/$PRODUCTION_USER/public_html
+        # Create backend directory structure
+        mkdir -p /home/$PRODUCTION_USER/public_html/api.gravitycar.com
         
         # Copy backend files
-        cp -r '$REMOTE_TEMP_DIR/backend/'* /home/$PRODUCTION_USER/public_html/
+        cp -r '$REMOTE_TEMP_DIR/backend/'* /home/$PRODUCTION_USER/public_html/api.gravitycar.com/
         
         # Set proper permissions
-        find /home/$PRODUCTION_USER/public_html -type f -exec chmod 644 {} \;
-        find /home/$PRODUCTION_USER/public_html -type d -exec chmod 755 {} \;
+        find /home/$PRODUCTION_USER/public_html/api.gravitycar.com -type f -exec chmod 644 {} \;
+        find /home/$PRODUCTION_USER/public_html/api.gravitycar.com -type d -exec chmod 755 {} \;
         
         # Make specific files executable
-        chmod +x /home/$PRODUCTION_USER/public_html/scripts/setup.php 2>/dev/null || true
+        chmod +x /home/$PRODUCTION_USER/public_html/api.gravitycar.com/scripts/setup.php 2>/dev/null || true
         
         # Create/update production config
         if [ -f '$REMOTE_TEMP_DIR/config/production.conf' ]; then
-            cp '$REMOTE_TEMP_DIR/config/production.conf' /home/$PRODUCTION_USER/public_html/config.php
+            cp '$REMOTE_TEMP_DIR/config/production.conf' /home/$PRODUCTION_USER/public_html/api.gravitycar.com/config.php
         fi
         
         # Update database password in config if provided
         if [ -n '${DB_PASSWORD:-}' ]; then
-            sed -i \"s/DB_PASSWORD_PLACEHOLDER/${DB_PASSWORD}/g\" /home/$PRODUCTION_USER/public_html/config.php 2>/dev/null || true
+            sed -i \"s/DB_PASSWORD_PLACEHOLDER/${DB_PASSWORD}/g\" /home/$PRODUCTION_USER/public_html/api.gravitycar.com/config.php 2>/dev/null || true
         fi
         
         # Run framework setup
-        cd /home/$PRODUCTION_USER/public_html
+        cd /home/$PRODUCTION_USER/public_html/api.gravitycar.com
         php setup.php 2>/dev/null || echo 'Setup script had issues but continuing'
         
         echo 'Backend deployment completed'
@@ -214,17 +225,17 @@ deploy_frontend() {
     log_info "Deploying frontend to production..."
     
     ssh "$PRODUCTION_USER@$PRODUCTION_HOST" "
-        # Create frontend directory
-        mkdir -p /home/$PRODUCTION_USER/react_public_html
+        # Create frontend directory structure
+        mkdir -p /home/$PRODUCTION_USER/public_html/react.gravitycar.com
         
         # Copy frontend files
         if [ -d '$REMOTE_TEMP_DIR/frontend' ]; then
-            cp -r '$REMOTE_TEMP_DIR/frontend/'* /home/$PRODUCTION_USER/react_public_html/
+            cp -r '$REMOTE_TEMP_DIR/frontend/'* /home/$PRODUCTION_USER/public_html/react.gravitycar.com/
         fi
         
         # Set proper permissions
-        find /home/$PRODUCTION_USER/react_public_html -type f -exec chmod 644 {} \;
-        find /home/$PRODUCTION_USER/react_public_html -type d -exec chmod 755 {} \;
+        find /home/$PRODUCTION_USER/public_html/react.gravitycar.com -type f -exec chmod 644 {} \;
+        find /home/$PRODUCTION_USER/public_html/react.gravitycar.com -type d -exec chmod 755 {} \;
         
         echo 'Frontend deployment completed'
     "
@@ -237,7 +248,8 @@ update_production_config() {
     log_info "Updating production configuration..."
     
     ssh "$PRODUCTION_USER@$PRODUCTION_HOST" "
-        cd /home/$PRODUCTION_USER/public_html
+        # Update backend configuration
+        cd /home/$PRODUCTION_USER/public_html/api.gravitycar.com
         
         # Update .htaccess if provided
         if [ -f '$REMOTE_TEMP_DIR/config/.htaccess' ]; then
@@ -280,18 +292,19 @@ verify_deployment() {
     log_info "Verifying deployment..."
     
     ssh "$PRODUCTION_USER@$PRODUCTION_HOST" "
-        # Check if critical files exist
-        if [ ! -f '/home/$PRODUCTION_USER/public_html/index.php' ] && [ ! -f '/home/$PRODUCTION_USER/public_html/rest_api.php' ]; then
+        # Check if critical backend files exist
+        if [ ! -f '/home/$PRODUCTION_USER/public_html/api.gravitycar.com/index.php' ] && [ ! -f '/home/$PRODUCTION_USER/public_html/api.gravitycar.com/rest_api.php' ]; then
             echo 'ERROR: Critical backend files missing'
             exit 1
         fi
         
-        if [ ! -f '/home/$PRODUCTION_USER/react_public_html/index.html' ]; then
+        # Check if frontend files exist
+        if [ ! -f '/home/$PRODUCTION_USER/public_html/react.gravitycar.com/index.html' ]; then
             echo 'WARNING: Frontend index.html missing'
         fi
         
-        # Check PHP syntax
-        cd /home/$PRODUCTION_USER/public_html
+        # Check PHP syntax in backend
+        cd /home/$PRODUCTION_USER/public_html/api.gravitycar.com
         find . -name '*.php' -exec php -l {} \; > /dev/null 2>&1 || echo 'WARNING: PHP syntax issues detected'
         
         echo 'Deployment verification completed'
