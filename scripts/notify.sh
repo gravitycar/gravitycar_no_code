@@ -39,12 +39,13 @@ DEFAULT_SMTP_PORT="587"
 # Get notification configuration
 setup_notification_config() {
     # Email configuration from environment or defaults
-    FROM_EMAIL="${NOTIFICATION_FROM_EMAIL:-$DEFAULT_FROM_EMAIL}"
-    TO_EMAIL="${NOTIFICATION_TO_EMAIL:-$DEFAULT_TO_EMAIL}"
-    SMTP_HOST="${SMTP_HOST:-$DEFAULT_SMTP_HOST}"
-    SMTP_PORT="${SMTP_PORT:-$DEFAULT_SMTP_PORT}"
-    SMTP_USER="${SMTP_USER:-$FROM_EMAIL}"
-    SMTP_PASSWORD="${EMAIL_PASSWORD:-}"
+    # Map implementation plan secrets to script variables
+    FROM_EMAIL="${NOTIFICATION_EMAIL_USER:-$DEFAULT_FROM_EMAIL}"
+    TO_EMAIL="${NOTIFICATION_EMAIL_USER:-$DEFAULT_TO_EMAIL}"  # Use same email for both by default
+    SMTP_HOST="${NOTIFICATION_EMAIL_HOST:-$DEFAULT_SMTP_HOST}"
+    SMTP_PORT="${SMTP_PORT:-$DEFAULT_SMTP_PORT}"  # No equivalent in plan, use env var or default
+    SMTP_USER="${NOTIFICATION_EMAIL_USER:-$FROM_EMAIL}"
+    SMTP_PASSWORD="${NOTIFICATION_EMAIL_PASSWORD:-}"
     
     # Deployment information from environment
     DEPLOYMENT_ID="${DEPLOYMENT_ID:-unknown}"

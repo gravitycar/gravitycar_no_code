@@ -268,7 +268,7 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.PRODUCTION_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.PRODUCTION_HOST }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.PRODUCTION_SSH_HOST }} >> ~/.ssh/known_hosts
 
       - name: Deploy to production
         run: |
@@ -276,9 +276,9 @@ jobs:
           scripts/deploy/transfer.sh
         env:
           DEPLOYMENT_ID: ${{ needs.validate-deployment.outputs.deployment-id }}
-          PRODUCTION_HOST: ${{ secrets.PRODUCTION_HOST }}
-          PRODUCTION_USER: ${{ secrets.PRODUCTION_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          PRODUCTION_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          PRODUCTION_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
         if: github.event.inputs.dry_run != 'true'
 
@@ -286,8 +286,8 @@ jobs:
         run: |
           echo "🔍 DRY RUN: Simulating deployment to production"
           echo "  📦 Package: deployment-package-${{ needs.validate-deployment.outputs.deployment-id }}"
-          echo "  🖥️  Host: ${{ secrets.PRODUCTION_HOST }}"
-          echo "  👤 User: ${{ secrets.PRODUCTION_USER }}"
+          echo "  🖥️  Host: ${{ secrets.PRODUCTION_SSH_HOST }}"
+          echo "  👤 User: ${{ secrets.PRODUCTION_SSH_USER }}"
           echo "  ✅ All deployment steps would execute successfully"
         if: github.event.inputs.dry_run == 'true'
 
@@ -310,7 +310,7 @@ jobs:
           chmod +x scripts/health-check.sh
           scripts/health-check.sh
         env:
-          PRODUCTION_HOST: ${{ secrets.PRODUCTION_HOST }}
+          PRODUCTION_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
           DEPLOYMENT_ID: ${{ needs.validate-deployment.outputs.deployment-id }}
 
   notify-completion:
@@ -354,13 +354,11 @@ jobs:
           GIT_REF: ${{ github.event.inputs.git_ref || 'main' }}
           GIT_SHA: ${{ github.sha }}
           ENVIRONMENT: ${{ github.event.inputs.environment }}
-          # Email notification configuration from secrets
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          SMTP_HOST: ${{ secrets.SMTP_HOST }}
-          SMTP_PORT: ${{ secrets.SMTP_PORT }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          NOTIFICATION_FROM_EMAIL: ${{ secrets.NOTIFICATION_FROM_EMAIL }}
-          NOTIFICATION_TO_EMAIL: ${{ secrets.NOTIFICATION_TO_EMAIL }}
+          # Email notification configuration from implementation plan secrets
+          NOTIFICATION_EMAIL_PASSWORD: ${{ secrets.NOTIFICATION_EMAIL_PASSWORD }}
+          NOTIFICATION_EMAIL_HOST: ${{ secrets.NOTIFICATION_EMAIL_HOST }}
+          NOTIFICATION_EMAIL_USER: ${{ secrets.NOTIFICATION_EMAIL_USER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
 
       - name: Summary
         run: |

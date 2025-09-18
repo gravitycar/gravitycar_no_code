@@ -7,22 +7,24 @@ The `notify.sh` script uses environment variables that are populated from GitHub
 
 You need to configure the following secrets in your GitHub repository (Settings → Secrets and variables → Actions):
 
-### Email/SMTP Configuration Secrets
+### Email/SMTP Configuration Secrets (from Implementation Plan)
 ```
-EMAIL_PASSWORD           # SMTP password for authentication
-SMTP_HOST               # SMTP server hostname (e.g., smtp.gmail.com)
-SMTP_PORT               # SMTP port (usually 587 for TLS, 465 for SSL)
-SMTP_USER               # SMTP username (often same as from email)
-NOTIFICATION_FROM_EMAIL # Sender email address
-NOTIFICATION_TO_EMAIL   # Recipient email address(es)
+NOTIFICATION_EMAIL_HOST     # SMTP server hostname (e.g., smtp.gmail.com)
+NOTIFICATION_EMAIL_USER     # SMTP username and sender email address
+NOTIFICATION_EMAIL_PASSWORD # SMTP password for authentication
+SMTP_PORT                   # SMTP port (usually 587 for TLS, 465 for SSL) - Optional, defaults to 587
 ```
 
 ### Production Deployment Secrets (already configured)
 ```
-PRODUCTION_HOST         # Production server hostname
-PRODUCTION_USER         # SSH username for production server
-PRODUCTION_SSH_KEY      # Private SSH key for production access
-DB_PASSWORD            # Database password for production
+PRODUCTION_SSH_HOST         # Production server hostname (was PRODUCTION_HOST)
+PRODUCTION_SSH_USER         # SSH username for production server (was PRODUCTION_USER)  
+PRODUCTION_SSH_KEY          # Private SSH key for production access
+PRODUCTION_DB_PASSWORD      # Database password for production (was DB_PASSWORD)
+PRODUCTION_DB_HOST          # Database host for production
+PRODUCTION_DB_NAME          # Database name for production
+PRODUCTION_DB_USER          # Database user for production
+TMDB_API_KEY               # TMDB API key for movie data
 ```
 
 ## How Environment Variables Flow
@@ -37,25 +39,23 @@ In `.github/workflows/deploy.yml`, secrets are passed as environment variables:
     scripts/notify.sh
   env:
     # ... other variables ...
-    EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-    SMTP_HOST: ${{ secrets.SMTP_HOST }}
-    SMTP_PORT: ${{ secrets.SMTP_PORT }}
-    SMTP_USER: ${{ secrets.SMTP_USER }}
-    NOTIFICATION_FROM_EMAIL: ${{ secrets.NOTIFICATION_FROM_EMAIL }}
-    NOTIFICATION_TO_EMAIL: ${{ secrets.NOTIFICATION_TO_EMAIL }}
+    NOTIFICATION_EMAIL_PASSWORD: ${{ secrets.NOTIFICATION_EMAIL_PASSWORD }}
+    NOTIFICATION_EMAIL_HOST: ${{ secrets.NOTIFICATION_EMAIL_HOST }}
+    NOTIFICATION_EMAIL_USER: ${{ secrets.NOTIFICATION_EMAIL_USER }}
+    SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
 ```
 
 ### 2. Script Environment Variable Usage
-In `scripts/notify.sh`, these environment variables are used with fallback defaults:
+In `scripts/notify.sh`, these environment variables are mapped from implementation plan secrets:
 
 ```bash
-# Email configuration from environment or defaults
-FROM_EMAIL="${NOTIFICATION_FROM_EMAIL:-$DEFAULT_FROM_EMAIL}"
-TO_EMAIL="${NOTIFICATION_TO_EMAIL:-$DEFAULT_TO_EMAIL}"
-SMTP_HOST="${SMTP_HOST:-$DEFAULT_SMTP_HOST}"
+# Email configuration mapped from implementation plan secrets
+FROM_EMAIL="${NOTIFICATION_EMAIL_USER:-$DEFAULT_FROM_EMAIL}"
+TO_EMAIL="${NOTIFICATION_EMAIL_USER:-$DEFAULT_TO_EMAIL}"  # Same email for both
+SMTP_HOST="${NOTIFICATION_EMAIL_HOST:-$DEFAULT_SMTP_HOST}"
 SMTP_PORT="${SMTP_PORT:-$DEFAULT_SMTP_PORT}"
-SMTP_USER="${SMTP_USER:-$FROM_EMAIL}"
-SMTP_PASSWORD="${EMAIL_PASSWORD:-}"
+SMTP_USER="${NOTIFICATION_EMAIL_USER:-$FROM_EMAIL}"
+SMTP_PASSWORD="${NOTIFICATION_EMAIL_PASSWORD:-}"
 ```
 
 ## Default Fallback Values
@@ -91,14 +91,12 @@ DEFAULT_SMTP_PORT="587"
 3. Click "New repository secret"
 4. Add each required secret:
 
-**Example for Gmail SMTP:**
+**Example for Gmail SMTP (matching implementation plan):**
 ```
-EMAIL_PASSWORD: your-app-password
-SMTP_HOST: smtp.gmail.com
+NOTIFICATION_EMAIL_PASSWORD: your-app-password
+NOTIFICATION_EMAIL_HOST: smtp.gmail.com
+NOTIFICATION_EMAIL_USER: notifications@gravitycar.com
 SMTP_PORT: 587
-SMTP_USER: your-email@gmail.com
-NOTIFICATION_FROM_EMAIL: your-email@gmail.com
-NOTIFICATION_TO_EMAIL: recipient@example.com
 ```
 
 ### Step 2: Verify Integration
@@ -149,15 +147,13 @@ When Phase 5 email implementation is added, test by:
 
 ## Example Secret Configuration
 
-For a complete Gmail setup, configure these secrets:
+For a complete Gmail setup, configure these secrets (matching implementation plan):
 
 ```
-EMAIL_PASSWORD=abcd-efgh-ijkl-mnop          # Gmail app password
-SMTP_HOST=smtp.gmail.com
+NOTIFICATION_EMAIL_PASSWORD=abcd-efgh-ijkl-mnop          # Gmail app password
+NOTIFICATION_EMAIL_HOST=smtp.gmail.com
+NOTIFICATION_EMAIL_USER=notifications@gravitycar.com
 SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-NOTIFICATION_FROM_EMAIL=your-email@gmail.com
-NOTIFICATION_TO_EMAIL=team@yourcompany.com
 ```
 
 ## Integration Status
