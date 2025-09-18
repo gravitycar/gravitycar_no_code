@@ -5,7 +5,8 @@
 # ==============================================================================
 # 
 # This script prepares the PHP backend for deployment.
-# It handles composer dependencies, autoloader optimization, and validation.
+# It handles composer dependencies, autoloader optimization, validation,
+# and environment-specific configuration.
 #
 # ==============================================================================
 
@@ -21,45 +22,255 @@ source "${SCRIPT_DIR}/../common.sh" 2>/dev/null || {
     log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$1] ${*:2}"; }
 }
 
+# Build configuration
+ENVIRONMENT="${ENVIRONMENT:-development}"
+SKIP_TESTS="${SKIP_TESTS:-false}"
+SKIP_VALIDATION="${SKIP_VALIDATION:-false}"
+OPTIMIZE_AUTOLOADER="${OPTIMIZE_AUTOLOADER:-true}"
+
 log "INFO" "Starting backend build process..."
+log "INFO" "Environment: $ENVIRONMENT"
+log "INFO" "Optimize autoloader: $OPTIMIZE_AUTOLOADER"
 
 cd "$PROJECT_ROOT"
 
 # Check if composer.json exists
 if [[ ! -f "composer.json" ]]; then
-    log "ERROR" "composer.json not found in project root"
-    exit 1
+    error_exit "composer.json not found in project root"
 fi
 
-log "INFO" "Installing composer dependencies (production mode)..."
-composer install --no-dev --optimize-autoloader --no-interaction
-
-log "INFO" "Validating PHP syntax..."
-find src -name "*.php" -exec php -l {} \; | grep -v "No syntax errors" || {
-    log "ERROR" "PHP syntax errors found"
-    exit 1
+# Verify PHP version and extensions
+check_php_environment() {
+    log "INFO" "Checking PHP environment..."
+    
+    # Check PHP version
+    PHP_VERSION=$(php -r "echo PHP_VERSION;")
+    log "DEBUG" "PHP version: $PHP_VERSION"
+    
+    # Check if we have PHP 8.2+
+    if ! php -r "exit(version_compare(PHP_VERSION, '8.2.0', '>=') ? 0 : 1);"; then
+        error_exit "PHP 8.2+ is required. Current version: $PHP_VERSION"
+    fi
+    
+    # Check required PHP extensions
+    local required_extensions=("PDO" "pdo_mysql" "pdo_sqlite" "json" "mbstring" "openssl")
+    local missing_extensions=()
+    
+    for ext in "${required_extensions[@]}"; do
+        if ! php -m | grep -q "^$ext$"; then
+            missing_extensions+=("$ext")
+        fi
+    done
+    
+    if [[ ${#missing_extensions[@]} -gt 0 ]]; then
+        error_exit "Missing required PHP extensions: ${missing_extensions[*]}"
+    fi
+    
+    log "SUCCESS" "PHP environment check passed"
 }
 
-log "INFO" "Checking PHP configuration..."
-php -m | grep -E "(pdo_mysql|pdo_sqlite|curl|json|mbstring)" > /dev/null || {
-    log "ERROR" "Required PHP extensions not found"
-    exit 1
+# Install and optimize composer dependencies
+install_dependencies() {
+    log "INFO" "Installing composer dependencies..."
+    
+    # Backup existing vendor directory if it exists
+    if [[ -d "vendor" ]]; then
+        log "DEBUG" "Backing up existing vendor directory"
+        mv vendor vendor.backup.$(date +%s) 2>/dev/null || true
+    fi
+    
+    local composer_flags="--no-interaction --prefer-dist"
+    
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+        composer_flags="$composer_flags --no-dev --no-scripts"
+        log "INFO" "Installing production dependencies (no dev packages)"
+    else
+        log "INFO" "Installing all dependencies (including dev packages)"
+    fi
+    
+    if [[ "$OPTIMIZE_AUTOLOADER" == "true" ]]; then
+        composer_flags="$composer_flags --optimize-autoloader"
+        log "DEBUG" "Autoloader optimization enabled"
+    fi
+    
+    if ! composer install $composer_flags; then
+        error_exit "Composer install failed"
+    fi
+    
+    log "SUCCESS" "Composer dependencies installed successfully"
 }
 
-log "INFO" "Validating configuration files..."
-if [[ -f "config.php" ]]; then
-    php -r "
-        try {
-            require 'config.php';
-            echo 'Configuration file syntax is valid\n';
-        } catch (Exception \$e) {
-            echo 'Configuration file error: ' . \$e->getMessage() . '\n';
-            exit(1);
-        }
-    "
-else
-    log "WARN" "config.php not found - will need to be created in production"
-fi
+# Validate PHP syntax across the codebase
+validate_php_syntax() {
+    if [[ "$SKIP_VALIDATION" == "true" ]]; then
+        log "INFO" "Skipping PHP syntax validation (--skip-validation specified)"
+        return 0
+    fi
+    
+    log "INFO" "Validating PHP syntax..."
+    
+    local error_count=0
+    local file_count=0
+    
+    # Find and validate all PHP files
+    while IFS= read -r -d '' file; do
+        ((file_count++))
+        if ! php -l "$file" >/dev/null 2>&1; then
+            log "ERROR" "Syntax error in: $file"
+            ((error_count++))
+        fi
+    done < <(find src -name "*.php" -print0)
+    
+    log "INFO" "Checked $file_count PHP files"
+    
+    if [[ $error_count -gt 0 ]]; then
+        error_exit "Found $error_count PHP syntax errors"
+    fi
+    
+    log "SUCCESS" "PHP syntax validation passed"
+}
 
-log "SUCCESS" "Backend build completed successfully"
-log "INFO" "Composer autoloader optimized for production"
+# Validate configuration files
+validate_configuration() {
+    log "INFO" "Validating configuration files..."
+    
+    # Check main config file
+    if [[ -f "config.php" ]]; then
+        log "DEBUG" "Validating config.php"
+        php -r "
+            try {
+                require 'config.php';
+                echo 'Configuration file syntax is valid\n';
+            } catch (Exception \$e) {
+                echo 'Configuration file error: ' . \$e->getMessage() . '\n';
+                exit(1);
+            } catch (ParseError \$e) {
+                echo 'Configuration file parse error: ' . \$e->getMessage() . '\n';
+                exit(1);
+            }
+        " || error_exit "config.php validation failed"
+    else
+        log "WARN" "config.php not found - will need to be created in production"
+    fi
+    
+    # Validate composer.json
+    if ! composer validate --no-check-all --no-check-publish; then
+        log "WARN" "composer.json validation issues found"
+    fi
+    
+    log "SUCCESS" "Configuration validation completed"
+}
+
+# Generate autoloader optimization
+optimize_autoloader() {
+    if [[ "$OPTIMIZE_AUTOLOADER" != "true" ]]; then
+        return 0
+    fi
+    
+    log "INFO" "Optimizing autoloader for production..."
+    
+    # Generate optimized autoloader
+    composer dump-autoload --optimize --no-dev --classmap-authoritative
+    
+    # Verify autoloader works
+    if php -r "require 'vendor/autoload.php'; echo 'Autoloader test passed\n';"; then
+        log "SUCCESS" "Autoloader optimization completed"
+    else
+        error_exit "Autoloader optimization failed"
+    fi
+}
+
+# Clean up development files for production
+cleanup_for_production() {
+    if [[ "$ENVIRONMENT" != "production" ]]; then
+        return 0
+    fi
+    
+    log "INFO" "Cleaning up development files for production..."
+    
+    # Remove development and test files
+    local cleanup_patterns=(
+        "Tests/"
+        "tests/"
+        "phpunit.xml"
+        ".phpunit.cache/"
+        "coverage/"
+        "*.md"
+        ".git/"
+        ".gitignore"
+        "tmp/"
+    )
+    
+    for pattern in "${cleanup_patterns[@]}"; do
+        if [[ -e "$pattern" ]]; then
+            log "DEBUG" "Removing: $pattern"
+            rm -rf "$pattern"
+        fi
+    done
+    
+    log "DEBUG" "Production cleanup completed"
+}
+
+# Generate build metadata
+generate_build_metadata() {
+    log "INFO" "Generating build metadata..."
+    
+    local metadata_file="build-metadata.json"
+    
+    cat > "$metadata_file" << EOF
+{
+  "buildTime": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "environment": "$ENVIRONMENT",
+  "phpVersion": "$PHP_VERSION",
+  "composerVersion": "$(composer --version 2>/dev/null | cut -d' ' -f3 || echo 'unknown')",
+  "optimizedAutoloader": $OPTIMIZE_AUTOLOADER,
+  "gitCommit": "$(git rev-parse HEAD 2>/dev/null || echo 'unknown')",
+  "gitBranch": "$(git branch --show-current 2>/dev/null || echo 'unknown')",
+  "buildHost": "$(hostname)",
+  "buildUser": "$(whoami)"
+}
+EOF
+    
+    log "DEBUG" "Build metadata saved to: $metadata_file"
+}
+
+# Run cache rebuild if needed
+rebuild_cache() {
+    log "INFO" "Rebuilding framework cache..."
+    
+    if [[ -f "setup.php" ]]; then
+        if php setup.php; then
+            log "SUCCESS" "Framework cache rebuilt successfully"
+        else
+            log "WARN" "Cache rebuild failed, but continuing build"
+        fi
+    else
+        log "DEBUG" "setup.php not found, skipping cache rebuild"
+    fi
+}
+
+# Main execution
+main() {
+    check_php_environment
+    install_dependencies
+    validate_php_syntax
+    validate_configuration
+    optimize_autoloader
+    rebuild_cache
+    generate_build_metadata
+    cleanup_for_production
+    
+    log "SUCCESS" "Backend build completed successfully"
+    log "INFO" "Build metadata available in: build-metadata.json"
+    
+    # Display summary
+    local vendor_size=$(du -sh vendor 2>/dev/null | cut -f1 || echo "N/A")
+    log "INFO" "Vendor directory size: $vendor_size"
+    
+    if [[ "$ENVIRONMENT" == "production" ]]; then
+        log "INFO" "Production build optimizations applied"
+    fi
+}
+
+# Execute main function
+main "$@"
