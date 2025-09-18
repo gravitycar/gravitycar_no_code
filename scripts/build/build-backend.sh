@@ -109,11 +109,11 @@ validate_php_syntax() {
     
     log "INFO" "Validating PHP syntax..."
     
-    # Add environment debugging
-    log "DEBUG" "PHP CLI version: $(php --version | head -1)"
-    log "DEBUG" "Current working directory: $(pwd)"
-    log "DEBUG" "Looking for PHP files in: $(pwd)/src"
-    log "DEBUG" "Directory exists: $([ -d "src" ] && echo "YES" || echo "NO")"
+    # Add environment debugging - use INFO level so it shows in CI
+    log "INFO" "PHP CLI version: $(php --version | head -1)"
+    log "INFO" "Current working directory: $(pwd)"
+    log "INFO" "Looking for PHP files in: $(pwd)/src"
+    log "INFO" "Directory exists: $([ -d "src" ] && echo "YES" || echo "NO")"
     
     # Count files first
     local total_files=$(find src -name "*.php" 2>/dev/null | wc -l)
@@ -137,9 +137,9 @@ validate_php_syntax() {
         
         # Show debug info for first few files and all errors
         if [[ $file_count -le $show_debug_limit ]]; then
-            log "DEBUG" "Checking syntax: $file"
+            log "INFO" "Checking syntax: $file"
         elif [[ $file_count -eq $((show_debug_limit + 1)) ]]; then
-            log "DEBUG" "... (continuing validation, will show errors only)"
+            log "INFO" "... (continuing validation, will show errors only)"
         fi
         
         # Capture both stdout and stderr for detailed error reporting
@@ -152,7 +152,7 @@ validate_php_syntax() {
         else
             # Show success for first few files only
             if [[ $file_count -le $show_debug_limit ]]; then
-                log "DEBUG" "✅ $file - OK"
+                log "INFO" "✅ $file - OK"
             fi
         fi
     done < <(find src -name "*.php" -print0)
