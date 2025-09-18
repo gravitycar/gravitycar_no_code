@@ -38,6 +38,12 @@ if [[ ! -f "vendor/bin/phpunit" ]]; then
     error_exit "PHPUnit not found. Run composer install first."
 fi
 
+# Ensure PHPUnit has execute permissions (important for CI environments)
+if [[ ! -x "vendor/bin/phpunit" ]]; then
+    log "INFO" "Setting execute permissions on PHPUnit"
+    chmod +x vendor/bin/phpunit
+fi
+
 # Set up test environment variables for SQLite
 setup_test_environment() {
     log "INFO" "Setting up test environment..."
@@ -45,6 +51,9 @@ setup_test_environment() {
     export DB_CONNECTION=sqlite
     export DB_DATABASE=":memory:"
     export APP_ENV=testing
+    
+    # Ensure coverage directory exists
+    mkdir -p coverage
     
     log "DEBUG" "Test environment configured for SQLite in-memory database"
     
@@ -199,6 +208,40 @@ generate_coverage_summary() {
     fi
 }
 
+# Consolidate JUnit XML reports into single file for CI
+consolidate_junit_reports() {
+    log "INFO" "Consolidating JUnit XML reports..."
+    
+    local junit_files=(coverage/junit-*.xml)
+    local output_file="phpunit-report.xml"
+    
+    # Check if any JUnit files exist
+    if [[ ! -f "${junit_files[0]}" ]]; then
+        log "WARN" "No JUnit XML files found to consolidate"
+        return 0
+    fi
+    
+    # Create consolidated XML header
+    cat > "$output_file" << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+EOF
+    
+    # Extract testsuites content from each file and append
+    for junit_file in "${junit_files[@]}"; do
+        if [[ -f "$junit_file" ]]; then
+            log "DEBUG" "Processing: $junit_file"
+            # Extract everything between <testsuite> tags and append
+            sed -n '/<testsuite/,/<\/testsuite>/p' "$junit_file" >> "$output_file"
+        fi
+    done
+    
+    # Close the consolidated XML
+    echo "</testsuites>" >> "$output_file"
+    
+    log "SUCCESS" "Consolidated JUnit report created: $output_file"
+}
+
 # Validate test database functionality
 validate_test_database() {
     log "INFO" "Validating test database functionality..."
@@ -311,6 +354,7 @@ main() {
     fi
     
     generate_coverage_summary
+    consolidate_junit_reports
     
     log "SUCCESS" "Backend testing completed successfully"
 }
