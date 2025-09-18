@@ -31,9 +31,9 @@ log_success() {
 }
 
 # Default configuration
-DEFAULT_FROM_EMAIL="deployments@gravitycar.com"
-DEFAULT_TO_EMAIL="admin@gravitycar.com"
-DEFAULT_SMTP_HOST="smtp.gmail.com"
+DEFAULT_FROM_EMAIL="mike@gravitycar.com"
+DEFAULT_TO_EMAIL="mike@gravitycar.com"
+DEFAULT_SMTP_HOST="gravitycar.com"
 DEFAULT_SMTP_PORT="587"
 
 # Get notification configuration
@@ -148,18 +148,4 @@ main() {
 trap 'log_error "Notification interrupted"; exit 1' INT TERM
 
 # Execute main function
-main "$@"
-
-main() {
-    # Determine status from exit codes or environment
-    local status="success"
-    
-    # If this script is called after a failure, the status should be passed as an argument
-    if [[ $# -gt 0 ]]; then
-        status="$1"
-    fi
-    
-    send_notification "$status"
-}
-
 main "$@"

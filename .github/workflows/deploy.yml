@@ -354,7 +354,13 @@ jobs:
           GIT_REF: ${{ github.event.inputs.git_ref || 'main' }}
           GIT_SHA: ${{ github.sha }}
           ENVIRONMENT: ${{ github.event.inputs.environment }}
+          # Email notification configuration from secrets
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          NOTIFICATION_FROM_EMAIL: ${{ secrets.NOTIFICATION_FROM_EMAIL }}
+          NOTIFICATION_TO_EMAIL: ${{ secrets.NOTIFICATION_TO_EMAIL }}
 
       - name: Summary
         run: |
