@@ -170,48 +170,6 @@ return [
         ],
     ],
     'apiRoutes' => [
-        [
-            'method' => 'GET',
-            'path' => '/Users',
-            'apiClass' => 'UsersAPIController',
-            'apiMethod' => 'index',
-            'parameterNames' => []
-        ],
-        [
-            'method' => 'GET',
-            'path' => '/Users/?',
-            'apiClass' => 'UsersAPIController',
-            'apiMethod' => 'read',
-            'parameterNames' => ['userId']
-        ],
-        [
-            'method' => 'POST',
-            'path' => '/Users',
-            'apiClass' => 'UsersAPIController',
-            'apiMethod' => 'create',
-            'parameterNames' => []
-        ],
-        [
-            'method' => 'PUT',
-            'path' => '/Users/?',
-            'apiClass' => 'UsersAPIController',
-            'apiMethod' => 'update',
-            'parameterNames' => ['userId']
-        ],
-        [
-            'method' => 'DELETE',
-            'path' => '/Users/?',
-            'apiClass' => 'UsersAPIController',
-            'apiMethod' => 'delete',
-            'parameterNames' => ['userId']
-        ],
-        [
-            'method' => 'PUT',
-            'path' => '/Users/?/setPassword',
-            'apiClass' => 'UsersAPIController',
-            'apiMethod' => 'setUserPassword',
-            'parameterNames' => ['userId', '']
-        ]
     ],
     'ui' => [
         'listFields' => ['username', 'first_name', 'last_name', 'user_type', 'is_active', 'last_login'],
