@@ -144,6 +144,9 @@ validate_php_syntax() {
     
     log "INFO" "Processing files from temporary list..."
     
+    # Temporarily disable exit-on-error to properly handle syntax check failures
+    set +e
+    
     # Process each file
     while IFS= read -r file; do
         ((file_count++))
@@ -169,6 +172,9 @@ validate_php_syntax() {
             fi
         fi
     done < "$temp_file_list"
+    
+    # Re-enable exit-on-error
+    set -e
     
     # Clean up temporary file
     rm -f "$temp_file_list"
