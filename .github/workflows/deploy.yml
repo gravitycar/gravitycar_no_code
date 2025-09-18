@@ -1,0 +1,380 @@
+name: Deploy Gravitycar Framework to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+      confirmation:
+        description: 'Type "DEPLOY" to confirm deployment'
+        required: true
+        type: string
+      git_ref:
+        description: 'Git reference to deploy (branch, tag, or commit)'
+        required: false
+        default: 'main'
+        type: string
+      skip_tests:
+        description: 'Skip test execution (emergency deployments only)'
+        required: false
+        default: false
+        type: boolean
+      dry_run:
+        description: 'Perform dry run (no actual deployment)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  NODE_VERSION: '18'
+  PHP_VERSION: '8.2'
+  COMPOSER_CACHE_FILES_TTL: 0
+
+jobs:
+  validate-deployment:
+    name: Validate Deployment Request
+    runs-on: ubuntu-latest
+    outputs:
+      should-deploy: ${{ steps.validate.outputs.should-deploy }}
+      deployment-id: ${{ steps.generate-id.outputs.deployment-id }}
+    steps:
+      - name: Validate confirmation
+        id: validate
+        run: |
+          if [ "${{ github.event.inputs.confirmation }}" != "DEPLOY" ]; then
+            echo "❌ Deployment confirmation failed. Must type 'DEPLOY' exactly."
+            echo "Received: '${{ github.event.inputs.confirmation }}'"
+            exit 1
+          fi
+          echo "✅ Deployment confirmed by ${{ github.actor }}"
+          echo "should-deploy=true" >> $GITHUB_OUTPUT
+
+      - name: Generate deployment ID
+        id: generate-id
+        run: |
+          DEPLOYMENT_ID="deploy-$(date +%Y%m%d-%H%M%S)-${{ github.run_number }}"
+          echo "deployment-id=$DEPLOYMENT_ID" >> $GITHUB_OUTPUT
+          echo "🆔 Deployment ID: $DEPLOYMENT_ID"
+
+      - name: Log deployment details
+        run: |
+          echo "🚀 Deployment Request Details:"
+          echo "  👤 Initiated by: ${{ github.actor }}"
+          echo "  🌍 Environment: ${{ github.event.inputs.environment }}"
+          echo "  📝 Git reference: ${{ github.event.inputs.git_ref || 'main' }}"
+          echo "  🧪 Skip tests: ${{ github.event.inputs.skip_tests }}"
+          echo "  🔍 Dry run: ${{ github.event.inputs.dry_run }}"
+          echo "  ⏰ Timestamp: $(date -u)"
+
+  build-backend:
+    name: Build Backend
+    runs-on: ubuntu-latest
+    needs: validate-deployment
+    if: needs.validate-deployment.outputs.should-deploy == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref || 'main' }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_mysql, dom, filter, gd, json, sqlite3
+          tools: composer:v2
+          coverage: none
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Run backend build
+        run: |
+          chmod +x scripts/build/build-backend.sh
+          scripts/build/build-backend.sh
+        env:
+          BUILD_ENV: production
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+
+      - name: Upload backend artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: backend-build-${{ needs.validate-deployment.outputs.deployment-id }}
+          path: |
+            vendor/
+            cache/
+            build-metadata.json
+          retention-days: 7
+
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    needs: validate-deployment
+    if: needs.validate-deployment.outputs.should-deploy == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref || 'main' }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: gravitycar-frontend/package-lock.json
+
+      - name: Run frontend build
+        run: |
+          chmod +x scripts/build/build-frontend.sh
+          scripts/build/build-frontend.sh
+        env:
+          BUILD_ENV: production
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+
+      - name: Upload frontend artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-build-${{ needs.validate-deployment.outputs.deployment-id }}
+          path: |
+            gravitycar-frontend/dist/
+            gravitycar-frontend/build-manifest.json
+          retention-days: 7
+
+  run-tests:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: [validate-deployment, build-backend]
+    if: needs.validate-deployment.outputs.should-deploy == 'true' && github.event.inputs.skip_tests != 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref || 'main' }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ env.PHP_VERSION }}
+          extensions: mbstring, xml, ctype, iconv, intl, pdo, pdo_mysql, dom, filter, gd, json, sqlite3
+          tools: composer:v2
+          coverage: xdebug
+
+      - name: Download backend artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: backend-build-${{ needs.validate-deployment.outputs.deployment-id }}
+
+      - name: Run comprehensive tests
+        run: |
+          chmod +x scripts/test/run-tests.sh
+          scripts/test/run-tests.sh --mode=ci --coverage=true
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ":memory:"
+          CI: true
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results-${{ needs.validate-deployment.outputs.deployment-id }}
+          path: |
+            coverage/
+            tests-results/
+            phpunit-report.xml
+          retention-days: 14
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: PHPUnit Tests
+          path: phpunit-report.xml
+          reporter: java-junit
+          fail-on-error: true
+
+  create-package:
+    name: Create Deployment Package
+    runs-on: ubuntu-latest
+    needs: [validate-deployment, build-backend, build-frontend, run-tests]
+    if: always() && needs.validate-deployment.outputs.should-deploy == 'true' && (needs.run-tests.result == 'success' || needs.run-tests.result == 'skipped')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref || 'main' }}
+
+      - name: Download backend artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: backend-build-${{ needs.validate-deployment.outputs.deployment-id }}
+
+      - name: Download frontend artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: frontend-build-${{ needs.validate-deployment.outputs.deployment-id }}
+
+      - name: Create deployment package
+        run: |
+          chmod +x scripts/build/package.sh
+          scripts/build/package.sh ${{ github.event.inputs.environment }}
+        env:
+          DEPLOYMENT_ID: ${{ needs.validate-deployment.outputs.deployment-id }}
+          GIT_REF: ${{ github.event.inputs.git_ref || 'main' }}
+          GIT_SHA: ${{ github.sha }}
+          DEPLOYED_BY: ${{ github.actor }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+
+      - name: Upload deployment package
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-package-${{ needs.validate-deployment.outputs.deployment-id }}
+          path: |
+            packages/
+          retention-days: 30
+
+  deploy-to-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [validate-deployment, create-package]
+    if: always() && needs.validate-deployment.outputs.should-deploy == 'true' && needs.create-package.result == 'success' && github.event.inputs.environment == 'production'
+    environment: 
+      name: production
+      url: https://api.gravitycar.com
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref || 'main' }}
+
+      - name: Download deployment package
+        uses: actions/download-artifact@v3
+        with:
+          name: deployment-package-${{ needs.validate-deployment.outputs.deployment-id }}
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PRODUCTION_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.PRODUCTION_SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to production
+        run: |
+          chmod +x scripts/deploy/transfer.sh
+          scripts/deploy/transfer.sh
+        env:
+          DEPLOYMENT_ID: ${{ needs.validate-deployment.outputs.deployment-id }}
+          PRODUCTION_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          PRODUCTION_USER: ${{ secrets.PRODUCTION_SSH_USER }}
+          DB_PASSWORD: ${{ secrets.PRODUCTION_DB_PASSWORD }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        if: github.event.inputs.dry_run != 'true'
+
+      - name: Dry run deployment simulation
+        run: |
+          echo "🔍 DRY RUN: Simulating deployment to production"
+          echo "  📦 Package: deployment-package-${{ needs.validate-deployment.outputs.deployment-id }}"
+          echo "  🖥️  Host: ${{ secrets.PRODUCTION_SSH_HOST }}"
+          echo "  👤 User: ${{ secrets.PRODUCTION_SSH_USER }}"
+          echo "  ✅ All deployment steps would execute successfully"
+        if: github.event.inputs.dry_run == 'true'
+
+  health-check:
+    name: Production Health Check
+    runs-on: ubuntu-latest
+    needs: [validate-deployment, deploy-to-production]
+    if: always() && needs.validate-deployment.outputs.should-deploy == 'true' && needs.deploy-to-production.result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref || 'main' }}
+
+      - name: Wait for deployment
+        run: sleep 30
+
+      - name: Run health checks
+        run: |
+          chmod +x scripts/health-check.sh
+          scripts/health-check.sh
+        env:
+          PRODUCTION_HOST: ${{ secrets.PRODUCTION_SSH_HOST }}
+          DEPLOYMENT_ID: ${{ needs.validate-deployment.outputs.deployment-id }}
+
+  notify-completion:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [validate-deployment, build-backend, build-frontend, run-tests, create-package, deploy-to-production, health-check]
+    if: always() && needs.validate-deployment.outputs.should-deploy == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Determine deployment status
+        id: status
+        run: |
+          if [ "${{ needs.health-check.result }}" == "success" ]; then
+            echo "status=SUCCESS" >> $GITHUB_OUTPUT
+            echo "message=✅ Deployment completed successfully" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+            echo "status=DRY_RUN" >> $GITHUB_OUTPUT
+            echo "message=🔍 Dry run completed successfully" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.deploy-to-production.result }}" == "failure" ]; then
+            echo "status=DEPLOY_FAILED" >> $GITHUB_OUTPUT
+            echo "message=❌ Deployment failed" >> $GITHUB_OUTPUT
+          elif [ "${{ needs.run-tests.result }}" == "failure" ]; then
+            echo "status=TESTS_FAILED" >> $GITHUB_OUTPUT
+            echo "message=❌ Tests failed - deployment aborted" >> $GITHUB_OUTPUT
+          else
+            echo "status=BUILD_FAILED" >> $GITHUB_OUTPUT
+            echo "message=❌ Build failed - deployment aborted" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send notification
+        run: |
+          chmod +x scripts/notify.sh
+          scripts/notify.sh
+        env:
+          DEPLOYMENT_ID: ${{ needs.validate-deployment.outputs.deployment-id }}
+          DEPLOYMENT_STATUS: ${{ steps.status.outputs.status }}
+          DEPLOYMENT_MESSAGE: ${{ steps.status.outputs.message }}
+          DEPLOYED_BY: ${{ github.actor }}
+          GIT_REF: ${{ github.event.inputs.git_ref || 'main' }}
+          GIT_SHA: ${{ github.sha }}
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+          # Email notification configuration from implementation plan secrets
+          NOTIFICATION_EMAIL_PASSWORD: ${{ secrets.NOTIFICATION_EMAIL_PASSWORD }}
+          NOTIFICATION_EMAIL_HOST: ${{ secrets.NOTIFICATION_EMAIL_HOST }}
+          NOTIFICATION_EMAIL_USER: ${{ secrets.NOTIFICATION_EMAIL_USER }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT || '587' }}
+
+      - name: Summary
+        run: |
+          echo "## 🚀 Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ${{ steps.status.outputs.message }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment**: ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployed by**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Git reference**: ${{ github.event.inputs.git_ref || 'main' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Deployment ID**: ${{ needs.validate-deployment.outputs.deployment-id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Job Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Build Backend: ${{ needs.build-backend.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Build Frontend: ${{ needs.build-frontend.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Run Tests: ${{ needs.run-tests.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Create Package: ${{ needs.create-package.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Deploy: ${{ needs.deploy-to-production.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Health Check: ${{ needs.health-check.result }}" >> $GITHUB_STEP_SUMMARY

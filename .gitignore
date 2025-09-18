@@ -17,3 +17,11 @@ restart-frontend.sh
 claud*config*.json*
 #Untitled*
 .phpunit.result.cache
+
+# PHPUnit output and cache
+/coverage/
+/.phpunit.cache/
+.phpunit.result.cache
+
+# CI/CD credentials (never commit real credentials)
+scripts/config/credentials.conf
