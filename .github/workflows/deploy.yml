@@ -186,9 +186,11 @@ jobs:
           chmod +x scripts/test/test-frontend.sh
           scripts/test/run-tests.sh --mode=ci --coverage=true
         env:
+          GRAVITYCAR_CONFIG: test
           DB_CONNECTION: sqlite
           DB_DATABASE: ":memory:"
           CI: true
+          TESTING: true
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

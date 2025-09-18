@@ -24,10 +24,13 @@ class GoogleBooksApiService
         $this->config = $config;
         $this->logger = $logger;
         
-        $this->apiKey = $this->config->getEnv('GOOGLE_BOOKS_API_KEY');
+        // Try environment variable first, then config value, then fallback
+        $this->apiKey = $this->config->getEnv('GOOGLE_BOOKS_API_KEY') 
+            ?? $this->config->get('google_books_api_key') 
+            ?? '';
         
         if (!$this->apiKey) {
-            throw new GCException('Google Books API key not found in configuration');
+            $this->logger->warning('Google Books API key not found in configuration - Google Books integration will not work');
         }
     }
     

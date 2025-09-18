@@ -16,8 +16,12 @@ class Config {
     protected string $configFilePath;
 
     public function __construct() {
-        // Find the project root directory (where config.php should be)
-        $this->configFilePath = $this->findProjectFile('config.php');
+        // Determine which config file to load based on environment
+        $configType = $_ENV['GRAVITYCAR_CONFIG'] ?? 'production';
+        $configFileName = $configType === 'test' ? 'config.test.php' : 'config.php';
+        
+        // Find the project root directory (where config files should be)
+        $this->configFilePath = $this->findProjectFile($configFileName);
         
         $this->loadEnv();
         $this->loadConfig();

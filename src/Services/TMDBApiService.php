@@ -27,11 +27,18 @@ class TMDBApiService
         $this->config = $config;
         $this->logger = $logger;
         
-        $this->apiKey = $this->config->getEnv('TMDB_API_KEY');
-        $this->readAccessToken = $this->config->getEnv('TMDB_API_READ_ACCESS_TOKEN');
+        // Try environment variable first, then config value, then fallback
+        $this->apiKey = $this->config->getEnv('TMDB_API_KEY') 
+            ?? $this->config->get('tmdb.api_key') 
+            ?? $this->config->get('open_imdb_api_key') 
+            ?? '';
+            
+        $this->readAccessToken = $this->config->getEnv('TMDB_API_READ_ACCESS_TOKEN') 
+            ?? $this->config->get('tmdb.read_access_token')
+            ?? '';
         
         if (!$this->apiKey) {
-            throw new GCException('TMDB API key not found in configuration');
+            $this->logger->warning('TMDB API key not found in configuration - TMDB integration will not work');
         }
         
         if (!$this->readAccessToken) {
