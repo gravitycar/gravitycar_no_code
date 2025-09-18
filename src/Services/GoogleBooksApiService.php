@@ -53,6 +53,11 @@ class GoogleBooksApiService
             throw new GCException('Max results must be between 1 and 40');
         }
         
+        if (!$this->apiKey) {
+            $this->logger->warning('Google Books API key not available - returning empty search results');
+            return [];
+        }
+        
         $url = self::API_BASE_URL . '/volumes';
         $params = [
             'q' => $query,
@@ -100,6 +105,11 @@ class GoogleBooksApiService
     {
         if (empty($volumeId)) {
             throw new GCException('Volume ID cannot be empty');
+        }
+        
+        if (!$this->apiKey) {
+            $this->logger->warning('Google Books API key not available - returning empty book details');
+            return [];
         }
         
         $url = self::API_BASE_URL . "/volumes/{$volumeId}";

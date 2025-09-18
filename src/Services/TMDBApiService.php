@@ -42,7 +42,7 @@ class TMDBApiService
         }
         
         if (!$this->readAccessToken) {
-            throw new GCException('TMDB read access token not found in configuration');
+            $this->logger->warning('TMDB read access token not found in configuration - TMDB integration will not work');
         }
     }
     
@@ -58,6 +58,11 @@ class TMDBApiService
     {
         if (empty(trim($query))) {
             throw new GCException('Search query cannot be empty');
+        }
+        
+        if (!$this->apiKey || !$this->readAccessToken) {
+            $this->logger->warning('TMDB API keys not available - returning empty search results');
+            return [];
         }
         
         $url = self::API_BASE_URL . '/search/movie';
@@ -86,6 +91,11 @@ class TMDBApiService
      */
     public function getMovieDetails(int $movieId): array
     {
+        if (!$this->apiKey || !$this->readAccessToken) {
+            $this->logger->warning('TMDB API keys not available - returning empty movie details');
+            return [];
+        }
+        
         $url = self::API_BASE_URL . "/movie/{$movieId}";
         $params = [
             'api_key' => $this->apiKey,

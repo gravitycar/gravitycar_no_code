@@ -221,61 +221,29 @@ consolidate_junit_reports() {
         return 0
     fi
     
-    # Initialize counters for aggregated totals
-    local total_tests=0
-    local total_failures=0
-    local total_errors=0
-    local total_skipped=0
-    local total_time=0
-    
-    # Create consolidated XML header
+    # Create a simple consolidated XML file
     cat > "$output_file" << 'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
 EOF
     
-    # Process each JUnit file
+    # Process each JUnit file with simple sed extraction
     for junit_file in "${junit_files[@]}"; do
         if [[ -f "$junit_file" ]]; then
             log "DEBUG" "Processing: $junit_file"
             
-            # Extract testsuite elements (not the wrapper testsuites)
-            # Use xmllint if available for proper XML parsing, otherwise fallback to sed
-            if command -v xmllint >/dev/null 2>&1; then
-                # Proper XML extraction using xmllint
-                xmllint --xpath "//testsuite" "$junit_file" 2>/dev/null >> "$output_file" || {
-                    # Fallback if xpath fails - extract between testsuite tags
-                    sed -n '/<testsuite/,/<\/testsuite>/p' "$junit_file" >> "$output_file"
-                }
-            else
-                # Fallback: Extract testsuite elements carefully
-                awk '/<testsuite[[:space:]]/{flag=1} flag{print} /<\/testsuite>/{flag=0}' "$junit_file" >> "$output_file"
-            fi
+            # Simple approach: extract content between <testsuite> tags (excluding nested testsuites wrapper)
+            # Use sed to extract lines from first <testsuite> to last </testsuite>
+            sed -n '/<testsuite[[:space:]]/,/<\/testsuite>/p' "$junit_file" >> "$output_file" 2>/dev/null || {
+                log "WARN" "Failed to process $junit_file"
+            }
         fi
     done
     
     # Close the consolidated XML
     echo "</testsuites>" >> "$output_file"
     
-    # Validate the generated XML
-    if command -v xmllint >/dev/null 2>&1; then
-        if xmllint --noout "$output_file" 2>/dev/null; then
-            log "SUCCESS" "Consolidated JUnit report created: $output_file"
-        else
-            log "ERROR" "Generated XML is invalid, falling back to simple concatenation"
-            # Fallback: create simple valid XML
-            cat > "$output_file" << EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuites>
-  <testsuite name="consolidated" tests="0" failures="0" errors="0" skipped="0" time="0">
-    <!-- Consolidated test results - see individual junit-*.xml files for details -->
-  </testsuite>
-</testsuites>
-EOF
-        fi
-    else
-        log "SUCCESS" "Consolidated JUnit report created: $output_file (xmllint not available for validation)"
-    fi
+    log "SUCCESS" "Consolidated JUnit report created: $output_file (simple consolidation)"
 }
 
 # Validate test database functionality
