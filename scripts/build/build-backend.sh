@@ -109,21 +109,70 @@ validate_php_syntax() {
     
     log "INFO" "Validating PHP syntax..."
     
+    # Add environment debugging
+    log "DEBUG" "PHP CLI version: $(php --version | head -1)"
+    log "DEBUG" "Current working directory: $(pwd)"
+    log "DEBUG" "Looking for PHP files in: $(pwd)/src"
+    log "DEBUG" "Directory exists: $([ -d "src" ] && echo "YES" || echo "NO")"
+    
+    # Count files first
+    local total_files=$(find src -name "*.php" 2>/dev/null | wc -l)
+    log "INFO" "Found $total_files PHP files to validate"
+    
+    if [[ $total_files -eq 0 ]]; then
+        log "WARNING" "No PHP files found in src/ directory!"
+        log "INFO" "Directory listing:"
+        ls -la src/ 2>/dev/null || log "ERROR" "Cannot list src/ directory"
+        return 0
+    fi
+    
     local error_count=0
     local file_count=0
+    local error_files=()
+    local show_debug_limit=5
     
     # Find and validate all PHP files
     while IFS= read -r -d '' file; do
         ((file_count++))
-        if ! php -l "$file" >/dev/null 2>&1; then
+        
+        # Show debug info for first few files and all errors
+        if [[ $file_count -le $show_debug_limit ]]; then
+            log "DEBUG" "Checking syntax: $file"
+        elif [[ $file_count -eq $((show_debug_limit + 1)) ]]; then
+            log "DEBUG" "... (continuing validation, will show errors only)"
+        fi
+        
+        # Capture both stdout and stderr for detailed error reporting
+        local syntax_output
+        if ! syntax_output=$(php -l "$file" 2>&1); then
             log "ERROR" "Syntax error in: $file"
+            log "ERROR" "Details: $syntax_output"
+            error_files+=("$file")
             ((error_count++))
+        else
+            # Show success for first few files only
+            if [[ $file_count -le $show_debug_limit ]]; then
+                log "DEBUG" "✅ $file - OK"
+            fi
         fi
     done < <(find src -name "*.php" -print0)
     
     log "INFO" "Checked $file_count PHP files"
     
     if [[ $error_count -gt 0 ]]; then
+        log "ERROR" "==============================================="
+        log "ERROR" "PHP SYNTAX VALIDATION FAILED"
+        log "ERROR" "==============================================="
+        log "ERROR" "Total files checked: $file_count"
+        log "ERROR" "Files with errors: $error_count"
+        log "ERROR" ""
+        log "ERROR" "Failed files:"
+        for failed_file in "${error_files[@]}"; do
+            log "ERROR" "  - $failed_file"
+        done
+        log "ERROR" ""
+        log "ERROR" "Run 'php -l <filename>' on each failed file for details"
+        log "ERROR" "==============================================="
         error_exit "Found $error_count PHP syntax errors"
     fi
     
