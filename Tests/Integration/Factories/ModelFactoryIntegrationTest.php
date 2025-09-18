@@ -24,7 +24,7 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
         parent::setUp();
         
         // Create the users table for integration testing
-        $this->createUsersTable();
+        $this->createSQLiteCompatibleUsersTable();
         
         // Create ModelFactory with proper dependencies for integration testing
         $mockContainer = $this->createMock(Container::class);
@@ -49,9 +49,9 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
     }
     
     /**
-     * Create users table with complete schema
+     * Create users table with SQLite-compatible schema
      */
-    private function createUsersTable(): void
+    private function createSQLiteCompatibleUsersTable(): void
     {
         $sql = "CREATE TABLE IF NOT EXISTS users (
             id VARCHAR(36) NOT NULL PRIMARY KEY,
@@ -61,17 +61,17 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
             first_name VARCHAR(255),
             last_name VARCHAR(255) NOT NULL,
             google_id VARCHAR(255) UNIQUE,
-            auth_provider ENUM('local', 'google', 'hybrid') NOT NULL DEFAULT 'local',
-            last_login_method ENUM('local', 'google'),
+            auth_provider VARCHAR(20) NOT NULL DEFAULT 'local',
+            last_login_method VARCHAR(20),
             email_verified_at DATETIME,
             profile_picture_url VARCHAR(500),
             last_google_sync DATETIME,
-            is_active BOOLEAN NOT NULL DEFAULT 1,
+            is_active INTEGER NOT NULL DEFAULT 1,
             last_login DATETIME,
-            user_type ENUM('admin', 'manager', 'user') NOT NULL DEFAULT 'user',
+            user_type VARCHAR(20) NOT NULL DEFAULT 'user',
             user_timezone VARCHAR(100) NOT NULL DEFAULT 'UTC',
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             deleted_at DATETIME NULL,
             created_by VARCHAR(36),
             updated_by VARCHAR(36),

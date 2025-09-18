@@ -231,7 +231,7 @@ class MoviesModelTMDBIntegrationTest extends IntegrationTestCase {
                 obscurity_score INT,
                 release_year INT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 deleted_at TIMESTAMP NULL,
                 created_by CHAR(36) NULL,
                 updated_by CHAR(36) NULL,
