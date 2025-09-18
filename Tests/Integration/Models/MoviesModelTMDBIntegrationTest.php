@@ -18,8 +18,8 @@ class MoviesModelTMDBIntegrationTest extends IntegrationTestCase {
     protected function setUp(): void {
         parent::setUp();
         
-        // Get database connection from ServiceLocator for consistency with integration tests
-        $this->db = ServiceLocator::getDatabaseConnector();
+        // Use inherited database connector from DatabaseTestCase (already configured for SQLite in CI)
+        // $this->db is already set up by parent::setUp()
         
         $this->setupTestDatabase();
         

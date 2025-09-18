@@ -29,7 +29,7 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
         // Create ModelFactory with proper dependencies for integration testing
         $mockContainer = $this->createMock(Container::class);
         
-        // Create ModelFactory instance using the real database connector and metadata engine from IntegrationTestCase
+        // Create ModelFactory instance using the inherited database connector from DatabaseTestCase
         // @phpstan-ignore-next-line - Mock objects are compatible at runtime
         /** @var Container $mockContainer */
         /** @var MetadataEngineInterface $metadataEngine */
@@ -37,7 +37,7 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
         $this->modelFactory = new ModelFactory(
             $mockContainer,
             $this->logger,
-            ServiceLocator::getDatabaseConnector(),
+            $this->db,  // Use inherited database connector configured for SQLite in CI
             $metadataEngine
         );
     }
@@ -154,10 +154,9 @@ class ModelFactoryIntegrationTest extends IntegrationTestCase
      */
     public function testModelRetrievalWithDatabase(): void
     {
-        // This test requires a database connection
+        // This test uses the inherited database connector already configured for the test environment
         try {
-            $dbConnector = ServiceLocator::getDatabaseConnector();
-            $dbConnector->testConnection();
+            $this->db->testConnection();
         } catch (\Exception $e) {
             $this->markTestSkipped('Database connection not available: ' . $e->getMessage());
         }
