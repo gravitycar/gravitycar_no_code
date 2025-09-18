@@ -178,6 +178,8 @@ jobs:
       - name: Run comprehensive tests
         run: |
           chmod +x scripts/test/run-tests.sh
+          chmod +x scripts/test/test-backend.sh
+          chmod +x scripts/test/test-frontend.sh
           scripts/test/run-tests.sh --mode=ci --coverage=true
         env:
           DB_CONNECTION: sqlite
