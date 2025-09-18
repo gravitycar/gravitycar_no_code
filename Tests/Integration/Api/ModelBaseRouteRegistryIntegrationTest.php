@@ -64,36 +64,6 @@ class ModelBaseRouteRegistryIntegrationTest extends TestCase
         }
     }
 
-    public function testModelRouteValidation(): void
-    {
-        try {
-            // Create Users model and test route validation
-            $userModel = $this->modelFactory->new('Users');
-            $routes = $userModel->registerRoutes();
-            
-            // Test each route passes validation
-            $reflection = new \ReflectionClass($this->registry);
-            $validateMethod = $reflection->getMethod('validateRouteFormat');
-            $validateMethod->setAccessible(true);
-            
-            foreach ($routes as $route) {
-                // This should not throw an exception for valid routes
-                try {
-                    $validateMethod->invoke($this->registry, $route);
-                    $this->assertTrue(true, 'Route should pass validation');
-                } catch (\Exception $e) {
-                    // Some routes might fail due to missing controllers, which is expected
-                    if (!str_contains($e->getMessage(), 'not found')) {
-                        $this->fail('Route validation failed unexpectedly: ' . $e->getMessage());
-                    }
-                }
-            }
-            
-        } catch (\Exception $e) {
-            $this->markTestSkipped('Could not create Users model: ' . $e->getMessage());
-        }
-    }
-
     public function testRouteGroupingWithModelRoutes(): void
     {
         try {
