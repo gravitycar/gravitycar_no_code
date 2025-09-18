@@ -1,7 +1,7 @@
 <?php
 namespace Tests\Integration\Models;
 
-use Gravitycar\Tests\TestCase;
+use Gravitycar\Tests\Integration\IntegrationTestCase;
 use Gravitycar\Models\movies\Movies;
 use Gravitycar\Services\MovieTMDBIntegrationService;
 use Gravitycar\Core\ServiceLocator;
@@ -9,7 +9,7 @@ use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Database\DatabaseConnector;
 use PHPUnit\Framework\MockObject\MockObject;
 
-class MoviesModelTMDBIntegrationTest extends TestCase {
+class MoviesModelTMDBIntegrationTest extends IntegrationTestCase {
     private Movies $movie;
     private MovieTMDBIntegrationService|MockObject $mockTMDBService;
     private ModelFactory $modelFactory;

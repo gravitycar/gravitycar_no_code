@@ -1,7 +1,7 @@
 <?php
 namespace Gravitycar\Tests\Integration\Schema;
 
-use Gravitycar\Tests\TestCase;
+use Gravitycar\Tests\Integration\IntegrationTestCase;
 use Gravitycar\Schema\SchemaGenerator;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Core\Config;
@@ -16,11 +16,9 @@ use Monolog\Logger;
  * Integration tests for SchemaGenerator with RelatedRecordField and CoreFieldsMetadata
  * Tests end-to-end functionality using real model metadata files and CoreFieldsMetadata integration
  */
-class SchemaGeneratorIntegrationTest extends TestCase
+class SchemaGeneratorIntegrationTest extends IntegrationTestCase
 {
     private SchemaGenerator $schemaGenerator;
-    private DatabaseConnector $dbConnector;
-    private MetadataEngine $metadataEngine;
     private ModelFactory $modelFactory;
     private string $testDatabaseName;
     private array $expectedModels = [
@@ -35,19 +33,16 @@ class SchemaGeneratorIntegrationTest extends TestCase
         // Reset ServiceLocator to clear any cached instances
         ServiceLocator::reset();
 
-        $this->logger = ServiceLocator::getLogger();
-        $this->config = ServiceLocator::getConfig();
-
         // Use a test-specific database name
         $this->testDatabaseName = 'gravitycar_schema_test_' . uniqid();
 
         // Override database name for testing (fix: use dbname not name)
         $this->config->set('database.dbname', $this->testDatabaseName);
 
-        $this->dbConnector = new DatabaseConnector($this->logger, $this->config);
+        // Use the database connector from parent class instead of creating new one
         $this->schemaGenerator = new SchemaGenerator();
-        $this->metadataEngine = MetadataEngine::getInstance();
         $this->modelFactory = ServiceLocator::getModelFactory();
+        // metadataEngine is already available from parent IntegrationTestCase
         
         // Create test database in setUp to avoid connection errors
         $this->schemaGenerator->createDatabaseIfNotExists();
@@ -57,7 +52,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
     {
         // Clean up test database
         try {
-            $this->dbConnector->dropDatabase($this->testDatabaseName);
+            $this->db->dropDatabase($this->testDatabaseName);
         } catch (\Exception $e) {
             // Ignore cleanup errors
         }
@@ -72,7 +67,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
         $this->logger->info('Testing database creation');
 
         // Database should already exist from setUp
-        $this->assertTrue($this->dbConnector->databaseExists($this->testDatabaseName));
+        $this->assertTrue($this->db->databaseExists($this->testDatabaseName));
 
         // Test idempotency - should not fail if database already exists
         $result = $this->schemaGenerator->createDatabaseIfNotExists();
@@ -114,7 +109,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
             $this->assertTrue(class_exists($modelClass), "Model class {$modelClass} should exist");
 
             // Create model instance to trigger metadata loading
-            $modelInstance = $this->modelFactory->new($modelName);
+            $modelInstance = ServiceLocator::getModelFactory()->new($modelName);
 
             // Verify model has fields (including core fields)
             $fields = $modelInstance->getFields();
@@ -305,7 +300,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
      */
     private function verifyTablesExist(array $tableNames): void
     {
-        $connection = $this->dbConnector->getConnection();
+        $connection = $this->connection;
         $schemaManager = $connection->createSchemaManager();
         $existingTables = $schemaManager->listTableNames();
 
@@ -331,7 +326,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
      */
     private function verifyCoreFieldsExist(string $tableName, array $coreFields): void
     {
-        $connection = $this->dbConnector->getConnection();
+        $connection = $this->connection;
         $schemaManager = $connection->createSchemaManager();
 
         if (!$schemaManager->tablesExist([$tableName])) {
@@ -354,7 +349,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
     private function tableExists(string $tableName): bool
     {
         try {
-            $connection = $this->dbConnector->getConnection();
+            $connection = $this->connection;
             $schemaManager = $connection->createSchemaManager();
             return $schemaManager->tablesExist([$tableName]);
         } catch (\Exception $e) {
@@ -367,7 +362,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
      */
     private function fieldExists(string $tableName, string $fieldName): bool
     {
-        $connection = $this->dbConnector->getConnection();
+        $connection = $this->connection;
         $schemaManager = $connection->createSchemaManager();
 
         if (!$schemaManager->tablesExist([$tableName])) {
@@ -383,7 +378,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
      */
     private function getTableColumns(string $tableName): array
     {
-        $connection = $this->dbConnector->getConnection();
+        $connection = $this->connection;
         $schemaManager = $connection->createSchemaManager();
 
         if (!$schemaManager->tablesExist([$tableName])) {
