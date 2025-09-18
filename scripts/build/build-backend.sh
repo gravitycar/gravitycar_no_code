@@ -131,8 +131,21 @@ validate_php_syntax() {
     local error_files=()
     local show_debug_limit=5
     
-    # Find and validate all PHP files
-    while IFS= read -r -d '' file; do
+    # Create temporary file list for more robust processing
+    local temp_file_list="/tmp/php_files_list.txt"
+    find src -name "*.php" > "$temp_file_list" 2>/dev/null
+    
+    # Check if we have any files to process
+    if [[ ! -s "$temp_file_list" ]]; then
+        log "WARNING" "No PHP files found in temp file list!"
+        rm -f "$temp_file_list"
+        return 0
+    fi
+    
+    log "INFO" "Processing files from temporary list..."
+    
+    # Process each file
+    while IFS= read -r file; do
         ((file_count++))
         
         # Show debug info for first few files and all errors
@@ -155,7 +168,10 @@ validate_php_syntax() {
                 log "INFO" "✅ $file - OK"
             fi
         fi
-    done < <(find src -name "*.php" -print0)
+    done < "$temp_file_list"
+    
+    # Clean up temporary file
+    rm -f "$temp_file_list"
     
     log "INFO" "Checked $file_count PHP files"
     
