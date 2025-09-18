@@ -19,16 +19,8 @@ abstract class DatabaseTestCase extends UnitTestCase
     {
         parent::setUp();
 
-        // Initialize database connection with test database parameters
-        $dbParams = [
-            'driver' => 'pdo_mysql',
-            'host' => 'localhost',
-            'port' => 3306,
-            'dbname' => 'gravitycar_nc_test', // Use a separate test database
-            'user' => 'mike',
-            'password' => 'mike',
-            'charset' => 'utf8mb4',
-        ];
+        // Get database configuration from environment or use defaults
+        $dbParams = $this->getTestDatabaseConfig();
 
         // Create Config mock and configure it to return test database parameters
         $mockConfig = $this->getMockBuilder(Config::class)
@@ -52,6 +44,38 @@ abstract class DatabaseTestCase extends UnitTestCase
         // Start transaction for test isolation
         $this->connection->beginTransaction();
         $this->inTransaction = true;
+    }
+
+    /**
+     * Get database configuration for testing.
+     * Supports both SQLite (for CI/CD) and MySQL (for local development).
+     */
+    protected function getTestDatabaseConfig(): array
+    {
+        // Check environment variables for database configuration
+        $dbConnection = $_ENV['DB_CONNECTION'] ?? 'mysql';
+        
+        if ($dbConnection === 'sqlite') {
+            // SQLite configuration for CI/CD and lightweight testing
+            $dbPath = $_ENV['DB_DATABASE'] ?? ':memory:';
+            
+            return [
+                'driver' => 'pdo_sqlite',
+                'path' => $dbPath,
+                'memory' => $dbPath === ':memory:',
+            ];
+        } else {
+            // MySQL configuration for local development (default)
+            return [
+                'driver' => 'pdo_mysql',
+                'host' => $_ENV['DB_HOST'] ?? 'localhost',
+                'port' => (int) ($_ENV['DB_PORT'] ?? 3306),
+                'dbname' => $_ENV['DB_DATABASE'] ?? 'gravitycar_nc_test',
+                'user' => $_ENV['DB_USERNAME'] ?? 'mike',
+                'password' => $_ENV['DB_PASSWORD'] ?? 'mike',
+                'charset' => 'utf8mb4',
+            ];
+        }
     }
 
     protected function tearDown(): void

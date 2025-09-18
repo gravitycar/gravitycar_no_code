@@ -71,10 +71,15 @@ abstract class IntegrationTestCase extends DatabaseTestCase
         // Drop tables in reverse order to respect foreign key constraints
         $tablesToDrop = array_reverse($this->testTables);
         
-        // Disable foreign key checks for cleanup in MySQL
+        // Handle database-specific foreign key constraints
         $platform = $this->connection->getDatabasePlatform();
-        if ($platform->getName() === 'mysql') {
+        $platformName = $platform->getName();
+        
+        if ($platformName === 'mysql') {
             $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS = 0');
+        } elseif ($platformName === 'sqlite') {
+            // SQLite requires PRAGMA to disable foreign keys
+            $this->connection->executeStatement('PRAGMA foreign_keys = OFF');
         }
         
         foreach ($tablesToDrop as $table) {
@@ -86,8 +91,10 @@ abstract class IntegrationTestCase extends DatabaseTestCase
         }
         
         // Re-enable foreign key checks
-        if ($platform->getName() === 'mysql') {
+        if ($platformName === 'mysql') {
             $this->connection->executeStatement('SET FOREIGN_KEY_CHECKS = 1');
+        } elseif ($platformName === 'sqlite') {
+            $this->connection->executeStatement('PRAGMA foreign_keys = ON');
         }
         
         // Restart transaction for the parent tearDown method

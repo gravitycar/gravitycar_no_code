@@ -2,7 +2,12 @@
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="vendor/autoload.php"
-         colors="true">
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+         failOnRisky="true"
+         failOnWarning="false"
+         stopOnFailure="false">
+    
     <testsuites>
         <testsuite name="Unit">
             <directory>Tests/Unit</directory>
@@ -13,13 +18,41 @@
         <testsuite name="Feature">
             <directory>Tests/Feature</directory>
         </testsuite>
+        <!-- Demo tests - excluded from default runs -->
+        <testsuite name="Demo">
+            <directory>Tests/Demo</directory>
+        </testsuite>
     </testsuites>
+
     <source>
         <include>
             <directory>src</directory>
         </include>
+        <exclude>
+            <directory>src/Contracts</directory>
+            <!-- Exclude demo files from coverage -->
+            <directory>Tests/Demo</directory>
+        </exclude>
     </source>
+
+    <!-- Coverage reporting for CI/CD -->
+    <coverage>
+        <report>
+            <html outputDirectory="coverage/html"/>
+            <text outputFile="coverage/coverage.txt"/>
+            <xml outputDirectory="coverage/xml"/>
+        </report>
+    </coverage>
+
+    <!-- Logging for CI/CD integration -->
+    <logging>
+        <junit outputFile="coverage/junit.xml"/>
+        <testdoxHtml outputFile="coverage/testdox.html"/>
+    </logging>
+
     <php>
         <env name="APP_ENV" value="testing"/>
+        <env name="DB_CONNECTION" value="sqlite"/>
+        <env name="DB_DATABASE" value=":memory:"/>
     </php>
 </phpunit>
