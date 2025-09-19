@@ -1,14 +1,14 @@
 <?php
 
-namespace Gravitycar\Tests\Feature;
+namespace Gravitycar\Tests\Integration;
 
 use Gravitycar\Tests\Integration\IntegrationTestCase;
 use Gravitycar\Tests\Fixtures\FixtureFactory;
 use Gravitycar\Tests\Helpers\TestDataBuilder;
 
 /**
- * Feature tests for complete user workflows.
- * Tests end-to-end scenarios from a user's perspective.
+ * Integration tests for complete user workflows.
+ * Tests end-to-end scenarios from a user's perspective using real database operations.
  */
 class UserWorkflowFeatureTest extends IntegrationTestCase
 {
