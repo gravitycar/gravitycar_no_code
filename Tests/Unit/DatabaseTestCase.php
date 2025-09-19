@@ -48,12 +48,12 @@ abstract class DatabaseTestCase extends UnitTestCase
 
     /**
      * Get database configuration for testing.
-     * Supports both SQLite (for CI/CD) and MySQL (for local development).
+     * Prioritizes SQLite for CI/CD environments and falls back to MySQL for local development.
      */
     protected function getTestDatabaseConfig(): array
     {
-        // Check environment variables for database configuration
-        $dbConnection = $_ENV['DB_CONNECTION'] ?? 'mysql';
+        // Auto-detect CI/CD environment or explicitly set database type
+        $dbConnection = $_ENV['DB_CONNECTION'] ?? $this->detectDatabaseType();
         
         if ($dbConnection === 'sqlite') {
             // SQLite configuration for CI/CD and lightweight testing
@@ -65,7 +65,7 @@ abstract class DatabaseTestCase extends UnitTestCase
                 'memory' => $dbPath === ':memory:',
             ];
         } else {
-            // MySQL configuration for local development (default)
+            // MySQL configuration for local development
             return [
                 'driver' => 'pdo_mysql',
                 'host' => $_ENV['DB_HOST'] ?? 'localhost',
@@ -75,6 +75,57 @@ abstract class DatabaseTestCase extends UnitTestCase
                 'password' => $_ENV['DB_PASSWORD'] ?? 'mike',
                 'charset' => 'utf8mb4',
             ];
+        }
+    }
+
+    /**
+     * Detect which database type to use based on environment.
+     * Prioritizes SQLite for CI/CD environments where MySQL may not be available.
+     */
+    private function detectDatabaseType(): string
+    {
+        // Check for common CI/CD environment variables
+        $ciEnvironments = [
+            'CI', 'CONTINUOUS_INTEGRATION', 'GITHUB_ACTIONS', 
+            'GITLAB_CI', 'JENKINS_URL', 'TRAVIS', 'CIRCLECI'
+        ];
+        
+        foreach ($ciEnvironments as $envVar) {
+            if (!empty($_ENV[$envVar])) {
+                return 'sqlite';
+            }
+        }
+        
+        // Check if MySQL is actually available before defaulting to it
+        if ($this->isMySQLAvailable()) {
+            return 'mysql';
+        }
+        
+        // Fall back to SQLite if MySQL is not available
+        return 'sqlite';
+    }
+
+    /**
+     * Check if MySQL is available for connection.
+     */
+    private function isMySQLAvailable(): bool
+    {
+        try {
+            $host = $_ENV['DB_HOST'] ?? 'localhost';
+            $port = (int) ($_ENV['DB_PORT'] ?? 3306);
+            $user = $_ENV['DB_USERNAME'] ?? 'mike';
+            $password = $_ENV['DB_PASSWORD'] ?? 'mike';
+            
+            // Attempt to create a MySQL connection
+            $dsn = "mysql:host={$host};port={$port}";
+            $pdo = new \PDO($dsn, $user, $password, [
+                \PDO::ATTR_TIMEOUT => 2, // 2 second timeout
+                \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION
+            ]);
+            $pdo = null; // Close connection
+            return true;
+        } catch (\Exception $e) {
+            return false;
         }
     }
 
