@@ -1,12 +1,13 @@
 <?php
 
-namespace Gravitycar\Tests\Unit\Utils;
+namespace Gravitycar\Tests\Integration\Utils;
 
-use Gravitycar\Tests\Unit\DatabaseTestCase;
+use Gravitycar\Tests\Integration\IntegrationTestCase;
 use Gravitycar\Utils\GuestUserManager;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Contracts\MetadataEngineInterface;
+use Gravitycar\Core\ContainerConfig;
 use Aura\Di\Container;
 use Monolog\Logger;
 
@@ -16,7 +17,7 @@ use Monolog\Logger;
  * These tests cover edge cases, error conditions, and boundary scenarios
  * that might occur in production use.
  */
-class GuestUserManagerEdgeCaseTest extends DatabaseTestCase
+class GuestUserManagerEdgeCaseTest extends IntegrationTestCase
 {
     private GuestUserManager $guestUserManager;
     private ModelFactory $modelFactory;
@@ -25,24 +26,9 @@ class GuestUserManagerEdgeCaseTest extends DatabaseTestCase
     {
         parent::setUp();
         
-        // Create ModelFactory with proper dependencies for integration testing
-        $mockContainer = $this->createMock(Container::class);
-        $mockMetadataEngine = $this->createMock(MetadataEngineInterface::class);
-        
-        // Configure MetadataEngine to support the models we'll use
-        $mockMetadataEngine->method('getAvailableModels')
-            ->willReturn(['Users', 'Movies', 'Roles']);
-        
-        // Create ModelFactory instance using the real database connector from DatabaseTestCase
-        // @phpstan-ignore-next-line - Mock objects are compatible at runtime
-        /** @var Container $mockContainer */
-        /** @var MetadataEngineInterface $mockMetadataEngine */
-        $this->modelFactory = new ModelFactory(
-            $mockContainer,
-            $this->logger, // From parent UnitTestCase
-            $this->db,     // From parent DatabaseTestCase
-            $mockMetadataEngine
-        );
+        // Get ModelFactory from container with proper dependencies
+        $container = ContainerConfig::getContainer();
+        $this->modelFactory = $container->get('model_factory');
         
         // Clear any cached guest user before each test
         GuestUserManager::clearCache();

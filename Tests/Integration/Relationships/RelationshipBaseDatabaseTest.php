@@ -1,8 +1,8 @@
 <?php
 
-namespace Gravitycar\Tests\Unit\Relationships;
+namespace Gravitycar\Tests\Integration\Relationships;
 
-use Gravitycar\Tests\Unit\DatabaseTestCase;
+use Gravitycar\Tests\Integration\IntegrationTestCase;
 use Gravitycar\Relationships\RelationshipBase;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Database\DatabaseConnector;
@@ -16,7 +16,7 @@ use Monolog\Logger;
  * Integration tests for RelationshipBase that require database access.
  * These tests use the actual database and ServiceLocator infrastructure.
  */
-class RelationshipBaseDatabaseTest extends DatabaseTestCase
+class RelationshipBaseDatabaseTest extends IntegrationTestCase
 {
     private MockRelationshipForDB $relationship;
     private array $testMetadata;
