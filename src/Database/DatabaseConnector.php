@@ -56,6 +56,19 @@ class DatabaseConnector implements DatabaseConnectorInterface {
         return $this->connection;
     }
 
+
+    public function newDBConnection(Config $config, ?array $dbParams = null): Connection {
+        $params = $dbParams ?? $config->get('database') ?? [];
+        $this->resetConnection();
+        $this->dbParams = $params;
+        try {
+            return DriverManager::getConnection($params);
+        } catch (\Exception $e) {
+            throw new GCException('Database connection failed: ' . $e->getMessage(),
+                ['db_params' => $params, 'error' => $e->getMessage()], 0, $e);
+        }
+    }
+
     /**
      * Reset the connection (useful after database creation)
      */

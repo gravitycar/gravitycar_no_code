@@ -2,9 +2,11 @@
 
 namespace Gravitycar\Tests\Unit;
 
+use Aura\Di\Container;
 use Gravitycar\Database\DatabaseConnector;
 use Gravitycar\Core\Config;
 use Doctrine\DBAL\Connection;
+use Gravitycar\Core\ContainerConfig;
 
 /**
  * Base class for tests that require database interaction.
@@ -19,20 +21,13 @@ abstract class DatabaseTestCase extends UnitTestCase
     {
         parent::setUp();
 
-        // Get database configuration from environment or use defaults
-        $dbParams = $this->getTestDatabaseConfig();
-
         // Create Config mock and configure it to return test database parameters
         $mockConfig = $this->getMockBuilder(Config::class)
-            ->disableOriginalConstructor()
             ->getMock();
-        $mockConfig->method('get')
-            ->with('database')
-            ->willReturn($dbParams);
 
         // @phpstan-ignore-next-line - Mock object is compatible at runtime  
         /** @var Config $mockConfig */
-        $this->db = new DatabaseConnector($this->logger, $mockConfig);
+        $this->db = new DatabaseConnector($this->logger, ContainerConfig::getContainer()->get('config'));
         $this->connection = $this->db->getConnection();
 
         // Enable foreign key constraints only for SQLite (not applicable to MySQL)
@@ -52,30 +47,15 @@ abstract class DatabaseTestCase extends UnitTestCase
      */
     protected function getTestDatabaseConfig(): array
     {
-        // Auto-detect CI/CD environment or explicitly set database type
-        $dbConnection = $_ENV['DB_CONNECTION'] ?? $this->detectDatabaseType();
-        
-        if ($dbConnection === 'sqlite') {
-            // SQLite configuration for CI/CD and lightweight testing
-            $dbPath = $_ENV['DB_DATABASE'] ?? ':memory:';
-            
-            return [
-                'driver' => 'pdo_sqlite',
-                'path' => $dbPath,
-                'memory' => $dbPath === ':memory:',
-            ];
-        } else {
-            // MySQL configuration for local development
-            return [
-                'driver' => 'pdo_mysql',
-                'host' => $_ENV['DB_HOST'] ?? 'localhost',
-                'port' => (int) ($_ENV['DB_PORT'] ?? 3306),
-                'dbname' => $_ENV['DB_DATABASE'] ?? 'gravitycar_nc_test',
-                'user' => $_ENV['DB_USERNAME'] ?? 'mike',
-                'password' => $_ENV['DB_PASSWORD'] ?? 'mike',
-                'charset' => 'utf8mb4',
-            ];
-        }
+        return [
+            'driver' => 'pdo_mysql',
+            'host' => $_ENV['DB_HOST'],
+            'port' => (int) ($_ENV['DB_PORT']),
+            'dbname' => $_ENV['DB_DATABASE'],
+            'user' => $_ENV['DB_USERNAME'],
+            'password' => $_ENV['DB_PASSWORD'],
+            'charset' => 'utf8mb4',
+        ];
     }
 
     /**

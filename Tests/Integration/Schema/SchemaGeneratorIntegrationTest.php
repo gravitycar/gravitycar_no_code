@@ -23,6 +23,8 @@ class SchemaGeneratorIntegrationTest extends TestCase
     private MetadataEngine $metadataEngine;
     private ModelFactory $modelFactory;
     private string $testDatabaseName;
+    private string $oldDbName;
+    protected Logger $logger;
     private array $expectedModels = [
         ['class' => '\\Gravitycar\\Models\\Users\\Users', 'name' => 'Users'],
         ['class' => '\\Gravitycar\\Models\\Movies\\Movies', 'name' => 'Movies'],
@@ -42,6 +44,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
         $this->testDatabaseName = 'gravitycar_schema_test_' . uniqid();
 
         // Override database name for testing (fix: use dbname not name)
+        $this->oldDbName = $this->config->get('database.dbname');
         $this->config->set('database.dbname', $this->testDatabaseName);
 
         $this->dbConnector = new DatabaseConnector($this->logger, $this->config);
@@ -55,6 +58,7 @@ class SchemaGeneratorIntegrationTest extends TestCase
 
     protected function tearDown(): void
     {
+        $this->config->set('database.dbname', $this->oldDbName);
         // Clean up test database
         try {
             $this->dbConnector->dropDatabase($this->testDatabaseName);

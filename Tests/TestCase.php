@@ -33,17 +33,6 @@ abstract class TestCase extends PHPUnitTestCase
 
         // Create config - it will automatically load test configuration if GRAVITYCAR_CONFIG=test
         $this->config = new Config($this->logger);
-        
-        // Only override config if not already using test configuration
-        if (!isset($_ENV['GRAVITYCAR_CONFIG']) || $_ENV['GRAVITYCAR_CONFIG'] !== 'test') {
-            // Override config values for testing when running in non-CI environment
-            $this->config->set('database.host', 'localhost');
-            $this->config->set('database.database', 'gravitycar_test');
-            $this->config->set('database.username', 'test');
-            $this->config->set('database.password', 'test');
-            $this->config->set('app.env', 'testing');
-            $this->config->set('app.debug', true);
-        }
 
         // For testing, we'll use the actual ServiceLocator but won't try to modify it
         // The ServiceLocator uses Aura DI container which should be configured elsewhere

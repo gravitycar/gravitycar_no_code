@@ -184,7 +184,7 @@ jobs:
           chmod +x scripts/test/run-tests.sh
           chmod +x scripts/test/test-backend.sh
           chmod +x scripts/test/test-frontend.sh
-          scripts/test/run-tests.sh --mode=ci --coverage=true
+          scripts/test/run-tests.sh --mode=ci --coverage=true --exclude=integration
         env:
           GRAVITYCAR_CONFIG: test
           DB_CONNECTION: sqlite

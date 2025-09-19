@@ -12,6 +12,76 @@
 
 set -euo pipefail
 
+# Parse command line arguments
+SKIP_BACKEND="${SKIP_BACKEND:-false}"
+SKIP_FRONTEND="${SKIP_FRONTEND:-false}"
+SKIP_INTEGRATION="${SKIP_INTEGRATION:-false}"
+PARALLEL="${PARALLEL:-false}"
+COVERAGE="${COVERAGE:-true}"
+FAIL_FAST="${FAIL_FAST:-true}"
+TEST_FILTER="${TEST_FILTER:-}"
+MODE="${MODE:-local}"
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --mode=*)
+            MODE="${1#*=}"
+            shift
+            ;;
+        --coverage=*)
+            COVERAGE="${1#*=}"
+            shift
+            ;;
+        --exclude=*)
+            EXCLUDE_VALUE="${1#*=}"
+            if [[ "$EXCLUDE_VALUE" == "integration" ]]; then
+                SKIP_INTEGRATION="true"
+            fi
+            shift
+            ;;
+        --skip-backend)
+            SKIP_BACKEND="true"
+            shift
+            ;;
+        --skip-frontend)
+            SKIP_FRONTEND="true"
+            shift
+            ;;
+        --skip-integration)
+            SKIP_INTEGRATION="true"
+            shift
+            ;;
+        --parallel)
+            PARALLEL="true"
+            shift
+            ;;
+        --filter=*)
+            TEST_FILTER="${1#*=}"
+            shift
+            ;;
+        --help)
+            echo "Usage: $0 [options]"
+            echo "Options:"
+            echo "  --mode=<local|ci>           Test execution mode"
+            echo "  --coverage=<true|false>     Enable/disable coverage reporting"
+            echo "  --exclude=<integration>     Exclude specific test suites"
+            echo "  --skip-backend              Skip backend tests"
+            echo "  --skip-frontend             Skip frontend tests"
+            echo "  --skip-integration          Skip integration tests"
+            echo "  --parallel                  Run tests in parallel"
+            echo "  --filter=<pattern>          Filter tests by pattern"
+            echo "  --help                      Show this help message"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
 # Get script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -22,17 +92,11 @@ source "${SCRIPT_DIR}/../common.sh" 2>/dev/null || {
     log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$1] ${*:2}"; }
 }
 
-# Test configuration
-SKIP_BACKEND="${SKIP_BACKEND:-false}"
-SKIP_FRONTEND="${SKIP_FRONTEND:-false}"
-PARALLEL="${PARALLEL:-false}"
-COVERAGE="${COVERAGE:-true}"
-FAIL_FAST="${FAIL_FAST:-true}"
-TEST_FILTER="${TEST_FILTER:-}"
-
 log "INFO" "Starting comprehensive test execution..."
+log "INFO" "Mode: $MODE"
 log "INFO" "Backend tests: $([ "$SKIP_BACKEND" == "true" ] && echo "DISABLED" || echo "ENABLED")"
 log "INFO" "Frontend tests: $([ "$SKIP_FRONTEND" == "true" ] && echo "DISABLED" || echo "ENABLED")"
+log "INFO" "Integration tests: $([ "$SKIP_INTEGRATION" == "true" ] && echo "DISABLED" || echo "ENABLED")"
 log "INFO" "Parallel execution: $PARALLEL"
 log "INFO" "Coverage reporting: $COVERAGE"
 
@@ -86,6 +150,7 @@ run_backend_tests() {
     export COVERAGE="$COVERAGE"
     export PARALLEL="$PARALLEL"
     export TEST_FILTER="$TEST_FILTER"
+    export SKIP_INTEGRATION="$SKIP_INTEGRATION"
     
     if "$SCRIPT_DIR/test-backend.sh"; then
         log "SUCCESS" "Backend tests completed successfully"

@@ -41,9 +41,10 @@ class MoviesModelTMDBIntegrationTest extends IntegrationTestCase {
     }
     
     public function testSearchTMDBMovies(): void {
+        $tmdb_id = $this->createRandomTMDBID();
         $expectedResult = [
             'exact_match' => [
-                'tmdb_id' => 6030000,
+                'tmdb_id' => $tmdb_id,
                 'title' => 'The Matrix',
                 'release_year' => 1999
             ],
@@ -63,8 +64,9 @@ class MoviesModelTMDBIntegrationTest extends IntegrationTestCase {
     }
     
     public function testEnrichFromTMDB(): void {
+        $tmdb_id = $this->createRandomTMDBID();
         $enrichmentData = [
-            'tmdb_id' => 6030000,
+            'tmdb_id' => $tmdb_id,
             'synopsis' => 'A computer hacker learns from mysterious rebels about the true nature of his reality.',
             'poster_url' => 'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
             'trailer_url' => 'https://www.youtube.com/watch?v=vKQi3bBA1y8',
@@ -75,16 +77,16 @@ class MoviesModelTMDBIntegrationTest extends IntegrationTestCase {
         $this->mockTMDBService
             ->expects($this->once())
             ->method('enrichMovieData')
-            ->with(6030000)
+            ->with($tmdb_id)
             ->willReturn($enrichmentData);
         
         // Set up movie with basic data
         $this->movie->set('name', 'The Matrix');
         
-        $this->movie->enrichFromTMDB(6030000);
+        $this->movie->enrichFromTMDB($tmdb_id);
 
         // Verify fields were set
-        $this->assertEquals(6030000, $this->movie->get('tmdb_id'));
+        $this->assertEquals($tmdb_id, $this->movie->get('tmdb_id'));
         $this->assertEquals($enrichmentData['synopsis'], $this->movie->get('synopsis'));
         $this->assertEquals($enrichmentData['poster_url'], $this->movie->get('poster_url'));
         $this->assertEquals($enrichmentData['trailer_url'], $this->movie->get('trailer_url'));
@@ -93,8 +95,9 @@ class MoviesModelTMDBIntegrationTest extends IntegrationTestCase {
     }
     
     public function testEnrichFromTMDBSkipsEmptyValues(): void {
+        $tmdb_id = $this->createRandomTMDBID();
         $enrichmentData = [
-            'tmdb_id' => 6030000,
+            'tmdb_id' => $tmdb_id,
             'synopsis' => '',  // Empty value should be skipped
             'poster_url' => 'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
             'trailer_url' => null,  // Null value should be skipped
@@ -105,19 +108,19 @@ class MoviesModelTMDBIntegrationTest extends IntegrationTestCase {
         $this->mockTMDBService
             ->expects($this->once())
             ->method('enrichMovieData')
-            ->with(6030000)
+            ->with($tmdb_id)
             ->willReturn($enrichmentData);
         
         // Set original synopsis that should not be overwritten
         $this->movie->set('synopsis', 'Original synopsis');
         
-        $this->movie->enrichFromTMDB(6030000);
+        $this->movie->enrichFromTMDB($tmdb_id);
         
         // Verify empty values didn't overwrite existing data
         $this->assertEquals('Original synopsis', $this->movie->get('synopsis'));
         
         // Verify non-empty values were set
-        $this->assertEquals(6030000, $this->movie->get('tmdb_id'));
+        $this->assertEquals($tmdb_id, $this->movie->get('tmdb_id'));
         $this->assertEquals($enrichmentData['poster_url'], $this->movie->get('poster_url'));
         $this->assertEquals($enrichmentData['obscurity_score'], $this->movie->get('obscurity_score'));
         $this->assertEquals($enrichmentData['release_year'], $this->movie->get('release_year'));
@@ -148,8 +151,9 @@ class MoviesModelTMDBIntegrationTest extends IntegrationTestCase {
     }
     
     public function testCreateWithTMDBEnrichment(): void {
+        $tmdb_id = $this->createRandomTMDBID();
         $enrichmentData = [
-            'tmdb_id' => 6030000,
+            'tmdb_id' => $tmdb_id,
             'synopsis' => 'A computer hacker learns from mysterious rebels about the true nature of his reality.',
             'poster_url' => 'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
             'trailer_url' => 'https://www.youtube.com/watch?v=vKQi3bBA1y8',
@@ -160,12 +164,12 @@ class MoviesModelTMDBIntegrationTest extends IntegrationTestCase {
         $this->mockTMDBService
             ->expects($this->once())
             ->method('enrichMovieData')
-            ->with(6030000)
+            ->with($tmdb_id)
             ->willReturn($enrichmentData);
         
         // Set up movie with TMDB enrichment
         $this->movie->set('name', 'The Matrix');
-        $this->movie->enrichFromTMDB(6030000);
+        $this->movie->enrichFromTMDB($tmdb_id);
         
         // Create the movie
         $result = $this->movie->create();
@@ -182,7 +186,7 @@ class MoviesModelTMDBIntegrationTest extends IntegrationTestCase {
         
         // Verify the current movie object has the correct data
         $this->assertEquals('The Matrix', $this->movie->get('name'));
-        $this->assertEquals(6030000, $this->movie->get('tmdb_id'));
+        $this->assertEquals($tmdb_id, $this->movie->get('tmdb_id'));
         $this->assertEquals($enrichmentData['synopsis'], $this->movie->get('synopsis'));
         $this->assertEquals($enrichmentData['poster_url'], $this->movie->get('poster_url'));
     }
@@ -240,6 +244,11 @@ class MoviesModelTMDBIntegrationTest extends IntegrationTestCase {
         ";
         
         $this->db->getConnection()->executeStatement($sql);
+    }
+
+
+    public function createRandomTMDBID(): int {
+        return rand(1000000, 9999999);
     }
     
     /**
