@@ -28,6 +28,9 @@ class GuestUserManagerEdgeCaseTest extends IntegrationTestCase
         
         // Get ModelFactory from container with proper dependencies
         $container = ContainerConfig::getContainer();
+        $databaseConnector = $container->get('database_connector');
+        $databaseConnector->resetConnection();
+        $databaseConnector->newDBConnection($this->config);
         $this->modelFactory = $container->get('model_factory');
         
         // Clear any cached guest user before each test

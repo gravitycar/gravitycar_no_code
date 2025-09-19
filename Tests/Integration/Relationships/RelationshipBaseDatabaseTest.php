@@ -25,6 +25,11 @@ class RelationshipBaseDatabaseTest extends IntegrationTestCase
     {
         parent::setUp();
 
+        $container = \Gravitycar\Core\ContainerConfig::getContainer();
+        $databaseConnector = $container->get('database_connector');
+        $databaseConnector->resetConnection();
+        $databaseConnector->newDBConnection($this->config);
+
         // Skip if database is not available
         if (!$this->db) {
             $this->markTestSkipped('Database not available for testing');
