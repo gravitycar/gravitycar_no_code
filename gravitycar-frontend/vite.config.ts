@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite'
-// @ts-ignore - Module resolution issue with plugin-react in TypeScript 5.8.3
+// @ts-expect-error - Module resolution issue with plugin-react in TypeScript 5.8.3
 import react from '@vitejs/plugin-react'
 
 // https://vite.dev/config/

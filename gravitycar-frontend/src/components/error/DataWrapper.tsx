@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
 import { ApiError, getErrorMessage } from '../../utils/errors';
 
-interface DataWrapperProps {
+interface DataWrapperProps<T = unknown> {
   loading: boolean;
   error: unknown;
-  data: any;
-  children: (data: any) => ReactNode;
+  data: T;
+  children: (data: T) => ReactNode;
   fallback?: ReactNode;
   retry?: () => void;
   emptyMessage?: string;
@@ -15,7 +15,7 @@ interface DataWrapperProps {
  * Wrapper component for handling data loading states, errors, and empty states
  * Provides consistent UI patterns across the application
  */
-export function DataWrapper({
+export function DataWrapper<T = unknown>({
   loading,
   error,
   data,
@@ -23,7 +23,7 @@ export function DataWrapper({
   fallback,
   retry,
   emptyMessage = 'No data available'
-}: DataWrapperProps) {
+}: DataWrapperProps<T>) {
   if (loading) {
     return <LoadingState />;
   }
