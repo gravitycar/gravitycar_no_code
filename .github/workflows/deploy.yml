@@ -337,6 +337,15 @@ jobs:
           
           # Add host to known_hosts
           echo "🌐 Adding host to known_hosts..."
+          echo "Debug: Hostname being used: ${{ secrets.PRODUCTION_SSH_HOST }}"
+          echo "Testing hostname resolution..."
+          if nslookup ${{ secrets.PRODUCTION_SSH_HOST }}; then
+            echo "✅ Hostname resolves correctly"
+          else
+            echo "❌ Hostname resolution failed"
+            echo "Trying with getent hosts..."
+            getent hosts ${{ secrets.PRODUCTION_SSH_HOST }} || echo "getent also failed"
+          fi
           ssh-keyscan -H ${{ secrets.PRODUCTION_SSH_HOST }} >> ~/.ssh/known_hosts
           
           # Test SSH connection
