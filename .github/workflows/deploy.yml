@@ -304,6 +304,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: deployment-package-${{ needs.validate-deployment.outputs.deployment-id }}
+          path: packages/
 
       - name: Debug - List downloaded contents
         run: |
