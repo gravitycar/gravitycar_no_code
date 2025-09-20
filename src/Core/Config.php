@@ -70,7 +70,8 @@ class Config {
         // Try multiple locations for .env file
         $envLocations = [
             './.env',           // Current directory (development)
-            '../.env'           // Parent directory (production - outside web root)
+            '../.env',
+            '../../.env',          // Parent directory (production - outside web root)
         ];
         
         $envFilePath = null;
