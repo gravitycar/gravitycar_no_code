@@ -83,12 +83,12 @@ check_package() {
     
     # Find the deployment package in packages directory first
     local package_path
-    package_path=$(find "$package_dir" -name "$package_pattern" -type d | head -1)
+    package_path=$(find "$package_dir" -name "$package_pattern" -type d | sort -r | head -1)
     
     # If not found in packages directory, check root directory (artifact download fallback)
     if [ -z "$package_path" ]; then
         log_warn "Package not found in packages directory, checking root directory..."
-        package_path=$(find "$PROJECT_ROOT" -maxdepth 1 -name "$package_pattern" -type d | head -1)
+        package_path=$(find "$PROJECT_ROOT" -maxdepth 1 -name "$package_pattern" -type d | sort -r | head -1)
         
         if [ -n "$package_path" ]; then
             log_info "Found package in root directory: $package_path"
