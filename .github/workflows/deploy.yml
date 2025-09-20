@@ -138,17 +138,56 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: gravitycar-frontend/package-lock.json
+
+      - name: Cache Node.js dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            gravitycar-frontend/node_modules
+            ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('gravitycar-frontend/package-lock.json') }}-v2
+          restore-keys: |
+            npm-${{ runner.os }}-v2
 
       - name: Run frontend build
         run: |
-          chmod +x scripts/build/build-frontend.sh
-          scripts/build/build-frontend.sh
+          chmod +x scripts/build/build-frontend-ci.sh
+          PROJECT_ROOT=$(pwd) scripts/build/build-frontend-ci.sh
         env:
           ENVIRONMENT: ${{ github.event.inputs.environment }}
           BUILD_ENV: production
           DRY_RUN: ${{ github.event.inputs.dry_run }}
+
+      - name: Debug frontend build results
+        run: |
+          echo "🔍 Frontend build verification:"
+          echo "Frontend dist contents:"
+          ls -la gravitycar-frontend/dist/ || echo "No dist directory"
+          echo ""
+          echo "Frontend assets:"
+          ls -la gravitycar-frontend/dist/assets/ || echo "No assets directory"
+          echo ""
+          echo "Index.html references:"
+          grep -o 'index-[^"]*\.js\|index-[^"]*\.css' gravitycar-frontend/dist/index.html || echo "No asset references"
+          echo ""
+          echo "API URL verification:"
+          if ls gravitycar-frontend/dist/assets/index-*.js 1> /dev/null 2>&1; then
+            js_file=$(ls gravitycar-frontend/dist/assets/index-*.js | head -1)
+            echo "Checking $js_file:"
+            api_count=$(grep -c "api\.gravitycar\.com" "$js_file" || echo "0")
+            localhost_count=$(grep -c "localhost:8081" "$js_file" || echo "0")
+            echo "  api.gravitycar.com references: $api_count"
+            echo "  localhost:8081 references: $localhost_count"
+            if [ "$api_count" -gt 0 ] && [ "$localhost_count" -eq 0 ]; then
+              echo "✅ Correct API URLs in build"
+            else
+              echo "❌ Incorrect API URLs in build"
+              exit 1
+            fi
+          else
+            echo "❌ No JavaScript files found"
+            exit 1
+          fi
 
       - name: Upload frontend artifacts
         uses: actions/upload-artifact@v4
