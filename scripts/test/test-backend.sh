@@ -169,13 +169,19 @@ run_code_quality_checks() {
     log "DEBUG" "Checking for code quality issues..."
     
     # Check for TODO/FIXME comments
+    # Temporarily disable pipefail for grep pipeline that might not find matches
+    set +o pipefail
     local todo_count=$(grep -r "TODO\|FIXME" src/ | wc -l || echo 0)
+    set -o pipefail
     if [[ $todo_count -gt 0 ]]; then
         log "WARN" "Found $todo_count TODO/FIXME comments in code"
     fi
     
     # Check for debugging statements
+    # Temporarily disable pipefail for grep pipeline that might not find matches
+    set +o pipefail
     local debug_count=$(grep -r "var_dump\|print_r\|error_log" src/ | wc -l || echo 0)
+    set -o pipefail
     if [[ $debug_count -gt 0 ]]; then
         log "WARN" "Found $debug_count potential debugging statements"
     fi
@@ -301,16 +307,22 @@ EOF
         if [[ -n "$temp_content" ]]; then
             # Extract metrics from the testsuite for totals calculation
             local suite_metrics
+            # Temporarily disable pipefail to avoid broken pipe errors from grep | head pipeline
+            set +o pipefail
             suite_metrics=$(echo "$temp_content" | grep -E '^[[:space:]]*<testsuite' | head -1)
+            set -o pipefail
             
             if [[ -n "$suite_metrics" ]]; then
                 # Extract numeric values using grep and awk for safety
+                # Temporarily disable pipefail to avoid broken pipe errors from grep pipelines
+                set +o pipefail
                 local tests=$(echo "$suite_metrics" | grep -o 'tests="[0-9]*"' | cut -d'"' -f2 || echo "0")
                 local assertions=$(echo "$suite_metrics" | grep -o 'assertions="[0-9]*"' | cut -d'"' -f2 || echo "0")
                 local errors=$(echo "$suite_metrics" | grep -o 'errors="[0-9]*"' | cut -d'"' -f2 || echo "0")
                 local failures=$(echo "$suite_metrics" | grep -o 'failures="[0-9]*"' | cut -d'"' -f2 || echo "0")
                 local skipped=$(echo "$suite_metrics" | grep -o 'skipped="[0-9]*"' | cut -d'"' -f2 || echo "0")
                 local time=$(echo "$suite_metrics" | grep -o 'time="[0-9.]*"' | cut -d'"' -f2 || echo "0")
+                set -o pipefail
                 
                 # Add to totals (using arithmetic expansion for safety)
                 ((total_tests += tests)) || true

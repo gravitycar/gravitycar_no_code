@@ -132,11 +132,11 @@ const MoviesPage: React.FC = () => {
   // Enhanced grid renderer with quote management
   const enhancedMovieGridRenderer = (
     item: ModelRecord, 
-    metadata: ModelMetadata, 
+    _metadata: ModelMetadata, 
     onEdit: (item: ModelRecord) => void, 
     onDelete: (item: ModelRecord) => void
   ) => {
-    return movieGridRenderer(item, metadata, onEdit, onDelete, handleViewQuotes);
+    return movieGridRenderer(item, onEdit, onDelete, handleViewQuotes);
   };
 
   return (

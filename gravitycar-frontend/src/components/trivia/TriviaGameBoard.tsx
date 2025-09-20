@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import TriviaQuestion from './TriviaQuestion.tsx';
+import TriviaQuestion from './TriviaQuestion';
 import type { TriviaGame } from './types';
 
 interface TriviaGameBoardProps {

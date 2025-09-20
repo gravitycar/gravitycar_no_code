@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import TriviaAnswerOption from './TriviaAnswerOption.tsx';
+import TriviaAnswerOption from './TriviaAnswerOption';
 import type { TriviaQuestion as TriviaQuestionType } from './types';
 
 interface TriviaQuestionProps {

@@ -706,6 +706,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
           </div>
 
           {/* Data Display */}
+          {/* @ts-ignore - DataWrapper return type compatibility issue with React 19 */}
           <DataWrapper
             loading={state.loading}
             error={state.error}
