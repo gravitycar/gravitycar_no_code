@@ -48,9 +48,9 @@ class RestApiHandler {
         try {
             // Handle CORS preflight requests early, before routing
             if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
-                header('Access-Control-Allow-Origin: *');
-                header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS');
-                header('Access-Control-Allow-Headers: Content-Type, Authorization');
+                #header('Access-Control-Allow-Origin: *');
+                #header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS');
+                #header('Access-Control-Allow-Headers: Content-Type, Authorization');
                 header('Content-Type: application/json; charset=utf-8');
                 http_response_code(200);
                 exit;
@@ -228,9 +228,9 @@ class RestApiHandler {
         // Set appropriate headers
         header('Content-Type: application/json; charset=utf-8');
         header('Cache-Control: no-cache, must-revalidate');
-        header('Access-Control-Allow-Origin: *'); // Basic CORS support
-        header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS');
-        header('Access-Control-Allow-Headers: Content-Type, Authorization');
+        #header('Access-Control-Allow-Origin: *'); // Basic CORS support
+        #header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, PATCH, OPTIONS');
+        #header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
         // Handle OPTIONS preflight requests
         if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
@@ -310,7 +310,7 @@ class RestApiHandler {
 
         // Set error headers
         header('Content-Type: application/json; charset=utf-8');
-        header('Access-Control-Allow-Origin: *');
+        #header('Access-Control-Allow-Origin: *');
         http_response_code($httpStatus);
 
         // Create ReactJS-friendly error response

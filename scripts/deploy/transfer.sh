@@ -263,11 +263,13 @@ deploy_frontend() {
         log_info 'Cleaning up old frontend files...'
         cd /home/$PRODUCTION_USER/public_html/react.gravitycar.com
         
-        # Remove old assets and build files, but preserve any custom files
+        # Remove all build artifacts to ensure clean deployment
         rm -rf assets/ 2>/dev/null || true
         rm -f index.html 2>/dev/null || true
         rm -f vite.svg 2>/dev/null || true
         rm -f build-manifest.json 2>/dev/null || true
+        
+        echo 'Old frontend files cleaned up'
         
         # Copy frontend files
         if [ -d '$REMOTE_TEMP_DIR/frontend' ]; then
