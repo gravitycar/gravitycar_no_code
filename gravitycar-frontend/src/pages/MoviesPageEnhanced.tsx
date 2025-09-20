@@ -10,7 +10,6 @@ import type { Movie, ModelMetadata, ModelRecord } from '../types';
   // Basic grid renderer for movies
   const movieGridRenderer = (
     item: ModelRecord, 
-    metadata: ModelMetadata, 
     onEdit: (item: ModelRecord) => void, 
     onDelete: (item: ModelRecord) => void,
     onViewQuotes?: (movie: Movie) => void

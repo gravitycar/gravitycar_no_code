@@ -209,6 +209,30 @@ generate_coverage_summary() {
     fi
 }
 
+# Validate XML file using xmllint if available
+validate_xml_file() {
+    local xml_file="$1"
+    local description="${2:-XML file}"
+    
+    # Check if xmllint is available
+    if ! command -v xmllint >/dev/null 2>&1; then
+        log "DEBUG" "xmllint not available, skipping XML validation for $description"
+        return 0
+    fi
+    
+    # Validate the XML file
+    if xmllint --noout "$xml_file" 2>/dev/null; then
+        log "DEBUG" "XML validation passed for $description: $xml_file"
+        return 0
+    else
+        local error_output
+        error_output=$(xmllint --noout "$xml_file" 2>&1 || true)
+        log "ERROR" "XML validation failed for $description: $xml_file"
+        log "ERROR" "xmllint error: $error_output"
+        return 1
+    fi
+}
+
 # Consolidate JUnit XML reports into single file for CI
 consolidate_junit_reports() {
     log "INFO" "Consolidating JUnit XML reports..."
@@ -222,29 +246,141 @@ consolidate_junit_reports() {
         return 0
     fi
     
-    # Create a simple consolidated XML file
-    cat > "$output_file" << 'EOF'
-<?xml version="1.0" encoding="UTF-8"?>
-<testsuites>
-EOF
-    
-    # Process each JUnit file with simple sed extraction
+    # Validate each input JUnit file before processing
+    log "INFO" "Validating input JUnit XML files..."
+    local valid_files=()
     for junit_file in "${junit_files[@]}"; do
         if [[ -f "$junit_file" ]]; then
-            log "DEBUG" "Processing: $junit_file"
-            
-            # Simple approach: extract content between <testsuite> tags (excluding nested testsuites wrapper)
-            # Use sed to extract lines from first <testsuite> to last </testsuite>
-            sed -n '/<testsuite[[:space:]]/,/<\/testsuite>/p' "$junit_file" >> "$output_file" 2>/dev/null || {
-                log "WARN" "Failed to process $junit_file"
-            }
+            if validate_xml_file "$junit_file" "input JUnit file"; then
+                valid_files+=("$junit_file")
+            else
+                log "WARN" "Skipping invalid XML file: $junit_file"
+            fi
         fi
     done
     
-    # Close the consolidated XML
-    echo "</testsuites>" >> "$output_file"
+    if [[ ${#valid_files[@]} -eq 0 ]]; then
+        log "ERROR" "No valid JUnit XML files found to consolidate"
+        return 1
+    fi
     
-    log "SUCCESS" "Consolidated JUnit report created: $output_file (simple consolidation)"
+    log "INFO" "Processing ${#valid_files[@]} valid JUnit XML files"
+    
+    # Create consolidated XML with proper structure
+    cat > "$output_file" << 'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+</testsuites>
+EOF
+    
+    # Validate initial XML structure
+    if ! validate_xml_file "$output_file" "initial consolidated XML"; then
+        log "ERROR" "Failed to create valid initial XML structure"
+        return 1
+    fi
+    
+    # Calculate totals for the root testsuite
+    local total_tests=0
+    local total_assertions=0
+    local total_errors=0
+    local total_failures=0
+    local total_skipped=0
+    local total_time=0
+    
+    # Process each validated JUnit file with proper XML parsing
+    for junit_file in "${valid_files[@]}"; do
+        log "DEBUG" "Processing: $junit_file"
+        
+        # Extract the complete testsuite elements from within the testsuites wrapper
+        # Use awk for reliable extraction that preserves original structure
+        local temp_content
+        temp_content=$(awk '/<testsuites>/,/<\/testsuites>/ {
+            if ($0 !~ /<\/?testsuites>/) print $0
+        }' "$junit_file" 2>/dev/null || echo "")
+        
+        if [[ -n "$temp_content" ]]; then
+            # Extract metrics from the testsuite for totals calculation
+            local suite_metrics
+            suite_metrics=$(echo "$temp_content" | grep -E '^[[:space:]]*<testsuite' | head -1)
+            
+            if [[ -n "$suite_metrics" ]]; then
+                # Extract numeric values using grep and awk for safety
+                local tests=$(echo "$suite_metrics" | grep -o 'tests="[0-9]*"' | cut -d'"' -f2 || echo "0")
+                local assertions=$(echo "$suite_metrics" | grep -o 'assertions="[0-9]*"' | cut -d'"' -f2 || echo "0")
+                local errors=$(echo "$suite_metrics" | grep -o 'errors="[0-9]*"' | cut -d'"' -f2 || echo "0")
+                local failures=$(echo "$suite_metrics" | grep -o 'failures="[0-9]*"' | cut -d'"' -f2 || echo "0")
+                local skipped=$(echo "$suite_metrics" | grep -o 'skipped="[0-9]*"' | cut -d'"' -f2 || echo "0")
+                local time=$(echo "$suite_metrics" | grep -o 'time="[0-9.]*"' | cut -d'"' -f2 || echo "0")
+                
+                # Add to totals (using arithmetic expansion for safety)
+                ((total_tests += tests)) || true
+                ((total_assertions += assertions)) || true  
+                ((total_errors += errors)) || true
+                ((total_failures += failures)) || true
+                ((total_skipped += skipped)) || true
+                total_time=$(echo "$total_time + $time" | bc -l 2>/dev/null || echo "$total_time")
+            fi
+            
+            # Append the content to output file (before the closing </testsuites> tag)
+            # Create a temporary file with the new content
+            temp_file="${output_file}.tmp"
+            head -n -1 "$output_file" > "$temp_file"  # Remove the last line (</testsuites>)
+            echo "$temp_content" >> "$temp_file"
+            echo "</testsuites>" >> "$temp_file"
+            mv "$temp_file" "$output_file"
+            
+            # Validate XML after each addition
+            if ! validate_xml_file "$output_file" "consolidated XML (after adding $junit_file)"; then
+                log "ERROR" "XML became invalid after adding content from $junit_file"
+                # Try to recover by removing the last addition
+                log "WARN" "Attempting to recover by removing last addition..."
+                # Restore to previous state by recreating without the problematic content
+                head -n -$(echo "$temp_content" | wc -l) "$output_file" > "${output_file}.tmp"
+                echo "</testsuites>" >> "${output_file}.tmp"
+                mv "${output_file}.tmp" "$output_file"
+                log "WARN" "Skipped content from $junit_file due to XML validation failure"
+            fi
+        else
+            log "WARN" "Failed to extract content from $junit_file"
+        fi
+    done
+    
+    # Validate the final consolidated XML file
+    if validate_xml_file "$output_file" "final consolidated XML"; then
+        log "SUCCESS" "Consolidated JUnit report created and validated: $output_file"
+        log "INFO" "Report summary: $total_tests tests, $total_assertions assertions, $total_errors errors, $total_failures failures, $total_skipped skipped"
+    else
+        log "ERROR" "Final consolidated XML file is invalid. Falling back to first available JUnit file."
+        # Fallback: just copy the first valid JUnit file
+        if [[ ${#valid_files[@]} -gt 0 ]]; then
+            cp "${valid_files[0]}" "$output_file"
+            log "INFO" "Using fallback file: ${valid_files[0]}"
+        else
+            log "ERROR" "No valid fallback files available"
+            return 1
+        fi
+    fi
+    
+    # Also generate JSON format as backup
+    generate_json_report "${valid_files[@]}"
+}
+
+# Generate JSON format test report as alternative to XML
+generate_json_report() {
+    local junit_files=("$@")
+    local json_output="phpunit-report.json"
+    
+    if [[ -f "scripts/test/convert-junit-to-json.php" ]]; then
+        log "INFO" "Generating JSON test report as backup format..."
+        
+        if php scripts/test/convert-junit-to-json.php "$json_output" "${junit_files[@]}" 2>/dev/null; then
+            log "SUCCESS" "JSON test report created: $json_output"
+        else
+            log "WARN" "Failed to generate JSON test report"
+        fi
+    else
+        log "DEBUG" "JSON converter script not found, skipping JSON report generation"
+    fi
 }
 
 # Validate test database functionality
@@ -325,6 +461,7 @@ main() {
     validate_test_database
     run_code_quality_checks
     
+    log "INFO" "PARALLEL mode: $PARALLEL"
     # Choose execution mode
     if [[ "$PARALLEL" == "true" ]]; then
         run_parallel_tests
