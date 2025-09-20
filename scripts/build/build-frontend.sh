@@ -138,7 +138,8 @@ fi
 # Build the application
 log "INFO" "Building production frontend..."
 if [[ "$BUILD_MODE" == "production" ]]; then
-    npm run build
+    # Use environment mode to ensure Vite reads the correct .env file
+    NODE_ENV=production npm run build -- --mode "$ENVIRONMENT"
 else
     log "DEBUG" "Development build mode - using dev build"
     npm run build:dev 2>/dev/null || npm run build
