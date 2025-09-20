@@ -25,3 +25,6 @@ packages/
 
 # CI/CD credentials (never commit real credentials)
 scripts/config/credentials.conf
+
+# Build artifacts
+build-metadata.json
