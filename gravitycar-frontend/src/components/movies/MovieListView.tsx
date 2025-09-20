@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import React, { useState, useEffect } from 'react';
-import { useNotifications } from '../../contexts/NotificationContext';
 import { apiService } from '../../services/api';
 import type { Movie } from '../../types';
 import { MovieCreateForm } from './MovieCreateForm';

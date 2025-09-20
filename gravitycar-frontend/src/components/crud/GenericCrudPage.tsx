@@ -472,7 +472,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
           return (
             <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
               {/* Featured Image */}
-              {imageValue && imageField && (
+              {imageValue && imageField ? (
                 <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
                   <img
                     src={String(imageValue)}
@@ -495,7 +495,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
                     }}
                   />
                 </div>
-              )}
+              ) : null}
               
               <div className="p-6">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
