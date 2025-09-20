@@ -111,8 +111,8 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
           totalPages: response.pagination?.total_pages || 1
         },
         sorting: {
-          field: currentSortField,
-          direction: currentSortDirection
+          field: currentSortField || null,
+          direction: currentSortDirection || 'asc'
         },
         loading: false,
         error: null,
@@ -603,7 +603,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
     if (!metadataLoading && metadata) {
       loadItems();
     }
-  }, [modelName, metadataLoading, metadata, loadItems]);
+  }, [modelName, metadataLoading, metadata]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Show loading state
   if (metadataLoading || (state.loading && state.items.length === 0)) {
@@ -706,7 +706,6 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
           </div>
 
           {/* Data Display */}
-          {/* @ts-ignore - DataWrapper return type compatibility issue with React 19 */}
           <DataWrapper
             loading={state.loading}
             error={state.error}
