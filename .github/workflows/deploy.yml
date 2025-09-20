@@ -319,10 +319,37 @@ jobs:
 
       - name: Setup SSH
         run: |
+          echo "🔑 Setting up SSH configuration..."
           mkdir -p ~/.ssh
+          
+          # Write SSH private key
           echo "${{ secrets.PRODUCTION_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+          
+          # Verify key format
+          echo "📝 Verifying SSH key format..."
+          if ssh-keygen -l -f ~/.ssh/id_rsa; then
+            echo "✅ SSH key format is valid"
+          else
+            echo "❌ SSH key format is invalid"
+            exit 1
+          fi
+          
+          # Add host to known_hosts
+          echo "🌐 Adding host to known_hosts..."
           ssh-keyscan -H ${{ secrets.PRODUCTION_SSH_HOST }} >> ~/.ssh/known_hosts
+          
+          # Test SSH connection
+          echo "🔌 Testing SSH connection..."
+          ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=yes ${{ secrets.PRODUCTION_SSH_USER }}@${{ secrets.PRODUCTION_SSH_HOST }} "echo 'SSH connection successful'" || {
+            echo "❌ SSH connection failed"
+            echo "Debug information:"
+            echo "Host: ${{ secrets.PRODUCTION_SSH_HOST }}"
+            echo "User: ${{ secrets.PRODUCTION_SSH_USER }}"
+            echo "Key fingerprint:"
+            ssh-keygen -l -f ~/.ssh/id_rsa
+            exit 1
+          }
 
       - name: Deploy to production
         run: |
