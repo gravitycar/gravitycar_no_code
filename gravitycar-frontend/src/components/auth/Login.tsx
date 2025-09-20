@@ -24,7 +24,7 @@ const Login = () => {
         setError(response.message || 'Login failed');
       }
       // If successful, the auth context will handle the redirect
-    } catch (err) {
+    } catch {
       setError('An unexpected error occurred');
     } finally {
       setIsLoading(false);

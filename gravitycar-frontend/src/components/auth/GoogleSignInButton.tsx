@@ -30,15 +30,16 @@ const GoogleSignInButton = () => {
       if (!result.success) {
         setError(result.message || 'Google login failed');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('❌ Google login error:', error);
-      setError(error.message || 'An error occurred during Google login');
+      const errorMessage = error instanceof Error ? error.message : 'An error occurred during Google login';
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
   }, [loginWithGoogle]);
 
-  const handleGoogleError = useCallback((error: any) => {
+  const handleGoogleError = useCallback((error: unknown) => {
     console.error('❌ Google OAuth error:', error);
     setError('Google OAuth configuration error. Please try again.');
   }, []);

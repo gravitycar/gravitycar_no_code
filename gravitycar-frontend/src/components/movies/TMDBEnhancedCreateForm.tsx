@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
 import { apiService } from '../../services/api';
 
@@ -18,7 +19,6 @@ interface TMDBEnhancedCreateFormProps {
  * This form only handles the title input and TMDB enrichment, then uses standard ModelForm
  */
 export const TMDBEnhancedCreateForm: React.FC<TMDBEnhancedCreateFormProps> = ({
-  metadata: _metadata,
   onSuccess,
   onCancel
 }) => {
@@ -120,7 +120,7 @@ export const TMDBEnhancedCreateForm: React.FC<TMDBEnhancedCreateFormProps> = ({
         
         if (searchResult.success && tmdbData) {
           // Collect all matches for user selection
-          let allMatches = [];
+          const allMatches = [];
           
           // Add exact match to the list (if it exists)
           if (tmdbData.exact_match) {

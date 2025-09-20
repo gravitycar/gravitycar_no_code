@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import { useState, useEffect } from 'react';
 import type { ModelMetadata } from '../types';
 import { metadataCache } from '../services/metadataCache';

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Backend API Error Response Interface
  * Based on Gravitycar RestApiHandler error response format

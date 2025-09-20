@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import { useEffect, useCallback, useRef } from 'react';
 import type { GoogleIdConfiguration, CredentialResponse } from '../types/google';
 

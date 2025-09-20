@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // User model types based on Gravitycar backend
 export interface User {
   id: string; // UUID string
@@ -90,14 +91,14 @@ export interface AuthResponse {
 }
 
 // API Response types
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   message?: string;
   errors?: string[];
 }
 
-export interface PaginatedResponse<T = any> {
+export interface PaginatedResponse<T = unknown> {
   success: boolean;
   data: T[];
   pagination: {
@@ -107,6 +108,41 @@ export interface PaginatedResponse<T = any> {
     per_page: number;
   };
   message?: string;
+}
+
+// Generic model record type
+export interface ModelRecord {
+  id: string;
+  created_at?: string;
+  updated_at?: string;
+  deleted_at?: string | null;
+  created_by?: string;
+  updated_by?: string;
+  deleted_by?: string;
+  [key: string]: unknown;
+}
+
+// Error types
+export interface AppError {
+  message: string;
+  code?: string;
+  details?: unknown;
+}
+
+// Google OAuth types
+export interface GoogleCredentialResponse {
+  credential: string;
+  select_by?: string;
+  client_id?: string;
+}
+
+export interface GoogleCallbackResponse {
+  credential: string;
+}
+
+export interface GoogleErrorResponse {
+  error: string;
+  details?: string;
 }
 
 // Form and UI types

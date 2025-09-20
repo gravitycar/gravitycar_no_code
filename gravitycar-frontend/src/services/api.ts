@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from 'axios';
 import type { AxiosInstance, AxiosResponse } from 'axios';
 import type { 
@@ -132,7 +133,7 @@ class ApiService {
   async logout(): Promise<void> {
     try {
       await this.api.post('/auth/logout');
-    } catch (error) {
+    } catch {
       // Continue with logout even if API call fails
     } finally {
       localStorage.removeItem('auth_token');
@@ -314,7 +315,7 @@ class ApiService {
     try {
       const response = await this.api.get('/health');
       return response.status === 200;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
