@@ -63,8 +63,21 @@ check_package() {
     local package_dir="${PROJECT_ROOT}/packages"
     local package_pattern="*${DEPLOYMENT_ID}*"
     
+    log_info "Looking for packages in: $package_dir"
+    log_info "Package pattern: $package_pattern"
+    
+    # Debug: List current directory contents
+    log_info "Current working directory: $(pwd)"
+    log_info "Project root directory: $PROJECT_ROOT"
+    log_info "Contents of project root:"
+    ls -la "$PROJECT_ROOT" || log_error "Failed to list project root"
+    
     if [ ! -d "$package_dir" ]; then
         log_error "Packages directory not found: $package_dir"
+        log_info "Creating packages directory for debugging..."
+        mkdir -p "$package_dir"
+        log_info "Directory created. Contents now:"
+        ls -la "$package_dir" || log_error "Failed to list packages directory after creation"
         exit 1
     fi
     
@@ -76,6 +89,8 @@ check_package() {
         log_error "Deployment package not found matching: $package_pattern"
         log_error "Available packages:"
         ls -la "$package_dir" || log_error "Failed to list packages directory"
+        log_error "All files in packages directory:"
+        find "$package_dir" -type f -o -type d | head -20
         exit 1
     fi
     

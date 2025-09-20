@@ -305,6 +305,17 @@ jobs:
         with:
           name: deployment-package-${{ needs.validate-deployment.outputs.deployment-id }}
 
+      - name: Debug - List downloaded contents
+        run: |
+          echo "📁 Contents of working directory:"
+          ls -la
+          echo "📁 Contents of packages directory (if exists):"
+          if [ -d "packages" ]; then
+            ls -la packages/
+          else
+            echo "❌ packages directory not found"
+          fi
+
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
