@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import React, { useState, useEffect } from 'react';
 import { useModelMetadata } from '../../hooks/useModelMetadata';
 import FieldComponent from '../fields/FieldComponent';

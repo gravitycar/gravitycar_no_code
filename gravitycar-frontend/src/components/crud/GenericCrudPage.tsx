@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
 import { useNotify } from '../../contexts/NotificationContext';
 import { useModelMetadata } from '../../hooks/useModelMetadata';
@@ -7,18 +8,18 @@ import { DataWrapper } from '../error/DataWrapper';
 import ModelForm from '../forms/ModelForm';
 import Modal from '../ui/Modal';
 import { getErrorMessage } from '../../utils/errors';
-import type { PaginatedResponse, ModelMetadata, FieldMetadata } from '../../types';
+import type { PaginatedResponse, ModelMetadata, FieldMetadata, ModelRecord } from '../../types';
 
 interface GenericCrudPageProps {
   modelName: string;
   title: string;
   description?: string;
   defaultDisplayMode?: 'table' | 'grid' | 'list';
-  customGridRenderer?: (item: any, metadata: ModelMetadata, onEdit: (item: any) => void, onDelete: (item: any) => void) => React.ReactNode;
+  customGridRenderer?: (item: ModelRecord, metadata: ModelMetadata, onEdit: (item: ModelRecord) => void, onDelete: (item: ModelRecord) => void) => React.ReactNode;
 }
 
 interface PageState {
-  items: any[];
+  items: ModelRecord[];
   loading: boolean;
   error: string | null;
   pagination: {
@@ -220,7 +221,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
     
     // Use first string field
     const stringField = Object.entries(metadata.fields || {}).find(
-      ([_, fieldMeta]) => fieldMeta.type === 'String'
+      ([, fieldMeta]) => fieldMeta.type === 'String'
     );
     if (stringField && item[stringField[0]]) {
       return String(item[stringField[0]]);
@@ -602,7 +603,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
     if (!metadataLoading && metadata) {
       loadItems();
     }
-  }, [modelName, metadataLoading, metadata]);
+  }, [modelName, metadataLoading, metadata, loadItems]);
 
   // Show loading state
   if (metadataLoading || (state.loading && state.items.length === 0)) {

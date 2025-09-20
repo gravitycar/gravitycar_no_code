@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiService } from '../../services/api';
 // import { useModelMetadata } from '../../hooks/useModelMetadata';

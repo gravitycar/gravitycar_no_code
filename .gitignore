@@ -17,7 +17,7 @@ restart-frontend.sh
 claud*config*.json*
 #Untitled*
 .phpunit.result.cache
-
+packages/
 # PHPUnit output and cache
 /coverage/
 /.phpunit.cache/

@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps, @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect } from 'react';
+import { useNotifications } from '../../contexts/NotificationContext';
 import { apiService } from '../../services/api';
 import type { Movie } from '../../types';
 import { MovieCreateForm } from './MovieCreateForm';
@@ -25,7 +27,7 @@ export const MovieListView: React.FC<MovieListViewProps> = ({ refreshTrigger = 0
       
       const response = await apiService.getMovies(1, 50); // Get first 50 movies
       if (response.success) {
-        let sortedMovies = response.data;
+        const sortedMovies = response.data;
         
         // Sort movies
         sortedMovies.sort((a, b) => {

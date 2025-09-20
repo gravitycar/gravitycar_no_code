@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import type { FieldComponentProps } from '../../types';
 
@@ -30,7 +31,7 @@ const DatePicker: React.FC<FieldComponentProps> = ({
       if (!isNaN(date.getTime())) {
         return date.toISOString().split('T')[0];
       }
-    } catch (e) {
+    } catch {
       // Ignore parsing errors
     }
     

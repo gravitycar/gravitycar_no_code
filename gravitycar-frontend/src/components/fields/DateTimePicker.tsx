@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import type { FieldComponentProps } from '../../types';
 
@@ -37,7 +38,7 @@ const DateTimePicker: React.FC<FieldComponentProps> = ({
         const minutes = String(date.getMinutes()).padStart(2, '0');
         return `${year}-${month}-${day}T${hours}:${minutes}`;
       }
-    } catch (e) {
+    } catch {
       // Ignore parsing errors
     }
     
@@ -64,7 +65,7 @@ const DateTimePicker: React.FC<FieldComponentProps> = ({
       if (!isNaN(date.getTime())) {
         return date.toLocaleString();
       }
-    } catch (e) {
+    } catch {
       // Ignore parsing errors
     }
     

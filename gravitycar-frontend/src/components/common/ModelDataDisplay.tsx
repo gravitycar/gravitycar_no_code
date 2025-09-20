@@ -1,18 +1,18 @@
 import React from 'react';
-import type { ModelMetadata, FieldMetadata } from '../../types';
+import type { ModelMetadata, FieldMetadata, ModelRecord } from '../../types';
 
 interface ModelDataDisplayProps {
-  data: Record<string, any>;
+  data: ModelRecord;
   metadata: ModelMetadata;
   displayMode?: 'card' | 'table' | 'list';
-  onEdit?: (record: any) => void;
-  onDelete?: (record: any) => void;
+  onEdit?: (record: ModelRecord) => void;
+  onDelete?: (record: ModelRecord) => void;
 }
 
 interface FieldDisplayProps {
   fieldName: string;
   field: FieldMetadata;
-  value: any;
+  value: unknown;
   displayMode?: 'card' | 'table' | 'list';
 }
 
@@ -25,34 +25,40 @@ const FieldDisplay: React.FC<FieldDisplayProps> = ({ fieldName, field, value, di
     return <span className="text-gray-400 italic">Not set</span>;
   }
 
+  // Convert value to string for safe operations
+  const stringValue = String(value);
+
   // Field-specific rendering based on type
   switch (field.type) {
-    case 'Boolean':
+    case 'Boolean': {
+      const boolValue = Boolean(value);
       return (
-        <span className={`px-2 py-1 rounded text-xs ${value ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-          {value ? 'Yes' : 'No'}
+        <span className={`px-2 py-1 rounded text-xs ${boolValue ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+          {boolValue ? 'Yes' : 'No'}
         </span>
       );
+    }
 
-    case 'DateTime':
-      const date = new Date(value);
+    case 'DateTime': {
+      const date = new Date(stringValue);
       return (
         <span className="text-gray-700">
           {date.toLocaleDateString()} {date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
       );
+    }
 
     case 'Email':
       return (
-        <a href={`mailto:${value}`} className="text-blue-600 hover:text-blue-800">
-          {value}
+        <a href={`mailto:${stringValue}`} className="text-blue-600 hover:text-blue-800">
+          {stringValue}
         </a>
       );
 
     case 'Image':
       return (
         <img 
-          src={value} 
+          src={stringValue} 
           alt={field.label}
           className="w-16 h-16 object-cover rounded"
           onError={(e) => {
@@ -65,29 +71,29 @@ const FieldDisplay: React.FC<FieldDisplayProps> = ({ fieldName, field, value, di
       // Special handling for URL fields
       if (fieldName.includes('url') || fieldName.includes('link')) {
         return (
-          <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+          <a href={stringValue} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
             View →
           </a>
         );
       }
       
       // Handle long text in different display modes
-      if (displayMode === 'table' && value.length > 50) {
+      if (displayMode === 'table' && stringValue.length > 50) {
         return (
-          <span title={value} className="truncate block">
-            {value.substring(0, 50)}...
+          <span title={stringValue} className="truncate block">
+            {stringValue.substring(0, 50)}...
           </span>
         );
       }
       
-      return <span className="text-gray-700">{value}</span>;
+      return <span className="text-gray-700">{stringValue}</span>;
 
     case 'BigText':
       // Always truncate big text in table/list views
-      if (displayMode !== 'card' && value.length > 100) {
+      if (displayMode !== 'card' && stringValue.length > 100) {
         return (
-          <span title={value} className="text-gray-700">
-            {value.substring(0, 100)}...
+          <span title={stringValue} className="text-gray-700">
+            {stringValue.substring(0, 100)}...
           </span>
         );
       }
@@ -95,24 +101,24 @@ const FieldDisplay: React.FC<FieldDisplayProps> = ({ fieldName, field, value, di
       return (
         <div className="text-gray-700 leading-relaxed">
           {displayMode === 'card' ? (
-            <p className="line-clamp-3">{value}</p>
+            <p className="line-clamp-3">{stringValue}</p>
           ) : (
-            <span>{value.substring(0, 200)}{value.length > 200 ? '...' : ''}</span>
+            <span>{stringValue.substring(0, 200)}{stringValue.length > 200 ? '...' : ''}</span>
           )}
         </div>
       );
 
-    case 'Enum':
-      let displayValue = value;
+    case 'Enum': {
+      let displayValue = stringValue;
       
       if (field.options) {
         if (Array.isArray(field.options)) {
           // Handle EnumOption[] format
-          const option = field.options.find(opt => opt.value === value);
-          displayValue = option ? option.label : value;
+          const option = field.options.find(opt => String(opt.value) === stringValue);
+          displayValue = option ? option.label : stringValue;
         } else if (typeof field.options === 'object') {
           // Handle Record<string, string> format
-          displayValue = (field.options as Record<string, string>)[String(value)] || value;
+          displayValue = (field.options as Record<string, string>)[stringValue] || stringValue;
         }
       }
       
@@ -121,16 +127,17 @@ const FieldDisplay: React.FC<FieldDisplayProps> = ({ fieldName, field, value, di
           {displayValue}
         </span>
       );
+    }
 
     case 'ID':
       return (
         <span className="font-mono text-xs text-gray-500">
-          {value.substring(0, 8)}...
+          {stringValue.substring(0, 8)}...
         </span>
       );
 
     default:
-      return <span className="text-gray-700">{String(value)}</span>;
+      return <span className="text-gray-700">{stringValue}</span>;
   }
 };
 
@@ -149,7 +156,7 @@ const ModelDataDisplay: React.FC<ModelDataDisplayProps> = ({
   
   // Filter out fields that don't exist in the data or metadata
   const validFields = displayFields.filter(fieldName => 
-    metadata.fields[fieldName] && data.hasOwnProperty(fieldName)
+    metadata.fields[fieldName] && Object.prototype.hasOwnProperty.call(data, fieldName)
   );
 
   if (displayMode === 'card') {
