@@ -259,6 +259,16 @@ deploy_frontend() {
         # Create frontend directory structure
         mkdir -p /home/$PRODUCTION_USER/public_html/react.gravitycar.com
         
+        # Clean up old frontend files to prevent stale assets
+        log_info 'Cleaning up old frontend files...'
+        cd /home/$PRODUCTION_USER/public_html/react.gravitycar.com
+        
+        # Remove old assets and build files, but preserve any custom files
+        rm -rf assets/ 2>/dev/null || true
+        rm -f index.html 2>/dev/null || true
+        rm -f vite.svg 2>/dev/null || true
+        rm -f build-manifest.json 2>/dev/null || true
+        
         # Copy frontend files
         if [ -d '$REMOTE_TEMP_DIR/frontend' ]; then
             cp -r '$REMOTE_TEMP_DIR/frontend/'* /home/$PRODUCTION_USER/public_html/react.gravitycar.com/
