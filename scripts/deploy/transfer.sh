@@ -81,9 +81,23 @@ check_package() {
         exit 1
     fi
     
-    # Find the deployment package
+    # Find the deployment package in packages directory first
     local package_path
     package_path=$(find "$package_dir" -name "$package_pattern" -type d | head -1)
+    
+    # If not found in packages directory, check root directory (artifact download fallback)
+    if [ -z "$package_path" ]; then
+        log_warn "Package not found in packages directory, checking root directory..."
+        package_path=$(find "$PROJECT_ROOT" -maxdepth 1 -name "$package_pattern" -type d | head -1)
+        
+        if [ -n "$package_path" ]; then
+            log_info "Found package in root directory: $package_path"
+            log_info "Moving package to packages directory..."
+            mv "$package_path" "$package_dir/"
+            package_path="$package_dir/$(basename "$package_path")"
+            log_success "Package moved to: $package_path"
+        fi
+    fi
     
     if [ -z "$package_path" ]; then
         log_error "Deployment package not found matching: $package_pattern"
@@ -91,6 +105,8 @@ check_package() {
         ls -la "$package_dir" || log_error "Failed to list packages directory"
         log_error "All files in packages directory:"
         find "$package_dir" -type f -o -type d | head -20
+        log_error "Files in root directory matching pattern:"
+        find "$PROJECT_ROOT" -maxdepth 1 -name "$package_pattern" | head -10
         exit 1
     fi
     
