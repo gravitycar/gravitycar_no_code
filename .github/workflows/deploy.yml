@@ -110,7 +110,7 @@ jobs:
           chmod +x scripts/build/build-backend.sh
           scripts/build/build-backend.sh
         env:
-          ENVIRONMENT: production
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
 
       - name: Upload backend artifacts
@@ -146,6 +146,7 @@ jobs:
           chmod +x scripts/build/build-frontend.sh
           scripts/build/build-frontend.sh
         env:
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
           BUILD_ENV: production
           DRY_RUN: ${{ github.event.inputs.dry_run }}
 
