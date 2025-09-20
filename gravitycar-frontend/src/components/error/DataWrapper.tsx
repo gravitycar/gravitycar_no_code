@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { ReactNode } from 'react';
 import { ApiError, getErrorMessage } from '../../utils/errors';
 
@@ -23,7 +22,7 @@ export function DataWrapper({
   children,
   fallback,
   retry,
-  emptyMessage = 'No data available',
+  emptyMessage = 'No data available'
 }: DataWrapperProps) {
   if (loading) {
     return <LoadingState />;

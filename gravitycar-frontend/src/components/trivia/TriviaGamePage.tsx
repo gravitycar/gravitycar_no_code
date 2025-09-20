@@ -1,8 +1,8 @@
 import React from 'react';
-import TriviaGameBoard from './TriviaGameBoard.tsx';
-import TriviaGameComplete from './TriviaGameComplete.tsx';
-import TriviaHighScores from './TriviaHighScores.tsx';
-import useGameState from '../../hooks/useGameState.ts';
+import TriviaGameBoard from './TriviaGameBoard';
+import TriviaGameComplete from './TriviaGameComplete';
+import TriviaHighScores from './TriviaHighScores';
+import useGameState from '../../hooks/useGameState';
 import { ErrorBoundary } from '../error/ErrorBoundary';
 // import type { TriviaGame } from './types';
 
