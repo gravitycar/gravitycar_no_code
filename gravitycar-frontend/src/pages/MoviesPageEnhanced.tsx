@@ -2,18 +2,21 @@ import React, { useState } from 'react';
 import GenericCrudPage from '../components/crud/GenericCrudPage';
 import RelatedItemsSection from '../components/relationships/RelatedItemsSection';
 import Modal from '../components/ui/Modal';
-import type { Movie, ModelMetadata } from '../types';
+import type { Movie, ModelMetadata, ModelRecord } from '../types';
 
 /**
  * Custom grid renderer for movies with poster images and quote management
  */
-const movieGridRenderer = (
-  movie: Movie, 
-  _metadata: ModelMetadata, 
-  onEdit: (movie: Movie) => void, 
-  onDelete: (movie: Movie) => void,
-  onViewQuotes?: (movie: Movie) => void
-) => (
+  // Basic grid renderer for movies
+  const movieGridRenderer = (
+    item: ModelRecord, 
+    metadata: ModelMetadata, 
+    onEdit: (item: ModelRecord) => void, 
+    onDelete: (item: ModelRecord) => void,
+    onViewQuotes?: (movie: Movie) => void
+  ) => {
+    const movie = item as unknown as Movie;
+    return (
   <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
     {/* Movie poster */}
     {movie.poster_url && (
@@ -89,13 +92,13 @@ const movieGridRenderer = (
         </div>
         <div className="flex space-x-2">
           <button
-            onClick={() => onEdit(movie)}
+            onClick={() => onEdit(item)}
             className="text-blue-600 hover:text-blue-700 text-sm"
           >
             Edit
           </button>
           <button
-            onClick={() => onDelete(movie)}
+            onClick={() => onDelete(item)}
             className="text-red-600 hover:text-red-700 text-sm"
           >
             Delete
@@ -105,6 +108,7 @@ const movieGridRenderer = (
     </div>
   </div>
 );
+};
 
 /**
  * Enhanced Movies Management Page with TMDB Integration and Quote Management
@@ -128,11 +132,13 @@ const MoviesPage: React.FC = () => {
 
   // Enhanced grid renderer with quote management
   const enhancedMovieGridRenderer = (
-    movie: Movie, 
+    item: ModelRecord, 
     metadata: ModelMetadata, 
-    onEdit: (movie: Movie) => void, 
-    onDelete: (movie: Movie) => void
-  ) => movieGridRenderer(movie, metadata, onEdit, onDelete, handleViewQuotes);
+    onEdit: (item: ModelRecord) => void, 
+    onDelete: (item: ModelRecord) => void
+  ) => {
+    return movieGridRenderer(item, metadata, onEdit, onDelete, handleViewQuotes);
+  };
 
   return (
     <>
