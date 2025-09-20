@@ -17,7 +17,9 @@ restart-frontend.sh
 claud*config*.json*
 #Untitled*
 .phpunit.result.cache
-packages/
+# Deployment packages (contents ignored, directory preserved)
+packages/*
+!packages/.gitkeep
 # PHPUnit output and cache
 /coverage/
 /.phpunit.cache/
@@ -28,3 +30,6 @@ scripts/config/credentials.conf
 
 # Build artifacts
 build-metadata.json
+*.tar
+*.tar.gz
+*.zip
