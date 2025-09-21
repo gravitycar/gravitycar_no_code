@@ -174,8 +174,16 @@ jobs:
           if ls gravitycar-frontend/dist/assets/index-*.js 1> /dev/null 2>&1; then
             js_file=$(ls gravitycar-frontend/dist/assets/index-*.js | head -1)
             echo "Checking $js_file:"
-            api_count=$(grep -c "api\.gravitycar\.com" "$js_file" || echo "0")
-            localhost_count=$(grep -c "localhost:8081" "$js_file" || echo "0")
+            if grep -q "api\.gravitycar\.com" "$js_file" 2>/dev/null; then
+              api_count=$(grep -o "api\.gravitycar\.com" "$js_file" 2>/dev/null | wc -l)
+            else
+              api_count=0
+            fi
+            if grep -q "localhost:8081" "$js_file" 2>/dev/null; then
+              localhost_count=$(grep -o "localhost:8081" "$js_file" 2>/dev/null | wc -l)
+            else
+              localhost_count=0
+            fi
             echo "  api.gravitycar.com references: $api_count"
             echo "  localhost:8081 references: $localhost_count"
             if [ "$api_count" -gt 0 ] && [ "$localhost_count" -eq 0 ]; then
