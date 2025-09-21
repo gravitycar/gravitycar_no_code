@@ -62,12 +62,18 @@ if ls dist/assets/index-*.js 1> /dev/null 2>&1; then
     js_file=$(ls dist/assets/index-*.js | head -1)
     echo "🔍 Checking API URLs in $js_file:"
     
-    api_count=$(grep -c "api\.gravitycar\.com" "$js_file" 2>/dev/null || true)
-    localhost_count=$(grep -c "localhost:8081" "$js_file" 2>/dev/null || true)
+    # Use more robust counting that handles grep exit codes properly
+    if grep -q "api\.gravitycar\.com" "$js_file" 2>/dev/null; then
+        api_count=$(grep -o "api\.gravitycar\.com" "$js_file" 2>/dev/null | wc -l)
+    else
+        api_count=0
+    fi
     
-    # Set defaults if empty
-    api_count=${api_count:-0}
-    localhost_count=${localhost_count:-0}
+    if grep -q "localhost:8081" "$js_file" 2>/dev/null; then
+        localhost_count=$(grep -o "localhost:8081" "$js_file" 2>/dev/null | wc -l)
+    else
+        localhost_count=0
+    fi
     
     echo "  api.gravitycar.com: $api_count"
     echo "  localhost:8081: $localhost_count"
