@@ -10,10 +10,13 @@ echo "🏗️ Starting enhanced CI frontend build..."
 # Get to the frontend directory
 cd "${PROJECT_ROOT:-$(pwd)}/gravitycar-frontend"
 
+# Set default environment for CI builds
+export ENVIRONMENT="${ENVIRONMENT:-production}"
+
 # Environment info
 echo "Node version: $(node --version)"
 echo "NPM version: $(npm --version)"
-echo "Environment: ${ENVIRONMENT:-unknown}"
+echo "Environment: $ENVIRONMENT"
 echo "PWD: $(pwd)"
 
 # Aggressive cleanup for CI
@@ -23,7 +26,7 @@ npm cache clean --force 2>/dev/null || true
 
 # Create environment file
 echo "📝 Creating environment configuration..."
-if [ "${ENVIRONMENT:-development}" = "production" ]; then
+if [ "$ENVIRONMENT" = "production" ]; then
     cat > .env.production << 'ENVEOF'
 VITE_API_BASE_URL=https://api.gravitycar.com
 VITE_APP_ENV=production
@@ -59,8 +62,12 @@ if ls dist/assets/index-*.js 1> /dev/null 2>&1; then
     js_file=$(ls dist/assets/index-*.js | head -1)
     echo "🔍 Checking API URLs in $js_file:"
     
-    api_count=$(grep -c "api\.gravitycar\.com" "$js_file" || echo "0")
-    localhost_count=$(grep -c "localhost:8081" "$js_file" || echo "0")
+    api_count=$(grep -c "api\.gravitycar\.com" "$js_file" 2>/dev/null || true)
+    localhost_count=$(grep -c "localhost:8081" "$js_file" 2>/dev/null || true)
+    
+    # Set defaults if empty
+    api_count=${api_count:-0}
+    localhost_count=${localhost_count:-0}
     
     echo "  api.gravitycar.com: $api_count"
     echo "  localhost:8081: $localhost_count"
@@ -69,7 +76,8 @@ if ls dist/assets/index-*.js 1> /dev/null 2>&1; then
         echo "✅ Build successful - correct API URLs"
     else
         echo "❌ Build failed - wrong API URLs"
-        echo "Expected: api.gravitycar.com, Got localhost:8081"
+        echo "Expected: api.gravitycar.com found, localhost:8081 not found"
+        echo "Actual: api.gravitycar.com=$api_count, localhost:8081=$localhost_count"
         exit 1
     fi
 else
