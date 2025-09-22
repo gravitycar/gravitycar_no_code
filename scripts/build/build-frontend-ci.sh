@@ -84,10 +84,17 @@ if [ "$afterBuildJSFileName" = "$existingJSFileName" ]; then
     echo "⚠️ JavaScript file name did not change from $existingJSFileName before build, afterBuildJSFileName after build. cache may have been used"
 fi
 
+
 echo "📂 Listing dist directory contents:"
-ls -la dist/
-echo "📂 Listing dist/assets directory contents:"
-ls -la dist/assets/
+if [ -d "dist" ]; then
+    ls -la dist/
+    if [ -d "dist/assets" ]; then
+        echo "📂 Listing dist/assets directory contents:"
+        ls -la dist/assets/
+    fi
+else
+    echo "No dist directory found"
+fi
 
 # Check for correct API URL
 if ls dist/assets/index-*.js 1> /dev/null 2>&1; then
