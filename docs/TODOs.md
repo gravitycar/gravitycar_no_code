@@ -59,15 +59,15 @@
 - [] Is the database service the same as the database_connector service?
 - [] Change the wildcards in API Routes from ? to {paramName}, like ['{modelName}', '{id}', '', '{relatinshipName}']. Then we can get rid of the parameterNames and just parse the param names out of the wildcards.
 - [X] The /metadata/modules/<model_name> endpoint should fail, but the APIPathScorer doesn't see it that way. It did pick a very close match, which is good, I guess. But the 'modules' part should have produced a 404 error.
-- [] Boolean fields are represented in the database as varchar(255) fields. That's not right. 
+- [X] Boolean fields are represented in the database as varchar(255) fields. That's not right. 
 - [X] Update the APIRouteScorer class to disqualify any routes where any component doesn't have an exact match or a wildcard match.
-- [] Test password reset.
+- [X] Test password reset.
 - [] Confirm field validation failures actually result in an exception being thrown before the DBConnector tries to save the record.
 - [X] There is no list of timezones for users and it's a required field. 
 - [] Dropping fields from metadata no longer drops them from the database? I thought we had that fixed a long time ago.
 - [] Model api classes are not being picked up by the APIRegistry.
-- [] The FieldFactory constructor calls discoverFieldTypes which scans the Fields directory. That's bad, need to use MetadataEngine.
+- [X] The FieldFactory constructor calls discoverFieldTypes which scans the Fields directory. That's bad, need to use MetadataEngine.
 - [X] The FieldFactory needs to take a Model so it can know what table the field belongs to. We need a setModel() method or something.
 - [] GoogleAuthTokens::cleanupExpiredTokens() should be using a DatabaseConnector method instead of building its own SQL.
 - [X] ContainerConfig hard-codes model names to register them. BAD! Make it ues the MetadataEngine.
-- [] ValidationRuleFactory is scanning its directory to discover rules. Very bad.
+- [X] we need to handle this case: Model class does not exist: Gravitycar\Models\Favicon.ico\Favicon.ico

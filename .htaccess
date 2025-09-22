@@ -1,4 +1,5 @@
 RewriteEngine On
+RewriteBase /
 
 # Enable error logging for debugging
 # RewriteLog logs/rewrite.log
@@ -8,20 +9,15 @@ RewriteEngine On
 RewriteCond %{REQUEST_URI} ^/(index\.html|index\.php|phpinfo\.php)$ [NC]
 RewriteRule ^ - [L]
 
-# REST API Routes
-# Handle requests to REST endpoints and redirect to rest_api.php
-# Patterns: /Users, /Movies, /Books, /Articles, etc.
-# Support both singular and plural model names
-# Support ID parameters: /Users/123, /Movies/abc-def
+# Serve favicon.ico directly without routing to API
+RewriteRule ^favicon\.ico$ favicon.ico [L]
 
-# Capture the full path and set environment variables
-RewriteCond %{REQUEST_URI} ^/([A-Za-z][A-Za-z0-9_]*)(/.+)?/?$ [NC]
-RewriteRule ^([A-Za-z][A-Za-z0-9_]*)(/.+)?/?$ rest_api.php [E=ORIGINAL_PATH:%{REQUEST_URI},E=MODEL_NAME:$1,E=PATH_INFO:$2,QSA,L]
+# Skip rewriting if already at rest_api.php
+RewriteCond %{REQUEST_URI} !^/rest_api\.php$
+# Capture model name and path info for the application router
 
-# Ensure Authorization header is passed through to PHP
-# This is required for JWT authentication to work properly
-RewriteCond %{HTTP:Authorization} ^(.*)
-RewriteRule .* - [e=HTTP_AUTHORIZATION:%1]
+# Capture model name and path info using query parameters instead of environment variables
+RewriteRule ^([A-Za-z][A-Za-z0-9_]*)(/.+)?/?$ rest_api.php?modelName=$1&pathInfo=$2 [QSA,L]
 
 # Alternative fallback for exact model name matches
 # This ensures clean URLs work for common REST patterns
@@ -29,3 +25,22 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_URI} ^/[A-Za-z][A-Za-z0-9_]*
 RewriteRule ^(.*)$ rest_api.php [E=ORIGINAL_PATH:%{REQUEST_URI},QSA,L]
+
+
+# Ensure Authorization header is passed through to PHP
+# This is required for JWT authentication to work properly
+RewriteCond %{HTTP:Authorization} ^(.*)
+RewriteRule .* - [e=HTTP_AUTHORIZATION:%1]
+
+# CORS headers for API access
+Header always set Access-Control-Allow-Origin "http://localhost:3000"
+Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+Header always set Access-Control-Allow-Credentials "true"
+
+# Security headers
+Header always set X-Content-Type-Options nosniff
+Header always set X-Frame-Options DENY
+Header always set X-XSS-Protection "1; mode=block"
+Header always set Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+

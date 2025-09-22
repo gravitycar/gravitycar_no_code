@@ -5,18 +5,20 @@ use Gravitycar\Fields\FieldBase;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Contracts\DatabaseConnectorInterface;
+use Gravitycar\Contracts\MetadataEngineInterface;
 use Monolog\Logger;
 use Gravitycar\Exceptions\GCException;
 
 /**
  * Factory for creating field instances based on metadata.
- * Discovers available field types and instantiates them dynamically.
+ * Gets available field types from MetadataEngine cached data instead of filesystem scanning.
  * 
  * Updated for pure dependency injection - no ServiceLocator dependencies.
  */
 class FieldFactory {
     protected Logger $logger;
     protected DatabaseConnectorInterface $databaseConnector;
+    protected MetadataEngineInterface $metadataEngine;
     protected array $availableFieldTypes = [];
 
     /**
@@ -24,30 +26,42 @@ class FieldFactory {
      * 
      * @param Logger $logger
      * @param DatabaseConnectorInterface $databaseConnector
+     * @param MetadataEngineInterface $metadataEngine
      */
-    public function __construct(Logger $logger, DatabaseConnectorInterface $databaseConnector) {
+    public function __construct(Logger $logger, DatabaseConnectorInterface $databaseConnector, MetadataEngineInterface $metadataEngine) {
         $this->logger = $logger;
         $this->databaseConnector = $databaseConnector;
-        $this->discoverFieldTypes();
+        $this->metadataEngine = $metadataEngine;
+        $this->loadFieldTypesFromCache();
     }
 
 
 
     /**
-     * Scan src/fields directory for available field types
+     * Load field types from MetadataEngine cached data instead of filesystem scanning
      */
-    protected function discoverFieldTypes(): void {
-        $fieldsDir = __DIR__ . '/../Fields';
-        if (!is_dir($fieldsDir)) {
-            $this->logger->warning("Fields directory not found: $fieldsDir");
-            return;
-        }
-        $files = scandir($fieldsDir);
-        foreach ($files as $file) {
-            if (preg_match('/^(.*)Field\.php$/', $file, $matches)) {
-                $type = $matches[1];
-                $this->availableFieldTypes[$type] = "Gravitycar\\Fields\\{$type}Field";
+    protected function loadFieldTypesFromCache(): void {
+        try {
+            $fieldTypeDefinitions = $this->metadataEngine->getFieldTypeDefinitions();
+            
+            foreach ($fieldTypeDefinitions as $fieldType => $definition) {
+                $className = $definition['class'] ?? "Gravitycar\\Fields\\{$fieldType}Field";
+                $this->availableFieldTypes[$fieldType] = $className;
             }
+            
+            $this->logger->debug('Loaded field types from cache', [
+                'field_type_count' => count($this->availableFieldTypes),
+                'field_types' => array_keys($this->availableFieldTypes)
+            ]);
+            
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to load field types from cache', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Fallback to empty array if cache loading fails
+            $this->availableFieldTypes = [];
         }
     }
 

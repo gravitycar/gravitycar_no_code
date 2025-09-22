@@ -221,7 +221,8 @@ class ContainerConfig {
         $di->set('field_factory', $di->lazyNew(\Gravitycar\Factories\FieldFactory::class));
         $di->params[\Gravitycar\Factories\FieldFactory::class] = [
             'logger' => $di->lazyGet('logger'),
-            'databaseConnector' => $di->lazyGet('database_connector')
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'metadataEngine' => $di->lazyGet('metadata_engine')
         ];
 
         // RelationshipFactory - singleton with proper DI dependencies
@@ -732,7 +733,8 @@ class ContainerConfig {
         $di = self::getContainer();
         return new \Gravitycar\Factories\FieldFactory(
             $di->get('logger'),
-            $di->get('database_connector')
+            $di->get('database_connector'),
+            $di->get('metadata_engine')
         );
     }
 
