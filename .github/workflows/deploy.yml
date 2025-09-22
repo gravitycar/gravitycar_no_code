@@ -110,6 +110,7 @@ jobs:
           chmod +x scripts/build/build-backend.sh
           scripts/build/build-backend.sh
         env:
+          DEPLOYMENT_ID: ${{ needs.validate-deployment.outputs.deployment-id }}
           ENVIRONMENT: ${{ github.event.inputs.environment }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
 

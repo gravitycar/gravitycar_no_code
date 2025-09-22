@@ -24,13 +24,13 @@ source "${SCRIPT_DIR}/../common.sh" 2>/dev/null || {
 
 # Build configuration
 ENVIRONMENT="${ENVIRONMENT:-development}"
-DEPLOYMENT_ID="${DEPLOYMENT_ID:-build-$(date +%Y%m%d-%H%M%S)}"
 SKIP_TESTS="${SKIP_TESTS:-false}"
 SKIP_VALIDATION="${SKIP_VALIDATION:-false}"
 OPTIMIZE_AUTOLOADER="${OPTIMIZE_AUTOLOADER:-true}"
 
 log "INFO" "Starting backend build process..."
 log "INFO" "Environment: $ENVIRONMENT"
+log "INFO" "Deployment ID: ${DEPLOYMENT_ID:-NOT_SET}"
 log "INFO" "Optimize autoloader: $OPTIMIZE_AUTOLOADER"
 
 cd "$PROJECT_ROOT"
@@ -286,6 +286,11 @@ cleanup_for_production() {
 # Generate build metadata
 generate_build_metadata() {
     log "INFO" "Generating build metadata..."
+    
+    # Ensure DEPLOYMENT_ID is provided
+    if [[ -z "${DEPLOYMENT_ID:-}" ]]; then
+        error_exit "DEPLOYMENT_ID environment variable is required"
+    fi
     
     local metadata_file="build-metadata.json"
     
