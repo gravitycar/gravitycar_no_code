@@ -21,9 +21,15 @@ echo "PWD: $(pwd)"
 
 
 echo "📂 Listing dist directory contents:"
-ls -la dist/
-echo "📂 Listing dist/assets directory contents:"
-ls -la dist/assets/
+if [ -d "dist" ]; then
+    ls -la dist/
+    if [ -d "dist/assets" ]; then
+        echo "📂 Listing dist/assets directory contents:"
+        ls -la dist/assets/
+    fi
+else
+    echo "No dist directory found"
+fi
 
 existingJSFileName=$(ls dist/assets/index-*.js 2>/dev/null | head -1 || echo "none")
 echo "before cleanup, existing JS file: $existingJSFileName"
