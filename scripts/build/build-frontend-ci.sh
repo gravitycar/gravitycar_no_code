@@ -19,10 +19,23 @@ echo "NPM version: $(npm --version)"
 echo "Environment: $ENVIRONMENT"
 echo "PWD: $(pwd)"
 
+
+echo "📂 Listing dist directory contents:"
+ls -la dist/
+echo "📂 Listing dist/assets directory contents:"
+ls -la dist/assets/
+
+existingJSFileName=$(ls dist/assets/index-*.js 2>/dev/null | head -1 || echo "none")
+echo "before cleanup, existing JS file: $existingJSFileName"
+
 # Aggressive cleanup for CI
+
 echo "🧹 Aggressive cleanup for CI environment..."
 rm -rf dist/ .env.* node_modules/.cache/ node_modules/.vite/ 2>/dev/null || true
 npm cache clean --force 2>/dev/null || true
+
+afterCleanupJSFileName=$(ls dist/assets/index-*.js 2>/dev/null | head -1 || echo "none")
+echo "after cleanup, existing JS file: $afterCleanupJSFileName"
 
 # Create environment file
 echo "📝 Creating environment configuration..."
@@ -41,7 +54,7 @@ fi
 
 # Install dependencies fresh
 echo "📦 Installing npm dependencies..."
-npm ci --cache /tmp/.npm-cache --prefer-offline=false
+npm ci --prefer-offline=false
 
 # Build with explicit environment
 echo "🔨 Building with explicit production mode..."
@@ -49,12 +62,25 @@ NODE_ENV=production npm run build -- --mode production
 
 # Verify build
 echo "🔍 Verifying build results..."
+afterBuildJSFileName=$(ls dist/assets/index-*.js 2>/dev/null | head -1 || echo "none")
+echo "after build, existing JS file: $afterBuildJSFileName"
 if [ ! -d "dist" ]; then
     echo "❌ Build failed - no dist directory"
     exit 1
 fi
 
+if [ "$afterBuildJSFileName" = "none" ]; then
+    echo "❌ Build failed - no JavaScript files found in dist/assets"
+    exit 1
+fi 
+
+if [ "$afterBuildJSFileName" = "$existingJSFileName" ]; then
+    echo "⚠️ JavaScript file name did not change from $existingJSFileName before build, afterBuildJSFileName after build. cache may have been used"
+fi
+
+echo "📂 Listing dist directory contents:"
 ls -la dist/
+echo "📂 Listing dist/assets directory contents:"
 ls -la dist/assets/
 
 # Check for correct API URL
