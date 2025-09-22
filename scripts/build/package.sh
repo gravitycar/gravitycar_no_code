@@ -245,7 +245,7 @@ create_deployment_manifest() {
     "backend": $([ -d "$PACKAGE_PATH/backend" ] && echo 'true' || echo 'false'),
     "frontend": $([ -d "$PACKAGE_PATH/frontend" ] && echo 'true' || echo 'false'),
     "scripts": $([ -d "$PACKAGE_PATH/scripts" ] && echo 'true' || echo 'false'),
-    "config": $([ -d "$PACKAGE_PATH/config" ] && echo 'true' || echo 'false'),
+    "config": $([ -d "$PACKAGE_PATH/config" ] && echo 'true' || echo 'false')
   },
   "deployment": {
     "targetEnvironment": "$ENVIRONMENT",
