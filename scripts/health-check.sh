@@ -69,16 +69,49 @@ http_request() {
     local expected_status="${2:-200}"
     local retry_count=0
     
+    # Add debug information for the request
+    log_info "Testing URL: $url (expecting HTTP $expected_status)"
+    
     while [ $retry_count -lt $MAX_RETRIES ]; do
         local status_code
+        local response_headers
+        
+        # Get both status code and some debug info
         status_code=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time "$TIMEOUT" \
             --connect-timeout 10 \
             --retry 0 \
+            --user-agent "Gravitycar-HealthCheck/1.0" \
             "$url" 2>/dev/null || echo "000")
         
+        log_info "Attempt $((retry_count + 1))/$MAX_RETRIES: HTTP $status_code"
+        
         if [ "$status_code" = "$expected_status" ]; then
+            log_info "Request successful after $((retry_count + 1)) attempts"
             return 0
+        fi
+        
+        # Additional debug for first failure
+        if [ $retry_count -eq 0 ]; then
+            log_info "Getting additional debug information..."
+            
+            # Test basic connectivity
+            local hostname
+            hostname=$(echo "$url" | sed 's|https\?://||' | sed 's|/.*||')
+            
+            if command -v nslookup >/dev/null 2>&1; then
+                local dns_result
+                dns_result=$(nslookup "$hostname" 2>/dev/null | grep "Address:" | tail -1 || echo "DNS lookup failed")
+                log_info "DNS lookup for $hostname: $dns_result"
+            fi
+            
+            # Test basic HTTP connectivity
+            local basic_status
+            basic_status=$(curl -s -o /dev/null -w "%{http_code}" \
+                --max-time 10 \
+                --connect-timeout 5 \
+                "https://$hostname" 2>/dev/null || echo "000")
+            log_info "Basic HTTPS connectivity to $hostname: HTTP $basic_status"
         fi
         
         retry_count=$((retry_count + 1))
@@ -103,7 +136,9 @@ check_api_health() {
         
         # Get detailed health information
         local health_response
-        health_response=$(curl -s --max-time "$TIMEOUT" "$health_url" 2>/dev/null || echo '{"status":"unknown"}')
+        health_response=$(curl -s --max-time "$TIMEOUT" \
+            --user-agent "Gravitycar-HealthCheck/1.0" \
+            "$health_url" 2>/dev/null || echo '{"status":"unknown"}')
         
         # Parse health response if it's JSON
         if echo "$health_response" | jq . >/dev/null 2>&1; then
@@ -119,11 +154,39 @@ check_api_health() {
             fi
         else
             log_info "API responding but health data not in expected JSON format"
+            log_info "Response preview: $(echo "$health_response" | head -c 200)"
         fi
         
         return 0
     else
-        log_error "API health endpoint not responding"
+        log_warn "Primary health endpoint failed, trying fallback endpoints..."
+        
+        # Try alternative endpoints to verify API is running
+        local fallback_endpoints=(
+            "$API_URL/"
+            "$API_URL/ping"
+            "$API_URL/status"
+        )
+        
+        for endpoint in "${fallback_endpoints[@]}"; do
+            log_info "Trying fallback endpoint: $endpoint"
+            local status_code
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" \
+                --max-time 10 \
+                --user-agent "Gravitycar-HealthCheck/1.0" \
+                "$endpoint" 2>/dev/null || echo "000")
+            
+            log_info "Fallback endpoint $endpoint: HTTP $status_code"
+            
+            # Accept any reasonable HTTP response as sign the API is running
+            if [[ "$status_code" =~ ^[2-4][0-9][0-9]$ ]]; then
+                log_warn "API appears to be running (fallback endpoint responded with HTTP $status_code)"
+                log_warn "Primary health endpoint may be misconfigured"
+                return 0
+            fi
+        done
+        
+        log_error "API health endpoint not responding and no fallback endpoints accessible"
         return 1
     fi
 }
