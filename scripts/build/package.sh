@@ -53,7 +53,16 @@ create_package_structure() {
 package_backend() {
     log "INFO" "Packaging backend files..."
     
-    cd "$PROJECT_ROOT"
+    # Determine source directory - use downloaded artifacts if available
+    local source_dir="$PROJECT_ROOT"
+    if [[ -d "$PROJECT_ROOT/artifacts/backend" ]]; then
+        source_dir="$PROJECT_ROOT/artifacts/backend"
+        log "DEBUG" "Using downloaded backend artifacts from CI/CD pipeline: $source_dir"
+    else
+        log "DEBUG" "Using local project directory: $source_dir"
+    fi
+    
+    cd "$source_dir"
     
     # Essential backend directories and files
     local backend_items=(
@@ -116,7 +125,17 @@ EOF
 package_frontend() {
     log "INFO" "Packaging frontend files..."
     
-    local frontend_dist="$PROJECT_ROOT/gravitycar-frontend/dist"
+    # Check for downloaded frontend artifacts first (for CI/CD environments)
+    local frontend_dist=""
+    if [[ -d "$PROJECT_ROOT/artifacts/frontend/gravitycar-frontend/dist" ]]; then
+        frontend_dist="$PROJECT_ROOT/artifacts/frontend/gravitycar-frontend/dist"
+        log "DEBUG" "Using downloaded frontend artifacts from CI/CD pipeline: $frontend_dist"
+    elif [[ -d "$PROJECT_ROOT/gravitycar-frontend/dist" ]]; then
+        frontend_dist="$PROJECT_ROOT/gravitycar-frontend/dist"
+        log "DEBUG" "Using local frontend build directory: $frontend_dist"
+    else
+        log "WARN" "No frontend dist directory found in artifacts or local build"
+    fi
     
     if [[ ! -d "$frontend_dist" ]]; then
         log "WARN" "Frontend dist directory not found. Building frontend first..."
@@ -124,13 +143,28 @@ package_frontend() {
     fi
     
     if [[ -d "$frontend_dist" ]]; then
-        log "DEBUG" "Copying frontend build artifacts"
+        log "DEBUG" "Copying frontend build artifacts from: $frontend_dist"
+        log "DEBUG" "Frontend dist contents:"
+        ls -la "$frontend_dist/" || log "WARN" "Cannot list frontend dist contents"
+        log "DEBUG" "Frontend assets contents:"
+        ls -la "$frontend_dist/assets/" || log "WARN" "Cannot list frontend assets contents"
+        
+        # Check index.html content before copying
+        if [[ -f "$frontend_dist/index.html" ]]; then
+            log "DEBUG" "Frontend index.html script references:"
+            grep -o 'index-[^"]*\.js' "$frontend_dist/index.html" || log "WARN" "No script references found"
+        fi
+        
         cp -r "$frontend_dist"/* "$PACKAGE_PATH/frontend/"
         
         # Verify essential frontend files
         if [[ ! -f "$PACKAGE_PATH/frontend/index.html" ]]; then
             error_exit "Frontend packaging failed - index.html not found"
         fi
+        
+        # Verify copied content
+        log "DEBUG" "Packaged frontend index.html script references:"
+        grep -o 'index-[^"]*\.js' "$PACKAGE_PATH/frontend/index.html" || log "WARN" "No script references found in packaged version"
         
         log "SUCCESS" "Frontend packaging completed"
     else

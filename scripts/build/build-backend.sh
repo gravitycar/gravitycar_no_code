@@ -291,6 +291,7 @@ generate_build_metadata() {
     cat > "$metadata_file" << EOF
 {
   "buildTime": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "deploymentID": "${DEPLOYMENT_ID}",
   "environment": "$ENVIRONMENT",
   "phpVersion": "$PHP_VERSION",
   "composerVersion": "$(composer --version 2>/dev/null | cut -d' ' -f3 || echo 'unknown')",
