@@ -44,17 +44,23 @@ const GoogleSignInButton = () => {
     setError('Google OAuth configuration error. Please try again.');
   }, []);
 
-  const { renderButton, isGoogleLoaded } = useGoogleOAuth({
+  const { renderButton, isGoogleLoaded, isGoogleInitialized } = useGoogleOAuth({
     onSuccess: handleGoogleSuccess,
     onError: handleGoogleError
   });
 
   useEffect(() => {
-    // Update debug info based on Google loading state
-    setDebugInfo(isGoogleLoaded ? 'Google loaded, rendering button...' : 'Loading Google services...');
+    // Update debug info based on Google loading and initialization state
+    if (!isGoogleLoaded) {
+      setDebugInfo('Loading Google services...');
+    } else if (!isGoogleInitialized) {
+      setDebugInfo('Initializing Google OAuth...');
+    } else {
+      setDebugInfo('Google OAuth ready');
+    }
     
-    if (isGoogleLoaded && buttonRef.current) {
-      console.log('🔄 Google loaded, attempting to render button...');
+    if (isGoogleInitialized && buttonRef.current) {
+      console.log('🔄 Google initialized, attempting to render button...');
       // Don't clear existing content if button is already rendered
       const existingButton = document.getElementById('google-signin-button');
       if (!existingButton?.hasChildNodes()) {
@@ -64,9 +70,11 @@ const GoogleSignInButton = () => {
         }
         // Render the Google sign-in button
         renderButton('google-signin-button');
+      } else {
+        console.log('✅ Google button already rendered');
       }
     }
-  }, [isGoogleLoaded, renderButton]);
+  }, [isGoogleLoaded, isGoogleInitialized, renderButton]);
 
   return (
     <div className="google-signin-container">
@@ -86,7 +94,7 @@ const GoogleSignInButton = () => {
           ref={buttonRef}
           className={`transition-opacity ${isLoading ? 'opacity-50 pointer-events-none' : ''}`}
         >
-          {!isGoogleLoaded && (
+          {!isGoogleInitialized && (
             <div className="flex items-center justify-center px-4 py-2 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-700">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900 mr-2"></div>
               {debugInfo}
@@ -102,7 +110,7 @@ const GoogleSignInButton = () => {
       </div>
       
       <div className="mt-4 text-xs text-gray-500 text-center">
-        {isGoogleLoaded ? (
+        {isGoogleInitialized ? (
           <>Google OAuth is enabled and ready.</>
         ) : (
           <>

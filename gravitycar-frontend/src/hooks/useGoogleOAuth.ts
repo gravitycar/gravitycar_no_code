@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import type { GoogleIdConfiguration, CredentialResponse } from '../types/google';
 
 // Google Client ID from our environment configuration
@@ -14,6 +14,8 @@ export const useGoogleOAuth = ({ onSuccess, onError }: UseGoogleOAuthProps) => {
   const isInitializedRef = useRef(false);
   const onSuccessRef = useRef(onSuccess);
   const onErrorRef = useRef(onError);
+  const [isGoogleLoaded, setIsGoogleLoaded] = useState(false);
+  const [isGoogleInitialized, setIsGoogleInitialized] = useState(false);
   
   // Update refs when props change
   useEffect(() => {
@@ -25,14 +27,29 @@ export const useGoogleOAuth = ({ onSuccess, onError }: UseGoogleOAuthProps) => {
     console.log('🔄 Attempting to initialize Google OAuth...');
     console.log('🔑 Client ID:', GOOGLE_CLIENT_ID);
 
-    if (!window.google) {
-      console.warn('❌ Google Identity Services not loaded');
+    if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+      console.warn('❌ Google Identity Services not fully loaded');
+      setIsGoogleLoaded(false);
+      setIsGoogleInitialized(false);
+      
+      // Retry after a short delay
+      setTimeout(() => {
+        if (window.google && window.google.accounts && window.google.accounts.id && !isInitializedRef.current) {
+          console.log('🔄 Retrying Google OAuth initialization...');
+          initializeGoogle();
+        }
+      }, 500);
+      
       return;
     }
+
+    // Set loaded state
+    setIsGoogleLoaded(true);
 
     // Prevent multiple initializations
     if (isInitializedRef.current) {
       console.log('✅ Google OAuth already initialized, skipping...');
+      setIsGoogleInitialized(true);
       return;
     }
 
@@ -60,9 +77,11 @@ export const useGoogleOAuth = ({ onSuccess, onError }: UseGoogleOAuthProps) => {
       console.log('🔄 Initializing Google OAuth with config:', config);
       window.google.accounts.id.initialize(config);
       isInitializedRef.current = true;
+      setIsGoogleInitialized(true);
       console.log('✅ Google OAuth initialized successfully');
     } catch (error) {
       console.error('❌ Failed to initialize Google OAuth:', error);
+      setIsGoogleInitialized(false);
       onErrorRef.current?.(error);
     }
   }, []); // No dependencies since we use refs
@@ -70,8 +89,8 @@ export const useGoogleOAuth = ({ onSuccess, onError }: UseGoogleOAuthProps) => {
   const renderButton = useCallback((elementId: string) => {
     console.log('🔄 Attempting to render Google button for element:', elementId);
     
-    if (!window.google) {
-      console.warn('❌ Google Identity Services not loaded for button render');
+    if (!window.google || !isGoogleInitialized) {
+      console.warn('❌ Google Identity Services not loaded or not initialized for button render');
       return;
     }
 
@@ -103,7 +122,7 @@ export const useGoogleOAuth = ({ onSuccess, onError }: UseGoogleOAuthProps) => {
       console.error('❌ Failed to render Google sign-in button:', error);
       onErrorRef.current?.(error);
     }
-  }, []); // No dependencies since we use refs
+  }, [isGoogleInitialized]); // Include isGoogleInitialized as dependency
 
   const promptOneTap = useCallback(() => {
     if (!window.google) {
@@ -136,19 +155,40 @@ export const useGoogleOAuth = ({ onSuccess, onError }: UseGoogleOAuthProps) => {
         
         script.onload = () => {
           console.log('✅ Google Identity Services script loaded successfully');
-          // Initialize after script loads
-          initializeGoogle();
+          // Add a small delay to ensure Google is fully initialized
+          setTimeout(() => {
+            initializeGoogle();
+          }, 100);
         };
         
         script.onerror = (error) => {
           console.error('❌ Failed to load Google Identity Services script:', error);
+          setIsGoogleLoaded(false);
+          setIsGoogleInitialized(false);
+          onErrorRef.current?.(error);
         };
         
         console.log('🔄 Adding script to document head...');
         document.head.appendChild(script);
+        
+        // Set a timeout for loading
+        setTimeout(() => {
+          if (!isInitializedRef.current) {
+            console.warn('⚠️ Google Identity Services taking longer than expected to load');
+            if (!window.google) {
+              console.error('❌ Google Identity Services failed to load within timeout');
+              setIsGoogleLoaded(false);
+              setIsGoogleInitialized(false);
+            }
+          }
+        }, 10000);
+        
       } else {
         console.log('✅ Google Identity Services already loaded');
-        initializeGoogle();
+        // Add a small delay to ensure Google is fully ready
+        setTimeout(() => {
+          initializeGoogle();
+        }, 50);
       }
     };
 
@@ -158,13 +198,16 @@ export const useGoogleOAuth = ({ onSuccess, onError }: UseGoogleOAuthProps) => {
     return () => {
       // Reset initialization flag when component unmounts
       isInitializedRef.current = false;
+      setIsGoogleLoaded(false);
+      setIsGoogleInitialized(false);
     };
   }, []); // Empty dependency array - only run once
 
   return {
     renderButton,
     promptOneTap,
-    isGoogleLoaded: !!window.google
+    isGoogleLoaded,
+    isGoogleInitialized
   };
 };
 
