@@ -120,7 +120,11 @@ jobs:
           name: backend-build-${{ needs.validate-deployment.outputs.deployment-id }}
           path: |
             vendor/
-            cache/
+            src/
+            composer.json
+            config.php
+            index.html
+            rest_api.php
             build-metadata.json
           retention-days: 7
 
@@ -318,24 +322,10 @@ jobs:
           name: frontend-build-${{ needs.validate-deployment.outputs.deployment-id }}
           path: artifacts/frontend/
 
-      - name: Debug - List downloaded contents
+      - name: Validate downloaded artifacts
         run: |
-          echo "📁 Contents of working directory:"
-          ls -la
-          echo "📁 Contents of artifacts directory:"
-          if [ -d "artifacts" ]; then
-            find artifacts/ -type f -name "*.html" -o -name "*.js" | head -10
-            echo "Backend artifacts:"
-            ls -la artifacts/backend/ || echo "No backend artifacts"
-            echo "Frontend artifacts:"
-            ls -la artifacts/frontend/ || echo "No frontend artifacts"
-            echo "Frontend dist contents:"
-            ls -la artifacts/frontend/gravitycar-frontend/dist/ || echo "No frontend dist"
-            echo "Frontend dist assets:"
-            ls -la artifacts/frontend/gravitycar-frontend/dist/assets/ || echo "No frontend assets"
-          else
-            echo "❌ artifacts directory not found"
-          fi
+          chmod +x scripts/build/validate_downloaded_artifacts.sh
+          scripts/build/validate_downloaded_artifacts.sh
 
       - name: Create deployment package
         run: |

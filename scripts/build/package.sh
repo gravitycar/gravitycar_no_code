@@ -44,7 +44,7 @@ create_package_structure() {
     fi
     
     # Create package directories
-    mkdir -p "$PACKAGE_PATH"/{backend,frontend,scripts,config,docs}
+    mkdir -p "$PACKAGE_PATH"/{backend,frontend,scripts,config}
     
     log "DEBUG" "Package structure created at: $PACKAGE_PATH"
 }
@@ -68,14 +68,11 @@ package_backend() {
     local backend_items=(
         "src/"
         "vendor/"
-        "cache/"
         "composer.json"
-        "composer.lock"
+        "config.php"
         "index.html"
         "rest_api.php"
-        "setup.php"
         "build-metadata.json"
-        ".htaccess"
     )
     
     for item in "${backend_items[@]}"; do
@@ -121,25 +118,21 @@ EOF
     log "SUCCESS" "Backend packaging completed"
 }
 
+
+
 # Package frontend files
 package_frontend() {
     log "INFO" "Packaging frontend files..."
     
     # Check for downloaded frontend artifacts first (for CI/CD environments)
-    local frontend_dist=""
-    if [[ -d "$PROJECT_ROOT/artifacts/frontend/gravitycar-frontend/dist" ]]; then
-        frontend_dist="$PROJECT_ROOT/artifacts/frontend/gravitycar-frontend/dist"
-        log "DEBUG" "Using downloaded frontend artifacts from CI/CD pipeline: $frontend_dist"
-    elif [[ -d "$PROJECT_ROOT/gravitycar-frontend/dist" ]]; then
-        frontend_dist="$PROJECT_ROOT/gravitycar-frontend/dist"
-        log "DEBUG" "Using local frontend build directory: $frontend_dist"
-    else
-        log "WARN" "No frontend dist directory found in artifacts or local build"
-    fi
-    
+    local frontend_dist="$PROJECT_ROOT/artifacts/frontend/dist"
     if [[ ! -d "$frontend_dist" ]]; then
-        log "WARN" "Frontend dist directory not found. Building frontend first..."
-        "$SCRIPT_DIR/build-frontend.sh"
+        log "ERROR" "$frontend_dist not found. Downloading the artifact may have failed."
+        log "INFO" "List of artifacts directory:"
+        ls -la "$PROJECT_ROOT/artifacts/"
+        ls -la "$PROJECT_ROOT/artifacts/frontend/"
+        ls -la "$PROJECT_ROOT/artifacts/frontend/dist/"
+        exit 1
     fi
     
     if [[ -d "$frontend_dist" ]]; then
@@ -168,7 +161,7 @@ package_frontend() {
         
         log "SUCCESS" "Frontend packaging completed"
     else
-        error_exit "Frontend dist directory still not available after build attempt"
+        error_exit "Frontend dist directory not available"
     fi
 }
 
@@ -216,26 +209,6 @@ package_configuration() {
     log "SUCCESS" "Configuration packaging completed"
 }
 
-# Package documentation
-package_documentation() {
-    log "INFO" "Packaging documentation..."
-    
-    # Essential documentation files
-    local doc_items=(
-        "README.md"
-        "docs/production_deployment_guide.md"
-        "docs/implementation_plans/ci_cd_pipeline_implementation_plan.md"
-    )
-    
-    for item in "${doc_items[@]}"; do
-        if [[ -f "$PROJECT_ROOT/$item" ]]; then
-            log "DEBUG" "Copying documentation: $item"
-            cp "$PROJECT_ROOT/$item" "$PACKAGE_PATH/docs/"
-        fi
-    done
-    
-    log "SUCCESS" "Documentation packaging completed"
-}
 
 # Create deployment manifest
 create_deployment_manifest() {
@@ -273,7 +246,6 @@ create_deployment_manifest() {
     "frontend": $([ -d "$PACKAGE_PATH/frontend" ] && echo 'true' || echo 'false'),
     "scripts": $([ -d "$PACKAGE_PATH/scripts" ] && echo 'true' || echo 'false'),
     "config": $([ -d "$PACKAGE_PATH/config" ] && echo 'true' || echo 'false'),
-    "docs": $([ -d "$PACKAGE_PATH/docs" ] && echo 'true' || echo 'false')
   },
   "deployment": {
     "targetEnvironment": "$ENVIRONMENT",
