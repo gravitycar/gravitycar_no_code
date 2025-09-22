@@ -24,6 +24,7 @@ source "${SCRIPT_DIR}/../common.sh" 2>/dev/null || {
 
 # Build configuration
 ENVIRONMENT="${ENVIRONMENT:-development}"
+DEPLOYMENT_ID="${DEPLOYMENT_ID:-build-$(date +%Y%m%d-%H%M%S)}"
 SKIP_TESTS="${SKIP_TESTS:-false}"
 SKIP_VALIDATION="${SKIP_VALIDATION:-false}"
 OPTIMIZE_AUTOLOADER="${OPTIMIZE_AUTOLOADER:-true}"
