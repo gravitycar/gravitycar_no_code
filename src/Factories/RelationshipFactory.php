@@ -240,9 +240,6 @@ class RelationshipFactory {
 
         // Type-specific validation
         $this->validateTypeSpecificConstraints($metadata);
-
-        // Additional fields validation
-        $this->validateAdditionalFields($metadata);
     }
 
     /**
@@ -347,39 +344,6 @@ class RelationshipFactory {
             case 'ManyToMany':
                 // Additional fields validation will be handled separately
                 break;
-        }
-    }
-
-    /**
-     * Validate additional fields for ManyToMany relationships
-     */
-    protected function validateAdditionalFields(array $metadata): void {
-        $additionalFields = $metadata['additionalFields'] ?? [];
-
-        if (empty($additionalFields)) {
-            return;
-        }
-
-        foreach ($additionalFields as $fieldName => $fieldMetadata) {
-            if (!isset($fieldMetadata['type'])) {
-                throw new GCException("Additional field '{$fieldName}' missing type specification", [
-                    'field_name' => $fieldName,
-                    'field_metadata' => $fieldMetadata,
-                    'relationship' => $metadata['name']
-                ]);
-            }
-
-            // Check if field type exists
-            $fieldType = $fieldMetadata['type'];
-            $fieldClass = "Gravitycar\\Fields\\{$fieldType}";
-            if (!class_exists($fieldClass)) {
-                throw new GCException("Invalid field type for additional field: {$fieldType}", [
-                    'field_name' => $fieldName,
-                    'field_type' => $fieldType,
-                    'field_class' => $fieldClass,
-                    'relationship' => $metadata['name']
-                ]);
-            }
         }
     }
 

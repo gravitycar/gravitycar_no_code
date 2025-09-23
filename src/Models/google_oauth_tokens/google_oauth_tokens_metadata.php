@@ -49,14 +49,7 @@ return [
         // End of model-specific fields
     ],
     'validationRules' => [],
-    'relationships' => [
-        'user' => [
-            'type' => 'BelongsTo',
-            'model' => 'Users',
-            'foreignKey' => 'user_id',
-            'localKey' => 'id',
-        ],
-    ],
+    'relationships' => ['users_google_oauth_tokens'],
     'ui' => [
         'listFields' => ['user_id', 'scope', 'token_expires_at', 'created_at', 'revoked_at'],
         'createFields' => ['user_id', 'access_token_hash', 'refresh_token_hash', 'token_expires_at', 'scope'],

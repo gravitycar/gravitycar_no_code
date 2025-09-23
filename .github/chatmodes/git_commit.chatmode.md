@@ -13,6 +13,9 @@ You are committing changes into git. The changes to commit are already staged fo
 - `git push`. I will push the commits manually.
 
 ## you will:
+- Use 'git diff --name-only --cached' to get a list of all files with staged changes.
+- use 'git diff --cached <file>' to see the staged changes in a specific file.
+- use 'git diff --cached' to see all staged changes.
 - Review all the changes to all files staged in git.
 - If you see anything that might be 'secret', stop, identify the secret, and do not commit. A 'secret' is any of the following:
   - API keys: Credentials for accessing application programming interfaces. Ignore keys shorter than 9 characters, as these are not cryptographically secure anyway.
