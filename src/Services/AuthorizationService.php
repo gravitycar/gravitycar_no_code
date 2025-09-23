@@ -196,20 +196,18 @@ class AuthorizationService
     public function getUserRoles(\Gravitycar\Models\ModelBase $user): array
     {
         try {
-            // Get user roles through many-to-many relationship
-            $dbConnector = $this->databaseConnector;
-            $connection = $dbConnector->getConnection();
+            // Use the proper relationship system instead of raw SQL
+            // Find roles through the users_roles many-to-many relationship
+            $rolesModel = $this->modelFactory->new('Roles');
             
-            $sql = "
-                SELECT r.* 
-                FROM roles r 
-                INNER JOIN users_roles ur ON r.id = ur.role_id 
-                WHERE ur.user_id = ?
-            ";
+            // Use relationship criteria with dot notation to find roles 
+            // that are related to this user through the users_roles relationship
+            $criteria = [
+                'users_roles.user_id' => $user->get('id')
+            ];
             
-            $stmt = $connection->prepare($sql);
-            $result = $stmt->executeQuery([$user->get('id')]);
-            $roleRows = $result->fetchAllAssociative();
+            // Find roles using DatabaseConnector with relationship criteria
+            $roleRows = $this->databaseConnector->find($rolesModel, $criteria);
             
             $roles = [];
             foreach ($roleRows as $roleRow) {
@@ -236,20 +234,20 @@ class AuthorizationService
     public function roleHasPermission(\Gravitycar\Models\ModelBase $role, string $permission, string $model = ''): bool
     {
         try {
-            // Get role permissions through many-to-many relationship
-            $dbConnector = $this->databaseConnector;
-            $connection = $dbConnector->getConnection();
+            // Use the proper relationship system instead of raw SQL
+            // Find permissions through the roles_permissions many-to-many relationship
+            $permissionsModel = $this->modelFactory->new('Permissions');
             
-            $sql = "
-                SELECT p.* 
-                FROM permissions p 
-                INNER JOIN roles_permissions rp ON p.id = rp.permission_id 
-                WHERE rp.role_id = ? AND p.action = ? AND p.model = ?
-            ";
+            // Use relationship criteria with dot notation to find permissions 
+            // that are related to this role through the roles_permissions relationship
+            $criteria = [
+                'roles_permissions.role_id' => $role->get('id'),
+                'action' => $permission,
+                'model' => $model
+            ];
             
-            $stmt = $connection->prepare($sql);
-            $result = $stmt->executeQuery([$role->get('id'), $permission, $model]);
-            $permissionRows = $result->fetchAllAssociative();
+            // Find permissions using DatabaseConnector with relationship criteria
+            $permissionRows = $this->databaseConnector->find($permissionsModel, $criteria);
             
             return !empty($permissionRows);
             
@@ -271,33 +269,24 @@ class AuthorizationService
     public function assignRoleToUser(\Gravitycar\Models\ModelBase $user, \Gravitycar\Models\ModelBase $role): bool
     {
         try {
-            $dbConnector = $this->databaseConnector;
-            $connection = $dbConnector->getConnection();
+            // Use the model's addRelation() method to handle relationship creation
+            $success = $user->addRelation('users_roles', $role);
             
-            // Check if assignment already exists
-            $stmt = $connection->prepare("SELECT id FROM users_roles WHERE user_id = ? AND role_id = ?");
-            $result = $stmt->executeQuery([$user->get('id'), $role->get('id')]);
-            $existingRows = $result->fetchAllAssociative();
-            
-            if (!empty($existingRows)) {
-                $this->logger->debug('Role already assigned to user', [
+            if ($success) {
+                $this->logger->info('Role assigned to user', [
                     'user_id' => $user->get('id'),
-                    'role_id' => $role->get('id')
+                    'role_id' => $role->get('id'),
+                    'role_name' => $role->get('name')
                 ]);
-                return true;
+            } else {
+                $this->logger->warning('Failed to assign role to user (relationship may already exist)', [
+                    'user_id' => $user->get('id'),
+                    'role_id' => $role->get('id'),
+                    'role_name' => $role->get('name')
+                ]);
             }
             
-            // Create new assignment
-            $stmt = $connection->prepare("INSERT INTO users_roles (user_id, role_id, created_at) VALUES (?, ?, NOW())");
-            $stmt->executeStatement([$user->get('id'), $role->get('id')]);
-            
-            $this->logger->info('Role assigned to user', [
-                'user_id' => $user->get('id'),
-                'role_id' => $role->get('id'),
-                'role_name' => $role->get('name')
-            ]);
-            
-            return true;
+            return $success;
             
         } catch (\Exception $e) {
             $this->logger->error('Failed to assign role to user', [
@@ -490,8 +479,6 @@ class AuthorizationService
             }
             
             $role = $roles[0];
-            $dbConnector = $this->databaseConnector;
-            $connection = $dbConnector->getConnection();
             
             foreach ($permissions as $permission) {
                 // Parse permission format (name:model or just name)
@@ -516,17 +503,16 @@ class AuthorizationService
                 
                 $permissionInstance = $permissionInstances[0];
                 
-                // Check if assignment already exists
-                $stmt = $connection->prepare("SELECT id FROM roles_permissions WHERE role_id = ? AND permission_id = ?");
-                $result = $stmt->executeQuery([$role->get('id'), $permissionInstance->get('id')]);
-                $existing = $result->fetchAllAssociative();
+                // Use the model's addRelation() method to handle relationship creation
+                $success = $role->addRelation('roles_permissions', $permissionInstance);
                 
-                if (empty($existing)) {
-                    // Create assignment
-                    $stmt = $connection->prepare("INSERT INTO roles_permissions (role_id, permission_id, created_at) VALUES (?, ?, NOW())");
-                    $stmt->executeStatement([$role->get('id'), $permissionInstance->get('id')]);
-                    
+                if ($success) {
                     $this->logger->debug('Assigned permission to role', [
+                        'role_name' => $roleName,
+                        'permission' => $permission
+                    ]);
+                } else {
+                    $this->logger->debug('Permission assignment skipped (relationship may already exist)', [
                         'role_name' => $roleName,
                         'permission' => $permission
                     ]);
@@ -539,6 +525,8 @@ class AuthorizationService
                 'permissions' => $permissions,
                 'error' => $e->getMessage()
             ]);
+            
+            throw $e;
         }
     }
 }

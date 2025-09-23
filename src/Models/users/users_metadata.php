@@ -141,34 +141,7 @@ return [
         // End of model-specific fields
     ],
     'validationRules' => [],
-    'relationships' => [
-        'roles' => [
-            'type' => 'ManyToMany',
-            'model' => 'Roles',
-            'through' => 'user_roles',
-            'foreignKey' => 'user_id',
-            'otherKey' => 'role_id',
-        ],
-        'permissions' => [
-            'type' => 'ManyToMany',
-            'model' => 'Permissions',
-            'through' => 'user_permissions',
-            'foreignKey' => 'user_id',
-            'otherKey' => 'permission_id',
-        ],
-        'jwt_refresh_tokens' => [
-            'type' => 'HasMany',
-            'model' => 'JwtRefreshTokens',
-            'foreignKey' => 'user_id',
-            'localKey' => 'id',
-        ],
-        'google_oauth_tokens' => [
-            'type' => 'HasMany',
-            'model' => 'GoogleOauthTokens',
-            'foreignKey' => 'user_id',
-            'localKey' => 'id',
-        ],
-    ],
+    'relationships' => ['users_roles', 'users_permissions', 'users_jwt_refresh_tokens', 'users_google_oauth_tokens'],
     'apiRoutes' => [
     ],
     'ui' => [

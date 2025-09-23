@@ -50,14 +50,7 @@ return [
         ],
     ],
     'validationRules' => [],
-    'relationships' => [
-        'user' => [
-            'type' => 'BelongsTo',
-            'model' => 'Users',
-            'foreignKey' => 'user_id',
-            'localKey' => 'id',
-        ],
-    ],
+    'relationships' => ['users_jwt_refresh_tokens'],
     'ui' => [
         'listFields' => ['user_id', 'expires_at', 'created_at', 'revoked_at'],
         'createFields' => ['user_id', 'token_hash', 'expires_at', 'device_info'],

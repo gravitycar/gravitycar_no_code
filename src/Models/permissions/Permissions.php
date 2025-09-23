@@ -58,19 +58,19 @@ class Permissions extends ModelBase
      */
     public function getRoles(): array
     {
-        $conn = $this->databaseConnector->getConnection();
-        $queryBuilder = $conn->createQueryBuilder();
-        
-        $queryBuilder
-            ->select('r.*')
-            ->from('roles', 'r')
-            ->join('r', 'role_permissions', 'rp', 'r.id = rp.role_id')
-            ->where('rp.permission_id = :permission_id')
-            ->setParameter('permission_id', $this->get('id'));
+        try {
+            // Use the framework's relationship system to get related role records
+            return $this->getRelated('roles_permissions');
+        } 
+        catch (\Exception $e) {
+            $this->logger->error('Failed to get roles for permission', [
+                'permission_id' => $this->get('id'),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             
-        $result = $queryBuilder->executeQuery();
-        
-        return $result->fetchAllAssociative();
+            return [];
+        }
     }
     
     /**

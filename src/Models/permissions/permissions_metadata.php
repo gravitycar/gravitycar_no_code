@@ -51,22 +51,7 @@ return [
         // End of model-specific fields
     ],
     'validationRules' => [],
-    'relationships' => [
-        'roles' => [
-            'type' => 'ManyToMany',
-            'model' => 'Roles',
-            'through' => 'role_permissions',
-            'foreignKey' => 'permission_id',
-            'otherKey' => 'role_id',
-        ],
-        'users' => [
-            'type' => 'ManyToMany',
-            'model' => 'Users',
-            'through' => 'user_permissions',
-            'foreignKey' => 'permission_id',
-            'otherKey' => 'user_id',
-        ],
-    ],
+    'relationships' => ['roles_permissions', 'users_permissions'],
     'ui' => [
         'listFields' => ['action', 'model', 'description', 'is_route_permission', 'created_at'],
         'createFields' => ['action', 'model', 'description', 'allowed_roles', 'is_route_permission', 'route_pattern'],
