@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import type { ModelMetadata } from '../types';
 import { metadataCache } from '../services/metadataCache';
+import { fetchWithDebug } from '../utils/apiUtils';
 
 interface UseModelMetadataReturn {
   metadata: ModelMetadata | null;
@@ -37,17 +38,9 @@ export const useModelMetadata = (modelName: string): UseModelMetadataReturn => {
 
       console.log(`🔍 Fetching metadata for ${modelName} from API`);
 
-      // Use environment variable or fallback to localhost for development
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
-
-      // Fetch from API using a direct call to the axios instance
-      // We'll add a method to apiService for metadata fetching
-      const response = await fetch(`${apiBaseUrl}/metadata/models/${modelName}`, {
+      // Fetch from API using the debug utility
+      const response = await fetchWithDebug(`/metadata/models/${modelName}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
-        }
       });
 
       if (!response.ok) {

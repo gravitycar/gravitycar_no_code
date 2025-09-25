@@ -6,6 +6,7 @@ use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Exceptions\GCException;
 use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Contracts\UserContextInterface;
+use Gravitycar\Api\Request;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -201,22 +202,9 @@ class AuthorizationService
             $rolesModel = $this->modelFactory->new('Roles');
             
             // Use relationship criteria with dot notation to find roles 
-            // that are related to this user through the users_roles relationship
-            $criteria = [
-                'users_roles.user_id' => $user->get('id')
-            ];
-            
+            // that are related to this user through the users_roles relationship            
             // Find roles using DatabaseConnector with relationship criteria
-            $roleRows = $this->databaseConnector->find($rolesModel, $criteria);
-            
-            $roles = [];
-            foreach ($roleRows as $roleRow) {
-                $role = $this->modelFactory->new('Roles');
-                $role->populateFromRow($roleRow);
-                $roles[] = $role;
-            }
-            
-            return $roles;
+            return $rolesModel->find(['users_roles.users_id' => $user->get('id')]);
             
         } catch (\Exception $e) {
             $this->logger->error('Failed to get user roles', [
@@ -527,6 +515,234 @@ class AuthorizationService
             ]);
             
             throw $e;
+        }
+    }
+
+    /**
+     * Determine the action from route and request data
+     * 
+     * @param array $route The route configuration array
+     * @param Request $request The HTTP request object
+     * @return string The determined action
+     */
+    protected function determineAction(array $route, Request $request): string
+    {
+        // First check if route has explicit RBACAction
+        if (isset($route['RBACAction'])) {
+            $this->logger->debug('Using explicit RBACAction from route', [
+                'RBACAction' => $route['RBACAction'],
+                'route_path' => $route['path'] ?? 'unknown'
+            ]);
+            return $route['RBACAction'];
+        }
+        
+        // Map HTTP methods to CRUD actions
+        $httpMethod = strtoupper($request->getMethod());
+        $actionMapping = [
+            'GET' => 'read',
+            'POST' => 'create',
+            'PUT' => 'update',
+            'PATCH' => 'update',
+            'DELETE' => 'delete'
+        ];
+        
+        $action = $actionMapping[$httpMethod] ?? 'read';
+        
+        $this->logger->debug('Mapped HTTP method to action', [
+            'http_method' => $httpMethod,
+            'action' => $action,
+            'route_path' => $route['path'] ?? 'unknown'
+        ]);
+        
+        return $action;
+    }
+
+    /**
+     * Determine the component (model or controller) from route and request data
+     * 
+     * @param array $route The route configuration array  
+     * @param Request $request The HTTP request object
+     * @return string The determined component name
+     */
+    protected function determineComponent(array $route, Request $request): string
+    {
+        // First check if request has model parameter
+        if ($request->has('modelName') && !empty($request->get('modelName'))) {
+            $component = $request->get('modelName');
+            $this->logger->debug('Using model from request as component', [
+                'component' => $component,
+                'route_path' => $route['path'] ?? 'unknown'
+            ]);
+            return $component;
+        }
+        
+        // Fall back to apiClass from route
+        $component = $request->getApiControllerClassName() ?: ($route['apiClass'] ?? 'Unknown');
+        
+        $this->logger->debug('Using apiClass from route as component', [
+            'component' => $component,
+            'route_path' => $route['path'] ?? 'unknown'
+        ]);
+        
+        return $component;
+    }
+
+    /**
+     * Check if user has specific permission for a route and request
+     * Updated method signature - currentUser cannot be null
+     * 
+     * @param array $route The route configuration array
+     * @param Request $request The HTTP request object
+     * @param \Gravitycar\Models\ModelBase $currentUser The current user (required)
+     * @return bool True if user has permission, false otherwise
+     */
+    public function hasPermissionForRoute(array $route, Request $request, \Gravitycar\Models\ModelBase $currentUser): bool
+    {
+        try {
+            // Use helper methods to determine action and component
+            $action = $this->determineAction($route, $request);
+            $component = $this->determineComponent($route, $request);
+            
+            $this->logger->debug('Checking enhanced user permission', [
+                'user_id' => $currentUser->get('id'),
+                'action' => $action,
+                'component' => $component,
+                'route_path' => $route['path'] ?? 'unknown'
+            ]);
+            
+            // Get user roles
+            $userRoles = $this->getUserRoles($currentUser);
+            
+            if (empty($userRoles)) {
+                $this->logger->info('User has no roles assigned', [
+                    'user_id' => $currentUser->get('id')
+                ]);
+                return false;
+            }
+            
+            // Check permissions via database lookup
+            foreach ($userRoles as $role) {
+                if ($this->checkDatabasePermission($role, $component, $action)) {
+                    $this->logger->debug('Enhanced permission granted via role', [
+                        'user_id' => $currentUser->get('id'),
+                        'role_id' => $role->get('id'),
+                        'role_name' => $role->get('name'),
+                        'action' => $action,
+                        'component' => $component
+                    ]);
+                    return true;
+                }
+            }
+            
+            $this->logger->debug('Enhanced permission denied - no matching database permissions', [
+                'user_id' => $currentUser->get('id'),
+                'action' => $action,
+                'component' => $component,
+                'roles' => array_map(fn($role) => $role->get('name'), $userRoles)
+            ]);
+            
+            return false;
+            
+        } catch (\Exception $e) {
+            $this->logger->error('Error checking enhanced user permission', [
+                'user_id' => $currentUser->get('id'),
+                'route_path' => $route['path'] ?? 'unknown',
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            // Fail securely - deny access on error
+            return false;
+        }
+    }
+
+    /**
+     * Check if role has permission for component-action in database
+     * 
+     * @param \Gravitycar\Models\ModelBase $role The role to check
+     * @param string $component The component name
+     * @param string $action The action name
+     * @return bool True if permission exists
+     */
+    protected function checkDatabasePermission(\Gravitycar\Models\ModelBase $role, string $component, string $action): bool
+    {
+        try {
+            // Use ModelFactory to get Permissions model and search for permissions
+            $permissionsModel = $this->modelFactory->new('Permissions');
+            
+            $this->logger->debug("Searching for permission to $action on $component for role {$role->get('name')}");
+            // Find permissions that match component and action
+            $permissions = $permissionsModel->find([
+                'component' => $component,
+                'action' => $action,
+                'roles_permissions.roles_id' => $role->get('id') // Join condition
+            ]);
+            
+            if (empty($permissions)) {
+                $this->logger->warning('No permissions found for component-action', [
+                    'component' => $component,
+                    'action' => $action
+                ]);
+                return false;
+            }
+            $this->logger->debug("Found permission to $action on $component for role {$role->get('name')}", ['permission_id' => $permissions[0]->get('id')]);
+            return true;            
+        } catch (\Exception $e) {
+            $this->logger->error('Error checking database permission', [
+                'role_id' => $role->get('id'),
+                'component' => $component,
+                'action' => $action,
+                'error' => $e->getMessage()
+            ]);
+            
+            // Fail securely
+            return false;
+        }
+    }
+
+    /**
+     * Get all permissions for a user across all models (for debugging/admin interfaces)
+     * 
+     * @param \Gravitycar\Models\ModelBase $user The user to check
+     * @return array Array of permissions grouped by model
+     */
+    public function getUserAllPermissions(\Gravitycar\Models\ModelBase $user): array
+    {
+        try {
+            $userRoles = $this->getUserRoles($user);
+            $allPermissions = [];
+            
+            foreach ($userRoles as $role) {
+                $rolePermissions = $role->getRelatedModels('roles_permissions');
+                
+                foreach ($rolePermissions as $permission) {
+                    $component = $permission->get('component');
+                    $action = $permission->get('action');
+                    
+                    if (!isset($allPermissions[$component])) {
+                        $allPermissions[$component] = [];
+                    }
+                    
+                    if (!in_array($action, $allPermissions[$component])) {
+                        $allPermissions[$component][] = $action;
+                    }
+                }
+            }
+            
+            $this->logger->debug('Retrieved all user permissions', [
+                'user_id' => $user->get('id'),
+                'permissions_count' => count($allPermissions)
+            ]);
+            
+            return $allPermissions;
+            
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to get user permissions', [
+                'user_id' => $user->get('id'),
+                'error' => $e->getMessage()
+            ]);
+            
+            return [];
         }
     }
 }

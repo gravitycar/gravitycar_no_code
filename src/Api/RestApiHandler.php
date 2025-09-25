@@ -99,7 +99,7 @@ class RestApiHandler {
             $this->logger = ServiceLocator::getLogger();
             $this->router = ServiceLocator::getContainer()->get('router');
 
-            $this->logger->info('REST API: Application bootstrapped successfully');
+            $this->logger->debug('REST API: Application bootstrapped successfully');
 
         } catch (Exception $e) {
             // If we can't get the logger, create a basic one for error reporting
@@ -164,7 +164,7 @@ class RestApiHandler {
         // Combine all parameters
         $additionalParams = array_merge($queryParams, $requestBody);
 
-        $this->logger->info('REST API: Request extracted', [
+        $this->logger->debug('REST API: Request extracted', [
             'method' => $method,
             'path' => $path,
             'params_count' => count($additionalParams)
@@ -196,7 +196,7 @@ class RestApiHandler {
         $path = $requestInfo['path'];
         $additionalParams = $requestInfo['additionalParams'];
 
-        $this->logger->info('REST API: Routing request', [
+        $this->logger->debug('REST API: Routing request', [
             'method' => $method,
             'path' => $path
         ]);
@@ -264,7 +264,7 @@ class RestApiHandler {
         http_response_code(200);
         echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
-        $this->logger->info('REST API: Response sent successfully', [
+        $this->logger->debug('REST API: Response sent successfully', [
             'status' => 200,
             'data_type' => gettype($response['data']),
             'has_count' => isset($response['count'])

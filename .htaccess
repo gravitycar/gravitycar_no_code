@@ -17,7 +17,7 @@ RewriteCond %{REQUEST_URI} !^/rest_api\.php$
 # Capture model name and path info for the application router
 
 # Capture model name and path info using query parameters instead of environment variables
-RewriteRule ^([A-Za-z][A-Za-z0-9_]*)(/.+)?/?$ rest_api.php?modelName=$1&pathInfo=$2 [QSA,L]
+#RewriteRule ^([A-Za-z][A-Za-z0-9_]*)(/.+)?/?$ rest_api.php?modelName=$1&pathInfo=$2 [QSA,L]
 
 # Alternative fallback for exact model name matches
 # This ensures clean URLs work for common REST patterns

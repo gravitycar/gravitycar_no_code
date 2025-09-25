@@ -91,7 +91,7 @@ class SchemaGenerator {
             $table = $toSchema->createTable($tableName);
             $this->createRelationshipTableStructure($table, $relationship);
 
-            $this->logger->info("Created relationship table", [
+            $this->logger->debug("Created relationship table", [
                 'table_name' => $tableName,
                 'relationship_name' => $relationship->getName(),
                 'relationship_type' => $relationship->getType()
@@ -108,14 +108,14 @@ class SchemaGenerator {
     protected function generateModelTable(Schema $schema, string $modelName, array $modelMeta): void {
         // Skip table generation for non-database models
         if (isset($modelMeta['nonDb']) && $modelMeta['nonDb'] === true) {
-            $this->logger->info("Skipping table generation for non-DB model: $modelName");
+            $this->logger->debug("Skipping table generation for non-DB model: $modelName");
             return;
         }
 
         // Also skip if table name is empty string (alternative approach)
         $tableName = $modelMeta['table'] ?? strtolower($modelName);
         if (empty($tableName)) {
-            $this->logger->info("Skipping table generation for model with empty table name: $modelName");
+            $this->logger->warning("Skipping table generation for model with empty table name: $modelName");
             return;
         }
 
@@ -127,7 +127,7 @@ class SchemaGenerator {
             $this->createModelTable($table, $modelMeta);
         }
 
-        $this->logger->info("Generated/updated table for model: $modelName -> $tableName");
+        $this->logger->debug("Generated/updated table for model: $modelName -> $tableName");
     }
 
     /**
@@ -144,7 +144,7 @@ class SchemaGenerator {
             $this->createRelationshipTableFromMeta($table, $relationshipMeta);
         }
 
-        $this->logger->info("Generated/updated relationship table: $relationshipName -> $tableName");
+        $this->logger->debug("Generated/updated relationship table: $relationshipName -> $tableName");
     }
 
     /**
@@ -479,7 +479,7 @@ class SchemaGenerator {
      */
     protected function updateRelationshipTable(Table $table, array $relationshipMeta): void {
         // For now, just log that we're updating - full update logic can be added later
-        $this->logger->info("Updating existing relationship table", [
+        $this->logger->debug("Updating existing relationship table", [
             'table_name' => $table->getName(),
             'relationship_type' => $relationshipMeta['type']
         ]);
@@ -519,21 +519,21 @@ class SchemaGenerator {
         // Check type change
         if ($existingColumn->getType()->getName() !== $type) {
             $needsUpdate = true;
-            $this->logger->info("Column '$fieldName' type change: {$existingColumn->getType()->getName()} -> $type");
+            $this->logger->debug("Column '$fieldName' type change: {$existingColumn->getType()->getName()} -> $type");
         }
         
         // Check length change for string types
         if (in_array($type, [Types::STRING]) && isset($options['length'])) {
             if ($existingColumn->getLength() !== $options['length']) {
                 $needsUpdate = true;
-                $this->logger->info("Column '$fieldName' length change: {$existingColumn->getLength()} -> {$options['length']}");
+                $this->logger->debug("Column '$fieldName' length change: {$existingColumn->getLength()} -> {$options['length']}");
             }
         }
         
         // Check nullable change
         if (isset($options['notnull']) && $existingColumn->getNotnull() !== $options['notnull']) {
             $needsUpdate = true;
-            $this->logger->info("Column '$fieldName' nullable change: " . 
+            $this->logger->debug("Column '$fieldName' nullable change: " . 
                 ($existingColumn->getNotnull() ? 'NOT NULL' : 'NULL') . ' -> ' . 
                 ($options['notnull'] ? 'NOT NULL' : 'NULL'));
         }
@@ -542,7 +542,7 @@ class SchemaGenerator {
         if (isset($options['default'])) {
             if ($existingColumn->getDefault() !== $options['default']) {
                 $needsUpdate = true;
-                $this->logger->info("Column '$fieldName' default change: " . 
+                $this->logger->debug("Column '$fieldName' default change: " . 
                     ($existingColumn->getDefault() ?? 'NULL') . ' -> ' . 
                     ($options['default'] ?? 'NULL'));
             }
@@ -552,21 +552,21 @@ class SchemaGenerator {
         if (isset($options['comment'])) {
             if ($existingColumn->getComment() !== $options['comment']) {
                 $needsUpdate = true;
-                $this->logger->info("Column '$fieldName' comment change");
+                $this->logger->debug("Column '$fieldName' comment change");
             }
         }
         
         if ($needsUpdate) {
             // For type changes, we need to drop and recreate the column
             if ($existingColumn->getType()->getName() !== $type) {
-                $this->logger->info("Dropping and recreating column '$fieldName' due to type change");
+                $this->logger->debug("Dropping and recreating column '$fieldName' due to type change");
                 $table->dropColumn($fieldName);
                 $this->addColumnFromFieldMeta($table, $fieldName, $fieldMeta);
             } else {
                 // For other changes, use modifyColumn
                 $table->modifyColumn($fieldName, $options);
             }
-            $this->logger->info("Scheduled column '$fieldName' for update");
+            $this->logger->debug("Scheduled column '$fieldName' for update");
         } else {
             $this->logger->debug("Column '$fieldName' is up to date, no changes needed");
         }
@@ -708,7 +708,7 @@ class SchemaGenerator {
         }
 
         if (!empty($queries)) {
-            $this->logger->info("Schema update completed", [
+            $this->logger->debug("Schema update completed", [
                 'queries_executed' => count($queries)
             ]);
         }

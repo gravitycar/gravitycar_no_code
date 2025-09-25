@@ -27,12 +27,19 @@ class ApiService {
       },
     });
 
-    // Add request interceptor to include JWT token
+    // Add request interceptor to include JWT token and debug trigger
     this.api.interceptors.request.use((config) => {
       const token = localStorage.getItem('auth_token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+
+      // Add XDEBUG_TRIGGER to all requests for debugging
+      if (!config.params) {
+        config.params = {};
+      }
+      config.params.XDEBUG_TRIGGER = 'mike';
+      
       return config;
     });
 
@@ -287,27 +294,27 @@ class ApiService {
 
   // Model-specific convenience methods
   async getUsers(page?: number, limit?: number) {
-    return this.getList<User>('users', page, limit);
+    return this.getList<User>('Users', page, limit);
   }
 
   async getMovies(page?: number, limit?: number) {
-    return this.getList<Movie>('movies', page, limit);
+    return this.getList<Movie>('Movies', page, limit);
   }
 
   async getMovieQuotes(page?: number, limit?: number) {
-    return this.getList<MovieQuote>('movie_quotes', page, limit);
+    return this.getList<MovieQuote>('Movie_quotes', page, limit);
   }
 
   async getUserById(id: string) {
-    return this.getById<User>('users', id);
+    return this.getById<User>('Users', id);
   }
 
   async getMovieById(id: string) {
-    return this.getById<Movie>('movies', id);
+    return this.getById<Movie>('Movies', id);
   }
 
   async getMovieQuoteById(id: string) {
-    return this.getById<MovieQuote>('movie_quotes', id);
+    return this.getById<MovieQuote>('Movie_quotes', id);
   }
 
   // Health check

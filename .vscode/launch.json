@@ -12,6 +12,11 @@
             "port": 9003,
             "pathMappings": {
                 "/mnt/g/projects/gravitycar_no_code": "${workspaceFolder}"
+            },
+            "xdebugSettings": {
+                "max_children": 999, // Max number of array/object children
+                "max_depth": 10,     // Max depth for data structures
+                "max_data": 10240    // Max length of string values (set to -1 for no limit)
             }
         },
         {
@@ -28,6 +33,11 @@
             "env": {
                 "XDEBUG_MODE": "debug,develop",
                 "XDEBUG_CONFIG": "client_port=${port}"
+            },
+            "xdebugSettings": {
+                "max_children": 999, // Max number of array/object children
+                "max_depth": 10,     // Max depth for data structures
+                "max_data": 10240    // Max length of string values (set to -1 for no limit)
             }
         },
         {
@@ -114,6 +124,11 @@
             "env": {
                 "XDEBUG_CONFIG": "idekey=VSCODE"
             },
+            "xdebugSettings": {
+                "max_children": 999, // Max number of array/object children
+                "max_depth": 10,     // Max depth for data structures
+                "max_data": 10240    // Max length of string values (set to -1 for no limit)
+            }
             "console": "integratedTerminal"
         },
         {

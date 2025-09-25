@@ -1,6 +1,6 @@
 <?php
 
-namespace Gravitycar\Models\google_oauth_tokens;
+namespace Gravitycar\Models\googleoauthtokens;
 
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Factories\FieldFactory;

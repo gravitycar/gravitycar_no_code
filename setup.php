@@ -14,6 +14,7 @@ use Gravitycar\Core\Gravitycar;
 use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Schema\SchemaGenerator;
 use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Services\PermissionsBuilder;
 use Gravitycar\Exceptions\GCException;
 
 // Terminal colors for better output
@@ -77,72 +78,6 @@ function seedAuthenticationData() {
         } catch (Exception $e) {
             printWarning("Role '" . $roleData['name'] . "' might already exist: " . $e->getMessage());
         }
-    }
-    
-    printInfo("Creating default permissions...");
-    
-    // Create default permissions
-    $permissions = [
-        // User management permissions
-        ['action' => 'create', 'model' => 'Users', 'description' => 'Create new users'],
-        ['action' => 'read', 'model' => 'Users', 'description' => 'View user profiles'],
-        ['action' => 'update', 'model' => 'Users', 'description' => 'Update user profiles'],
-        ['action' => 'delete', 'model' => 'Users', 'description' => 'Delete users'],
-        ['action' => 'list', 'model' => 'Users', 'description' => 'List all users'],
-        
-        // Role management permissions
-        ['action' => 'create', 'model' => 'Roles', 'description' => 'Create new roles'],
-        ['action' => 'read', 'model' => 'Roles', 'description' => 'View roles'],
-        ['action' => 'update', 'model' => 'Roles', 'description' => 'Update roles'],
-        ['action' => 'delete', 'model' => 'Roles', 'description' => 'Delete roles'],
-        ['action' => 'list', 'model' => 'Roles', 'description' => 'List all roles'],
-        
-        // Permission management permissions
-        ['action' => 'create', 'model' => 'Permissions', 'description' => 'Create new permissions'],
-        ['action' => 'read', 'model' => 'Permissions', 'description' => 'View permissions'],
-        ['action' => 'update', 'model' => 'Permissions', 'description' => 'Update permissions'],
-        ['action' => 'delete', 'model' => 'Permissions', 'description' => 'Delete permissions'],
-        ['action' => 'list', 'model' => 'Permissions', 'description' => 'List all permissions'],
-        
-        // Global permissions (model = '')
-        ['action' => 'system.admin', 'model' => '', 'description' => 'Full system administration'],
-        ['action' => 'api.access', 'model' => '', 'description' => 'Basic API access'],
-        ['action' => 'auth.manage', 'model' => '', 'description' => 'Manage authentication settings']
-    ];
-    
-    foreach ($permissions as $permData) {
-        try {
-            $permission = $modelFactory->new('Permissions');
-            $permission->set('action', $permData['action']);
-            $permission->set('model', $permData['model']);
-            $permission->set('description', $permData['description']);
-            $permission->set('is_route_permission', 0);
-            $permission->create();
-            printSuccess("Created permission: " . $permData['action'] . " (" . ($permData['model'] ?: 'global') . ")");
-        } catch (Exception $e) {
-            printWarning("Permission '" . $permData['action'] . "' might already exist: " . $e->getMessage());
-        }
-    }
-    
-    printInfo("Assigning permissions to roles...");
-    
-    try {
-        // Find admin role
-        $adminRole = $modelFactory->new('Roles');
-        $adminRoles = $adminRole->find(['name' => 'admin']);
-        if (!empty($adminRoles)) {
-            printSuccess("Admin role will have full permissions (implement role-permission assignments)");
-        }
-        
-        // Find user role  
-        $userRole = $modelFactory->new('Roles');
-        $userRoles = $userRole->find(['name' => 'user']);
-        if (!empty($userRoles)) {
-            printSuccess("User role created (implement specific permission assignments)");
-        }
-        
-    } catch (Exception $e) {
-        printWarning("Role-permission assignment setup needed: " . $e->getMessage());
     }
 }
 
@@ -319,15 +254,35 @@ try {
     $schemaGenerator->generateSchema($allMetadata);
     printSuccess("Database schema generated successfully");
     
-    // Step 5.5: Seed authentication roles and permissions
-    printHeader("Step 5.5: Seeding Authentication System");
+    // Step 5.5: Build Permissions from Metadata
+    printHeader("Step 5.5: Building Permissions from Metadata");
     try {
-        seedAuthenticationData();
-        printSuccess("Authentication roles and permissions seeded successfully");
-    } catch (Exception $e) {
-        printWarning("Authentication seeding failed: " . $e->getMessage());
+        printInfo("Building permissions from model metadata...");
+        
+        // Get PermissionsBuilder instance with proper dependencies
+        $container = \Gravitycar\Core\ContainerConfig::getContainer();
+        $permissionsBuilder = $container->get('permissions_builder');
+        
+        // Build all permissions (clears existing and rebuilds)
+        $permissionsBuilder->buildAllPermissions();
+        
+        printSuccess("Permissions built successfully from metadata");
+        
+    } catch (\Exception $e) {
+        printError("Permission building failed: " . $e->getMessage());
+        printInfo("Stack trace:");
+        echo $e->getTraceAsString() . "\n";
+        
+        // Log the error but don't fail the entire setup
+        $logger = ServiceLocator::getLogger();
+        $logger->error('Permission building failed during setup', [
+            'error' => $e->getMessage(),
+            'trace' => $e->getTraceAsString()
+        ]);
+        
+        printWarning("Warning: Setup continued but permissions may not be current");
+        printInfo("You can run 'php setup.php' again or manually rebuild permissions");
     }
-    
     // Step 6: Create sample user records
     printHeader("Step 6: Creating Sample Users");
     
@@ -338,7 +293,7 @@ try {
             'email' => 'mike@gravitycar.com',
             'first_name' => 'Mike',
             'last_name' => 'Developer',
-            'password' => 'secure123',
+            'password' => 'bageldog',
             'user_type' => 'admin',
             'user_timezone' => 'UTC'
         ],
@@ -425,6 +380,15 @@ try {
         } catch (Exception $e) {
             printError("Unexpected error creating user {$userData['username']}: " . $e->getMessage());
         }
+    }
+
+
+    // link all users to their roles
+    printInfo("Linking users to their roles...");
+    $seedUser = $modelFactory->new('Users');
+    $allUsers = $seedUser->findAll();
+    foreach ($allUsers as  $user) {
+        $user->assignRoleFromUserType();
     }
     
     // Summary

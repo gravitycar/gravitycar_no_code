@@ -1,4 +1,5 @@
 import React from 'react';
+import { fetchWithDebug } from '../../utils/apiUtils';
 
 interface ErrorBoundaryState {
   hasError: boolean;
@@ -48,9 +49,8 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     };
 
     // Send to error logging service
-    fetch('/api/errors', {
+    fetchWithDebug('/api/errors', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(errorReport)
     }).catch(console.error);
   }

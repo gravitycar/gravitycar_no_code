@@ -53,19 +53,36 @@ class Users extends ModelBase {
             $this->set('email', $this->get('username'));
         }
 
-        return parent::create();
+        // First create the user record
+        if (!parent::create()) {
+            return false;
+        }
+        
+        // Then assign role based on user_type field
+        $this->assignRoleFromUserType();
+        
+        return true;
     }
 
     /**
      * Hash password before updating
      */
-    public function update(): bool {
+    public function update(): bool {        
         // Hash password if it's been changed and not already hashed
         if ($this->get('password') && !$this->isPasswordHashed($this->get('password'))) {
             $this->set('password', password_hash($this->get('password'), PASSWORD_DEFAULT));
         }
 
-        return parent::update();
+        // Update the user record
+        if (!parent::update()) {
+            return false;
+        }
+        
+        // For now, always try to assign role based on current user_type
+        // TODO: Implement proper change detection when getOriginalValue() is available
+        $this->assignRoleFromUserType();
+        
+        return true;
     }
 
     /**
@@ -287,5 +304,105 @@ class Users extends ModelBase {
     public function isActive(): bool
     {
         return $this->getStatus() === 'active';
+    }
+
+    /**
+     * Assign role to user based on user_type field value
+     */
+    public function assignRoleFromUserType(): void
+    {
+        $userType = $this->get('user_type');
+        
+        if (empty($userType)) {
+            $this->logger->debug('No user_type specified, skipping role assignment', [
+                'user_id' => $this->get('id')
+            ]);
+            return;
+        }
+        
+        try {
+            // Find role by name using the same technique as AuthorizationService
+            $role = $this->getRoleByName($userType);
+            
+            if (!$role) {
+                $this->logger->warning('Role not found for user_type, skipping assignment', [
+                    'user_id' => $this->get('id'),
+                    'user_type' => $userType
+                ]);
+                return;
+            }
+            
+            // Clear existing role assignments first to prevent duplicates
+            $this->clearExistingRoles();
+            
+            // Add the new role assignment
+            $result = $this->addRelation('users_roles', $role);
+            
+            $this->logger->info('Successfully assigned role from user_type', [
+                'user_id' => $this->get('id'),
+                'user_type' => $userType,
+                'role_id' => $role->get('id'),
+                'role_name' => $role->get('name'),
+                'assignment_result' => $result
+            ]);
+            
+        } catch (\Exception $e) {
+            $this->logger->error('Error assigning role from user_type', [
+                'user_id' => $this->get('id'),
+                'user_type' => $userType,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Get role by name (same technique as AuthorizationService)
+     */
+    protected function getRoleByName(string $roleName): ?\Gravitycar\Models\ModelBase
+    {
+        try {
+            $rolesModel = $this->modelFactory->new('Roles');
+            $roles = $rolesModel->find(['name' => $roleName]);
+            
+            if (!empty($roles)) {
+                return $roles[0];
+            }
+            
+            return null;
+            
+        } catch (\Exception $e) {
+            $this->logger->error('Error retrieving role by name', [
+                'role_name' => $roleName,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Clear existing role assignments for this user
+     */
+    protected function clearExistingRoles(): void
+    {
+        try {
+            // Get current user roles
+            $currentRoles = $this->getRelatedModels('users_roles');
+            
+            // Remove each existing role assignment
+            foreach ($currentRoles as $role) {
+                $this->removeRelation('users_roles', $role);
+            }
+            
+            $this->logger->debug('Cleared existing role assignments', [
+                'user_id' => $this->get('id'),
+                'cleared_roles_count' => count($currentRoles)
+            ]);
+            
+        } catch (\Exception $e) {
+            $this->logger->warning('Error clearing existing roles', [
+                'user_id' => $this->get('id'),
+                'error' => $e->getMessage()
+            ]);
+        }
     }
 }

@@ -180,7 +180,8 @@ class ModelFactory {
         
         // Convert to proper case and build class name
         $modelName = ucfirst($modelName);
-        $modelClass = "Gravitycar\\Models\\{$modelName}\\{$modelName}";
+        $lowerCaseModelName = strtolower($modelName);
+        $modelClass = "Gravitycar\\Models\\{$lowerCaseModelName}\\{$modelName}";
         
         return $modelClass;
     }

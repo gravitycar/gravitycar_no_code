@@ -2,6 +2,7 @@
 
 namespace Gravitycar\Api;
 
+use Gravitycar\Core\ContainerConfig;
 use Gravitycar\Exceptions\GCException;
 
 /**
@@ -26,6 +27,8 @@ class Request
     protected $responseFormatter = null;
     protected ?array $parsedParams = null;
     protected ?array $validatedParams = null;
+    protected $logger;
+    protected $apiControllerClassName = '';
 
     /**
      * Create a new Request instance
@@ -41,12 +44,13 @@ class Request
         $this->url = $url;
         $this->method = strtoupper($httpMethod);
         $this->requestData = $requestData;
-        
+        $this->logger = ContainerConfig::getContainer()->get('logger');
+
         $pathComponents = $this->parsePathComponents($url);
         
         // For proper parameter extraction, parameterNames should match pathComponents count
-        // This ensures static routes like /Users can extract modelName = "Users"
-        if (count($parameterNames) !== count($pathComponents)) {
+        // Exception: Static routes with no parameters can have empty parameterNames array
+        if (!empty($parameterNames) && count($parameterNames) !== count($pathComponents)) {
             throw new GCException("Parameter names count must match path components count", [
                 'parameterNames' => $parameterNames,
                 'pathComponents' => $pathComponents,
@@ -55,7 +59,10 @@ class Request
             ]);
         }
         
-        $this->extractParameters($pathComponents, $parameterNames);
+        // Only extract parameters if parameterNames is not empty
+        if (!empty($parameterNames)) {
+            $this->extractParameters($pathComponents, $parameterNames);
+        }
     }
 
     /**
@@ -110,6 +117,16 @@ class Request
     public function getPathParameters(): array
     {
         return $this->extractedParameters;
+    }
+
+    public function setApiControllerClassName(string $className): void
+    {
+        $this->apiControllerClassName = $className;
+    }
+
+    public function getApiControllerClassName(): string
+    {
+        return $this->apiControllerClassName;
     }
 
     /**

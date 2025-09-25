@@ -65,12 +65,12 @@ class APIRouteRegistry
      */
     public function rebuildCache(): void
     {
-        $this->logger->info("***** Forcing cache rebuild for API routes *****");
+        $this->logger->debug("***** Forcing cache rebuild for API routes *****");
         $this->routes = [];
         $this->groupedRoutes = [];
-        $this->logger->info("***** About to call discoverAndRegisterRoutes *****");
+        $this->logger->debug("***** About to call discoverAndRegisterRoutes *****");
         $this->discoverAndRegisterRoutes();
-        $this->logger->info("***** Finished discoverAndRegisterRoutes. Routes count: " . count($this->routes) . " *****");
+        $this->logger->debug("***** Finished discoverAndRegisterRoutes. Routes count: " . count($this->routes) . " *****");
     }
 
     /**
@@ -96,13 +96,13 @@ class APIRouteRegistry
      */
     protected function discoverAPIControllers(): void
     {
-        $this->logger->info("Starting automatic discovery of ApiControllerBase subclasses");
+        $this->logger->debug("Starting automatic discovery of ApiControllerBase subclasses");
         
         // Get container and factory for safe instantiation
         try {
             $container = \Gravitycar\Core\ContainerConfig::getContainer();
             $factory = $container->get('api_controller_factory');
-            $this->logger->info("Successfully obtained APIControllerFactory for discovery");
+            $this->logger->debug("Successfully obtained APIControllerFactory for discovery");
         } catch (\Exception $e) {
             $this->logger->error("Failed to get APIControllerFactory, falling back to legacy discovery: " . $e->getMessage());
             $this->discoverAPIControllersLegacy();
@@ -142,7 +142,7 @@ class APIRouteRegistry
                 $files = scandir($controllerDir);
                 foreach ($files as $file) {
                     if (preg_match('/^(.*)APIController\.php$/', $file, $matches)) {
-                        $className = "Gravitycar\\Models\\{$dir}\\Api\\{$matches[1]}APIController";
+                        $className = "Gravitycar\\Models\\{$dir}\\api\\{$matches[1]}APIController";
                         if (class_exists($className) && $this->extendsApiControllerBase($className)) {
                             $this->registerControllerWithFactory($factory, $className);
                         }
@@ -166,7 +166,7 @@ class APIRouteRegistry
             
             // Register its routes
             $this->register($controller, $className);
-            $this->logger->info("Auto-discovered and registered: {$className}");
+            $this->logger->debug("Auto-discovered and registered: {$className}");
         } catch (\Exception $e) {
             $this->logger->error("Failed to register controller {$className}: " . $e->getMessage());
         }
@@ -185,7 +185,7 @@ class APIRouteRegistry
             try {
                 $controller = new $modelBaseAPIControllerClass();
                 $this->register($controller, $modelBaseAPIControllerClass);
-                $this->logger->info("Registered global ModelBaseAPIController");
+                $this->logger->debug("Registered global ModelBaseAPIController");
             } catch (\Exception $e) {
                 $this->logger->error("Failed to register ModelBaseAPIController: " . $e->getMessage());
             }
@@ -205,7 +205,7 @@ class APIRouteRegistry
                 try {
                     $controller = new $className();
                     $this->register($controller, $className);
-                    $this->logger->info("Auto-discovered and registered: {$className}");
+                    $this->logger->debug("Auto-discovered and registered: {$className}");
                 } catch (\Exception $e) {
                     $this->logger->error("Failed to instantiate controller {$className}: " . $e->getMessage());
                 }
@@ -229,7 +229,7 @@ class APIRouteRegistry
                             try {
                                 $controller = new $className();
                                 $this->register($controller, $className);
-                                $this->logger->info("Auto-discovered model controller: {$className}");
+                                $this->logger->debug("Auto-discovered model controller: {$className}");
                             } catch (\Exception $e) {
                                 $this->logger->error("Failed to instantiate model API controller {$className}: " . $e->getMessage());
                             }
@@ -239,7 +239,7 @@ class APIRouteRegistry
             }
         }
         
-        $this->logger->info("Finished legacy discovery of API controllers");
+        $this->logger->debug("Finished legacy discovery of API controllers");
     }
     
     /**
@@ -407,7 +407,7 @@ class APIRouteRegistry
                 $this->registerRoute($route);
             }
 
-            $this->logger->info("Registered routes from: {$className}");
+            $this->logger->debug("Registered routes from: {$className}");
         } catch (\Exception $e) {
             $this->logger->error("Failed to register routes from {$className}: " . $e->getMessage());
         }
@@ -493,10 +493,15 @@ class APIRouteRegistry
             $dynamicComponents = array_filter($pathComponents, function($component) {
                 return (str_starts_with($component, '{') && str_ends_with($component, '}')) || $component === '?';
             });
-            
-            if (count($route['parameterNames']) !== count($dynamicComponents)) {
+
+            $namedParameters = array_filter($route['parameterNames'], function($name) {
+                return !empty($name);
+            });
+
+            if (count($namedParameters) !== count($dynamicComponents)) {
                 throw new GCException("Parameter names count must match dynamic path components count", [
                     'parameterNames' => $route['parameterNames'],
+                    'namedParameters' => $namedParameters,
                     'pathComponents' => $pathComponents,
                     'dynamicComponents' => array_values($dynamicComponents),
                     'route' => $route
@@ -862,7 +867,7 @@ class APIRouteRegistry
             if (is_array($data) && isset($data['routes']) && isset($data['groupedRoutes'])) {
                 $this->routes = $data['routes'];
                 $this->groupedRoutes = $data['groupedRoutes'];
-                $this->logger->info("Loaded routes from cache");
+                $this->logger->debug("Loaded routes from cache");
                 return true;
             }
         } catch (\Exception $e) {
@@ -892,10 +897,113 @@ class APIRouteRegistry
             if (file_put_contents($this->cacheFilePath, $content) === false) {
                 $this->logger->warning("Failed to write API route cache file: {$this->cacheFilePath}");
             } else {
-                $this->logger->info("API route cache written: {$this->cacheFilePath}");
+                $this->logger->debug("API route cache written: {$this->cacheFilePath}");
             }
         } catch (\Exception $e) {
             $this->logger->error("Failed to cache routes: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get all registered API controllers with their instances
+     * Uses cached route data to discover and instantiate controllers
+     * 
+     * @return array Array of [$apiControllerClassName => $apiControllerInstance]
+     * @throws GCException If controller instantiation fails
+     */
+    public function getAllRegisteredControllers(): array
+    {
+        // Ensure we have cached route data loaded
+        if (empty($this->routes)) {
+            if (!$this->loadFromCache()) {
+                // If no cache, discover routes first
+                $this->discoverAndRegisterRoutes();
+            }
+        }
+        
+        $controllers = [];
+        $distinctApiClasses = [];
+        
+        // Extract all distinct apiClass values from routes
+        foreach ($this->routes as $route) {
+            $apiClass = $route['resolvedApiClass'] ?? $route['apiClass'];
+            if (!in_array($apiClass, $distinctApiClasses)) {
+                $distinctApiClasses[] = $apiClass;
+            }
+        }
+        
+        $this->logger->debug('Found distinct API classes for controller instantiation', [
+            'count' => count($distinctApiClasses),
+            'classes' => $distinctApiClasses
+        ]);
+        
+        // Get APIControllerFactory for proper dependency injection
+        try {
+            $container = \Gravitycar\Core\ContainerConfig::getContainer();
+            $factory = $container->get('api_controller_factory');
+        } catch (\Exception $e) {
+            throw new GCException('Failed to get APIControllerFactory for controller instantiation', [
+                'error' => $e->getMessage()
+            ], 0, $e);
+        }
+        
+        // Instantiate each distinct controller with proper dependencies
+        foreach ($distinctApiClasses as $apiClass) {
+            try {
+                // Find dependencies from cached route data
+                $dependencies = $this->getControllerDependenciesFromRoutes($apiClass);
+                $controller = $factory->createControllerWithDependencyList($apiClass, $dependencies);
+                $controllers[$apiClass] = $controller;
+                
+                $this->logger->debug('Successfully instantiated controller for permissions', [
+                    'class' => $apiClass,
+                    'dependencies_count' => count($dependencies)
+                ]);
+                
+            } catch (\Exception $e) {
+                $this->logger->error('Failed to instantiate controller for permissions', [
+                    'class' => $apiClass,
+                    'error' => $e->getMessage()
+                ]);
+                // Continue with other controllers rather than failing completely
+                continue;
+            }
+        }
+        
+        $this->logger->info('Successfully instantiated controllers for permission building', [
+            'total_classes' => count($distinctApiClasses),
+            'successful_instantiations' => count($controllers),
+            'failed_instantiations' => count($distinctApiClasses) - count($controllers)
+        ]);
+        
+        return $controllers;
+    }
+
+    /**
+     * Get cached controller dependencies for a specific API class
+     * 
+     * @param string $apiClass The API controller class name
+     * @return array Array of dependency service names
+     */
+    protected function getControllerDependenciesFromRoutes(string $apiClass): array
+    {
+        // Find the first route that uses this controller and extract dependencies
+        foreach ($this->routes as $route) {
+            $routeApiClass = $route['resolvedApiClass'] ?? $route['apiClass'];
+            if ($routeApiClass === $apiClass) {
+                return $route['controllerDependencies'] ?? [];
+            }
+        }
+        
+        // If no dependencies found in cache, extract from constructor as fallback
+        try {
+            return $this->extractDependenciesFromConstructor($apiClass);
+        } catch (GCException $e) {
+            $this->logger->warning('No dependencies found for controller, using empty array', [
+                'class' => $apiClass,
+                'error' => $e->getMessage()
+            ]);
+            return [];
         }
     }
 }

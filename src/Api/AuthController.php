@@ -182,7 +182,7 @@ class AuthController extends ApiControllerBase
     public function authenticateWithGoogle(Request $request): array
     {
         try {
-            $requestData = $this->getRequestData();
+            $requestData = $request->getRequestData();
 
             if (empty($requestData['google_token'])) {
                 throw new BadRequestException('Google token is required');
@@ -260,7 +260,7 @@ class AuthController extends ApiControllerBase
     public function authenticateTraditional(Request $request): array
     {
         try {
-            $requestData = $this->getRequestData();
+            $requestData = $request->getRequestData();
 
             // Accept either 'username' or 'email' as the username field
             $username = $requestData['username'] ?? $requestData['email'] ?? '';
@@ -336,7 +336,7 @@ class AuthController extends ApiControllerBase
     public function refreshToken(Request $request): array
     {
         try {
-            $requestData = $this->getRequestData();
+            $requestData = $request->getRequestData();
 
             if (empty($requestData['refresh_token'])) {
                 throw new GCException('Refresh token is required');
@@ -435,7 +435,7 @@ class AuthController extends ApiControllerBase
     public function register(Request $request): array
     {
         try {
-            $requestData = $this->getRequestData();
+            $requestData = $request->getRequestData();
 
             $requiredFields = ['username', 'email', 'password', 'first_name', 'last_name'];
             foreach ($requiredFields as $field) {

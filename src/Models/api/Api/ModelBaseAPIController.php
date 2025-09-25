@@ -28,6 +28,9 @@ class ModelBaseAPIController extends ApiControllerBase {
     
     protected ?CurrentUserProviderInterface $currentUserProvider;
 
+    // this api controller does not grant any default permissions, it leaves that to the models.
+    protected array $rolesAndActions = [];
+
     /**
      * Pure dependency injection constructor - all dependencies explicitly provided
      * For backwards compatibility during route discovery, all parameters are optional with null defaults
@@ -155,11 +158,6 @@ class ModelBaseAPIController extends ApiControllerBase {
         
         $this->validateModelName($modelName);
         
-        $this->logger->info('Listing records with enhanced filtering', [
-            'model' => $modelName,
-            'response_format' => $request->getResponseFormat()
-        ]);
-        
         try {
             // Get validated parameters from Router (pre-validated)
             $validatedParams = $request->getValidatedParams();
@@ -223,7 +221,7 @@ class ModelBaseAPIController extends ApiControllerBase {
             // Use ResponseFormatter for consistent response formatting
             $response = $request->formatResponse($records, $meta, $responseFormat);
             
-            $this->logger->info('Records listed successfully with enhanced features', [
+            $this->logger->debug('Records listed successfully with enhanced features', [
                 'model' => $modelName,
                 'count' => count($records),
                 'total_count' => $totalCount,
@@ -264,7 +262,7 @@ class ModelBaseAPIController extends ApiControllerBase {
         $this->validateModelName($modelName);
         $this->validateId($id);
         
-        $this->logger->info('Retrieving record', ['model' => $modelName, 'id' => $id]);
+        $this->logger->debug('Retrieving record', ['model' => $modelName, 'id' => $id]);
         
         try {
             // Use ModelFactory retrieve for direct database retrieval
@@ -277,7 +275,7 @@ class ModelBaseAPIController extends ApiControllerBase {
                 ]);
             }
             
-            $this->logger->info('Record retrieved successfully', [
+            $this->logger->debug('Record retrieved successfully', [
                 'model' => $modelName,
                 'id' => $id
             ]);
@@ -397,7 +395,7 @@ class ModelBaseAPIController extends ApiControllerBase {
         // Get request body data
         $data = $this->getRequestData($request);
         
-        $this->logger->info('Creating record', ['model' => $modelName, 'data' => $data]);
+        $this->logger->debug('Creating record', ['model' => $modelName, 'data' => $data]);
         
         try {
             $model = $this->modelFactory->new($modelName);
@@ -407,7 +405,7 @@ class ModelBaseAPIController extends ApiControllerBase {
             $modelData = array_diff_key($data, $relationshipData);
             
             // DEBUG: Log what we found
-            $this->logger->info('DEBUG: Relationship processing', [
+            $this->logger->debug('DEBUG: Relationship processing', [
                 'model' => $modelName,
                 'original_data' => $data,
                 'relationship_data' => $relationshipData,
@@ -439,7 +437,7 @@ class ModelBaseAPIController extends ApiControllerBase {
                 ]);
             }
             
-            $this->logger->info('Record created successfully', [
+            $this->logger->debug('Record created successfully', [
                 'model' => $modelName,
                 'id' => $model->get('id')
             ]);
@@ -476,7 +474,7 @@ class ModelBaseAPIController extends ApiControllerBase {
         // Get request body data
         $data = $this->getRequestData($request);
         
-        $this->logger->info('Updating record', [
+        $this->logger->debug('Updating record', [
             'model' => $modelName,
             'id' => $id,
             'data' => $data
@@ -512,7 +510,7 @@ class ModelBaseAPIController extends ApiControllerBase {
                 ]);
             }
             
-            $this->logger->info('Record updated successfully', [
+            $this->logger->debug('Record updated successfully', [
                 'model' => $modelName,
                 'id' => $id
             ]);
@@ -548,7 +546,7 @@ class ModelBaseAPIController extends ApiControllerBase {
         
         $model = $this->getValidModel($modelName, $id);
         
-        $this->logger->info('Deleting record', ['model' => $modelName, 'id' => $id]);
+        $this->logger->debug('Deleting record', ['model' => $modelName, 'id' => $id]);
         
         try {
             // Use ModelBase soft delete
@@ -561,7 +559,7 @@ class ModelBaseAPIController extends ApiControllerBase {
                 ], 500);
             }
             
-            $this->logger->info('Record deleted successfully', [
+            $this->logger->debug('Record deleted successfully', [
                 'model' => $modelName,
                 'id' => $id
             ]);
@@ -594,7 +592,7 @@ class ModelBaseAPIController extends ApiControllerBase {
         $this->validateModelName($modelName);
         $this->validateId($id);
         
-        $this->logger->info('Restoring record', ['model' => $modelName, 'id' => $id]);
+        $this->logger->debug('Restoring record', ['model' => $modelName, 'id' => $id]);
         
         try {
             // Create query instance using ModelFactory
@@ -622,7 +620,7 @@ class ModelBaseAPIController extends ApiControllerBase {
                 ], 500);
             }
             
-            $this->logger->info('Record restored successfully', [
+            $this->logger->debug('Record restored successfully', [
                 'model' => $modelName,
                 'id' => $id
             ]);
@@ -660,7 +658,7 @@ class ModelBaseAPIController extends ApiControllerBase {
         $model = $this->getValidModel($modelName, $id);
         $relationship = $this->validateRelationshipExists($model, $relationshipName);
         
-        $this->logger->info('Listing related records with enhanced filtering', [
+        $this->logger->debug('Listing related records with enhanced filtering', [
             'model' => $modelName,
             'id' => $id,
             'relationship' => $relationshipName,
@@ -744,7 +742,7 @@ class ModelBaseAPIController extends ApiControllerBase {
             // Use ResponseFormatter for consistent response formatting
             $response = $request->formatResponse($records, $meta, $responseFormat);
             
-            $this->logger->info('Related records listed successfully with enhanced features', [
+            $this->logger->debug('Related records listed successfully with enhanced features', [
                 'model' => $modelName,
                 'id' => $id,
                 'relationship' => $relationshipName,
@@ -793,7 +791,7 @@ class ModelBaseAPIController extends ApiControllerBase {
         // Get request body data
         $data = $this->getRequestData($request);
         
-        $this->logger->info('Creating and linking record', [
+        $this->logger->debug('Creating and linking record', [
             'model' => $modelName,
             'id' => $id,
             'relationship' => $relationshipName,
@@ -830,7 +828,7 @@ class ModelBaseAPIController extends ApiControllerBase {
                 ], 500);
             }
             
-            $this->logger->info('Record created and linked successfully', [
+            $this->logger->debug('Record created and linked successfully', [
                 'model' => $modelName,
                 'id' => $id,
                 'related_model' => $relatedModelName,
@@ -879,7 +877,7 @@ class ModelBaseAPIController extends ApiControllerBase {
         $model = $this->getValidModel($modelName, $id);
         $relationship = $this->validateRelationshipExists($model, $relationshipName);
         
-        $this->logger->info('Linking records', [
+        $this->logger->debug('Linking records', [
             'model' => $modelName,
             'id' => $id,
             'relationship' => $relationshipName,
@@ -914,7 +912,7 @@ class ModelBaseAPIController extends ApiControllerBase {
                 ], 500);
             }
             
-            $this->logger->info('Records linked successfully', [
+            $this->logger->debug('Records linked successfully', [
                 'model' => $modelName,
                 'id' => $id,
                 'related_model' => $relatedModelName,
@@ -961,7 +959,7 @@ class ModelBaseAPIController extends ApiControllerBase {
         $model = $this->getValidModel($modelName, $id);
         $relationship = $this->validateRelationshipExists($model, $relationshipName);
         
-        $this->logger->info('Unlinking records', [
+        $this->logger->debug('Unlinking records', [
             'model' => $modelName,
             'id' => $id,
             'relationship' => $relationshipName,
@@ -996,7 +994,7 @@ class ModelBaseAPIController extends ApiControllerBase {
                 ], 500);
             }
             
-            $this->logger->info('Records unlinked successfully', [
+            $this->logger->debug('Records unlinked successfully', [
                 'model' => $modelName,
                 'id' => $id,
                 'related_model' => $relatedModelName,
@@ -1243,7 +1241,7 @@ class ModelBaseAPIController extends ApiControllerBase {
             $config = $fieldData['config'];
             $relationshipName = $config['relationship'];
             
-            $this->logger->info('Processing relationship field', [
+            $this->logger->debug('Processing relationship field', [
                 'model' => $modelName,
                 'field' => $fieldName,
                 'relationship' => $relationshipName,
@@ -1284,7 +1282,7 @@ class ModelBaseAPIController extends ApiControllerBase {
      */
     protected function processParentSelection(ModelBase $childModel, string $relationshipName, string $parentId, array $config): void {
         if (empty($parentId)) {
-            $this->logger->info('Empty parent ID, skipping relationship processing');
+            $this->logger->warning('Empty parent ID, skipping relationship processing');
             return;
         }
         
@@ -1337,7 +1335,7 @@ class ModelBaseAPIController extends ApiControllerBase {
             $success = $childModel->addRelation($relationshipName, $parentModel);
             
             if ($success) {
-                $this->logger->info('Relationship created successfully', [
+                $this->logger->debug('Relationship created successfully', [
                     'child' => $childModel->getName(),
                     'childId' => $childModel->get('id'),
                     'parent' => $parentModelName,
@@ -1363,7 +1361,7 @@ class ModelBaseAPIController extends ApiControllerBase {
     protected function processChildrenManagement(ModelBase $parentModel, string $relationshipName, array $childrenData, array $config): void {
         // This would be used for managing multiple children from the parent view
         // For now, we'll focus on the parent_selection case which is what Movie_Quotes needs
-        $this->logger->info('Children management not yet implemented', [
+        $this->logger->warning('Children management not yet implemented', [
             'parent' => $parentModel->getName(),
             'relationship' => $relationshipName
         ]);

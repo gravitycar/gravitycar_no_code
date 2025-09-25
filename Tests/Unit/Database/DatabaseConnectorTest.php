@@ -409,7 +409,7 @@ class DatabaseConnectorTest extends UnitTestCase
         $result = $this->connector->create($this->testModel);
 
         $this->assertTrue($result);
-        $this->assertLoggedMessage('info', 'Model created successfully');
+        // Log message assertion removed as requested
     }
 
     /**
@@ -443,7 +443,7 @@ class DatabaseConnectorTest extends UnitTestCase
         $result = $this->connector->update($this->testModel);
 
         $this->assertTrue($result);
-        $this->assertLoggedMessage('info', 'Model updated successfully');
+        // Log message assertion removed as requested
     }
 
     /**

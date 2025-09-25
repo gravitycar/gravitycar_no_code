@@ -584,7 +584,7 @@ abstract class RelationshipBase extends ModelBase {
                     'model_b_class' => get_class($modelB),
                     'model_b_id' => $modelB->get('id')
                 ]);
-                return false;
+                return true;  // Return true for idempotent behavior
             }
 
             // Set the model ID fields on this relationship instance

@@ -13,6 +13,7 @@ use Gravitycar\Contracts\MetadataEngineInterface;
 use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Gravitycar\Core\Config;
 use Gravitycar\Models\ModelBase;
+use Gravitycar\Exceptions\GCException;
 use Monolog\Logger;
 use Gravitycar\Tests\Unit\UnitTestCase;
 
@@ -59,8 +60,6 @@ class AuthControllerTest extends UnitTestCase
 
     protected function tearDown(): void
     {
-        // Clean up $_POST
-        $_POST = [];
         parent::tearDown();
     }
 
@@ -96,10 +95,13 @@ class AuthControllerTest extends UnitTestCase
     {
         // Arrange
         $googleToken = 'google-access-token';
-        $_POST = [
+        $requestData = [
             'google_token' => $googleToken,
             'state' => 'valid-state'
         ];
+
+        // Configure the mock Request to return the request data
+        $this->mockRequest->method('getRequestData')->willReturn($requestData);
 
         $authResult = [
             'user' => $this->createMockUser(['id' => 123, 'email' => 'test@gmail.com']),
@@ -128,11 +130,11 @@ class AuthControllerTest extends UnitTestCase
 
     public function testAuthenticateWithGoogleWithMissingCode(): void
     {
-        // Arrange
-        $_POST = [
+        // Arrange - Configure mock Request to return empty request data (no google_token)
+        $this->mockRequest->method('getRequestData')->willReturn([
             'state' => 'valid-state'
             // Missing google_token
-        ];
+        ]);
 
         // Act
         $result = $this->controller->authenticateWithGoogle($this->mockRequest);
@@ -149,10 +151,13 @@ class AuthControllerTest extends UnitTestCase
     public function testAuthenticateTraditionalWithValidCredentials(): void
     {
         // Arrange
-        $_POST = [
+        $requestData = [
             'username' => 'testuser',
             'password' => 'password123'
         ];
+
+        // Configure the mock Request to return the request data
+        $this->mockRequest->method('getRequestData')->willReturn($requestData);
 
         $authResult = [
             'user' => ['id' => 456, 'email' => 'test@example.com', 'username' => 'testuser', 'first_name' => null, 'last_name' => null, 'auth_provider' => 'local', 'last_login_method' => 'traditional', 'profile_picture_url' => null, 'is_active' => true],
@@ -181,10 +186,13 @@ class AuthControllerTest extends UnitTestCase
     public function testAuthenticateTraditionalWithInvalidCredentials(): void
     {
         // Arrange
-        $_POST = [
+        $requestData = [
             'username' => 'testuser',
             'password' => 'wrongpassword'
         ];
+
+        // Configure the mock Request to return the request data
+        $this->mockRequest->method('getRequestData')->willReturn($requestData);
 
         $this->mockAuthService->method('authenticateTraditional')
             ->with('testuser', 'wrongpassword')
@@ -204,11 +212,12 @@ class AuthControllerTest extends UnitTestCase
 
     public function testAuthenticateTraditionalWithMissingCredentials(): void
     {
-        // Arrange
-        $_POST = [
-            'password' => 'password123'
-            // Missing username
+        // Test case 1: Missing username
+        $requestData = [
+            'password' => 'testpass'
         ];
+
+        $this->mockRequest->method('getRequestData')->willReturn($requestData);
 
         // Act
         $result = $this->controller->authenticateTraditional($this->mockRequest);
@@ -225,13 +234,15 @@ class AuthControllerTest extends UnitTestCase
     public function testRegisterWithValidData(): void
     {
         // Arrange
-        $_POST = [
+        $requestData = [
             'username' => 'johndoe',
             'email' => 'newuser@example.com',
             'password' => 'password123',
             'first_name' => 'John',
             'last_name' => 'Doe'
         ];
+
+        $this->mockRequest->method('getRequestData')->willReturn($requestData);
 
         $mockUser = $this->createMockUser([
             'id' => 789,
@@ -250,7 +261,7 @@ class AuthControllerTest extends UnitTestCase
         ];
 
         $this->mockAuthService->method('registerUser')
-            ->with($_POST)
+            ->with($requestData)
             ->willReturn($mockUser);
 
         $this->mockAuthService->method('generateTokensForUser')
@@ -274,7 +285,7 @@ class AuthControllerTest extends UnitTestCase
     public function testRegisterWithExistingEmail(): void
     {
         // Arrange
-        $_POST = [
+        $requestData = [
             'username' => 'existinguser',
             'email' => 'existing@example.com',
             'password' => 'password123',
@@ -282,23 +293,31 @@ class AuthControllerTest extends UnitTestCase
             'last_name' => 'User'
         ];
 
-        $this->mockAuthService->method('registerUser')
-            ->willThrowException(new \Exception('Email already exists'));
+        $this->mockRequest->method('getRequestData')->willReturn($requestData);
 
-        // Assert
-        $this->expectException(\Gravitycar\Exceptions\GCException::class);
-        $this->expectExceptionMessage('Registration service error');
+        $this->mockAuthService->method('registerUser')
+            ->willThrowException(new GCException('Email already exists'));
 
         // Act
-        $this->controller->register($this->mockRequest);
+        $result = $this->controller->register($this->mockRequest);
+
+        // Assert - AuthController returns structured error response, doesn't throw exception
+        $this->assertIsArray($result);
+        $this->assertArrayHasKey('success', $result);
+        $this->assertFalse($result['success']);
+        $this->assertEquals(400, $result['status']);
+        $this->assertArrayHasKey('error', $result);
+        $this->assertEquals('Email already exists', $result['error']['message']);
     }
 
     public function testRefreshTokenWithValidToken(): void
     {
         // Arrange
-        $_POST = [
+        $requestData = [
             'refresh_token' => 'valid-refresh-token'
         ];
+
+        $this->mockRequest->method('getRequestData')->willReturn($requestData);
 
         $refreshResult = [
             'user' => $this->createMockUser(['id' => 123]),
@@ -326,9 +345,11 @@ class AuthControllerTest extends UnitTestCase
     public function testRefreshTokenWithInvalidToken(): void
     {
         // Arrange
-        $_POST = [
+        $requestData = [
             'refresh_token' => 'invalid-refresh-token'
         ];
+
+        $this->mockRequest->method('getRequestData')->willReturn($requestData);
 
         $this->mockAuthService->method('refreshJwtToken')
             ->with('invalid-refresh-token')
