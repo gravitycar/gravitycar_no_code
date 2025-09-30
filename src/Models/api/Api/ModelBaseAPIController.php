@@ -1044,7 +1044,7 @@ class ModelBaseAPIController extends ApiControllerBase {
         
         // Check if model exists using ModelFactory instance
         try {
-            $availableModels = $this->modelFactory->getAvailableModels();
+            $availableModels = $this->metadataEngine->getAvailableModels();
             if (!in_array($modelName, $availableModels)) {
                 throw new NotFoundException('Model not found', [
                     'model_name' => $modelName,

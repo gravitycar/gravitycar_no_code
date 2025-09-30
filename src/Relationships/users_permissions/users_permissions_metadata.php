@@ -12,7 +12,6 @@ return [
             'type' => 'DateTime',
             'label' => 'Granted At',
             'required' => false,
-            'defaultValue' => 'CURRENT_TIMESTAMP',
             'validationRules' => ['DateTime'],
         ],
         'granted_by' => [

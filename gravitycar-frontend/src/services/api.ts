@@ -302,7 +302,7 @@ class ApiService {
   }
 
   async getMovieQuotes(page?: number, limit?: number) {
-    return this.getList<MovieQuote>('Movie_quotes', page, limit);
+    return this.getList<MovieQuote>('Movie_Quotes', page, limit);
   }
 
   async getUserById(id: string) {
@@ -314,7 +314,7 @@ class ApiService {
   }
 
   async getMovieQuoteById(id: string) {
-    return this.getById<MovieQuote>('Movie_quotes', id);
+    return this.getById<MovieQuote>('Movie_Quotes', id);
   }
 
   // Health check

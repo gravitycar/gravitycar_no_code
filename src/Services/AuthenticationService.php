@@ -297,7 +297,7 @@ class AuthenticationService
             }
             
             $foundToken = $tokens[0];
-            $foundToken->set('is_revoked', true);
+            $foundToken->set('is_revoked', 1);
             return $foundToken->update();
             
         } catch (\Exception $e) {
@@ -482,7 +482,7 @@ class AuthenticationService
             $token->set('user_id', $user->get('id'));
             $token->set('token_hash', hash('sha256', $refreshToken));
             $token->set('expires_at', date('Y-m-d H:i:s', time() + $this->refreshTokenLifetime));
-            $token->set('is_revoked', false);
+            $token->set('is_revoked', 0);
             $token->create();
             
         } catch (\Exception $e) {
@@ -503,7 +503,7 @@ class AuthenticationService
             $tokens = $token->find([
                 'user_id' => $userId,
                 'token_hash' => hash('sha256', $refreshToken),
-                'is_revoked' => false
+                'is_revoked' => 0
             ]);
             
             if (empty($tokens)) {
@@ -534,7 +534,7 @@ class AuthenticationService
             
             if (!empty($tokens)) {
                 $oldTokenModel = $tokens[0];
-                $oldTokenModel->set('is_revoked', true);
+                $oldTokenModel->set('is_revoked', 1);
                 $oldTokenModel->update();
             }
             
@@ -615,11 +615,11 @@ class AuthenticationService
             $token = $this->modelFactory->new('JwtRefreshTokens');
             $tokens = $token->find([
                 'user_id' => $user->get('id'),
-                'is_revoked' => false
+                'is_revoked' => 0
             ]);
             
             foreach ($tokens as $tokenModel) {
-                $tokenModel->set('is_revoked', true);
+                $tokenModel->set('is_revoked', 1);
                 $tokenModel->update();
             }
             

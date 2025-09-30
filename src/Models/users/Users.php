@@ -331,6 +331,10 @@ class Users extends ModelBase {
                 ]);
                 return;
             }
+
+            if ($this->hasRelation('users_roles', $role)) {
+                return;
+            }
             
             // Clear existing role assignments first to prevent duplicates
             $this->clearExistingRoles();

@@ -12,7 +12,6 @@ return [
             'type' => 'DateTime',
             'label' => 'Assigned At',
             'required' => false,
-            'defaultValue' => 'CURRENT_TIMESTAMP',
             'validationRules' => ['DateTime'],
         ],
         'assigned_by' => [

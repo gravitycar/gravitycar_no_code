@@ -75,3 +75,4 @@
 - [] The google books enrich method isn't being used anymore. BookGoogleBooksIntegrationService::enrichBookData() should be used by the GoogleBooksController, but the registered route seems to have vanished? I know it was there because we have enriched book records.
 - [] Completely do away with "public" routes and the allowedRoles system. Replaced by RBAC. May need full access for most routes for most users. See Router::handleAuthentication() where it checks allowedRoles.
 - [] RolesAndActions are not stored in metadata_cache unless there are overrides. They should all be in cache.
+- [] Junk ModelFactory::getAvailableModels() it does a directory scan. Only found in tests and an example file.

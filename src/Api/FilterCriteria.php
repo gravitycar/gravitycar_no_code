@@ -67,7 +67,7 @@ class FilterCriteria
             
             // Check if field is a database field
             if (!$field->isDBField()) {
-                $this->logger->warning('Filter field is not a database field, skipping', [
+                $this->logger->debug('Filter field is not a database field, skipping', [
                     'field' => $fieldName,
                     'field_type' => get_class($field)
                 ]);
@@ -162,7 +162,6 @@ class FilterCriteria
         try {
             switch ($fieldType) {
                 case 'Gravitycar\\Fields\\IntegerField':
-                case 'Gravitycar\\Fields\\IDField':
                     return $this->validateIntegerValue($value, $operator);
                     
                 case 'Gravitycar\\Fields\\FloatField':
@@ -187,6 +186,7 @@ class FilterCriteria
                 case 'Gravitycar\\Fields\\EmailField':
                 case 'Gravitycar\\Fields\\PasswordField':
                 case 'Gravitycar\\Fields\\ImageField':
+                case 'Gravitycar\\Fields\\IDField':
                 default:
                     return $this->validateStringValue($value, $operator);
             }
