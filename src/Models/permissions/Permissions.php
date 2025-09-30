@@ -95,26 +95,4 @@ class Permissions extends ModelBase
         
         return $permissions;
     }
-    
-    /**
-     * Parse allowed roles from JSON string
-     */
-    public function getAllowedRolesArray(): array
-    {
-        $allowedRoles = $this->get('allowed_roles');
-        if (empty($allowedRoles)) {
-            return [];
-        }
-        
-        $decoded = json_decode($allowedRoles, true);
-        return is_array($decoded) ? $decoded : [];
-    }
-    
-    /**
-     * Set allowed roles as JSON string
-     */
-    public function setAllowedRoles(array $roles): void
-    {
-        $this->set('allowed_roles', json_encode($roles));
-    }
 }

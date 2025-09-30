@@ -7,6 +7,7 @@ use Gravitycar\Exceptions\GCException;
 use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Contracts\UserContextInterface;
 use Gravitycar\Api\Request;
+use Gravitycar\Exceptions\NotFoundException;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -138,58 +139,6 @@ class AuthorizationService
         }
     }
     
-    /**
-     * Authorize request based on route configuration
-     */
-    public function authorizeByRoute(array $route): bool
-    {
-        try {
-            // Get current user
-            $currentUser = $this->userContext->getCurrentUser();
-            
-            // Check if route has permission configuration
-            if (!isset($route['allowedRoles'])) {
-                $this->logger->warning('Route has no permission configuration - access denied', [
-                    'route' => $route['path'] ?? 'unknown',
-                    'method' => $route['method'] ?? 'unknown'
-                ]);
-                return false;
-            }
-            
-            $allowedRoles = $route['allowedRoles'];
-            
-            // Public routes (allow all)
-            if (in_array('*', $allowedRoles) || in_array('all', $allowedRoles)) {
-                $this->logger->debug('Public route access allowed', [
-                    'route' => $route['path'] ?? 'unknown',
-                    'method' => $route['method'] ?? 'unknown'
-                ]);
-                return true;
-            }
-            
-            // Authenticated routes require a user
-            if (!$currentUser) {
-                $this->logger->info('Authentication required for route', [
-                    'route' => $route['path'] ?? 'unknown',
-                    'method' => $route['method'] ?? 'unknown',
-                    'allowed_roles' => $allowedRoles
-                ]);
-                return false;
-            }
-            
-            // Check if user has any of the required roles
-            return $this->hasAnyRole($currentUser, $allowedRoles);
-            
-        } catch (\Exception $e) {
-            $this->logger->error('Error in route authorization', [
-                'route' => $route['path'] ?? 'unknown',
-                'method' => $route['method'] ?? 'unknown',
-                'error' => $e->getMessage()
-            ]);
-            
-            return false;
-        }
-    }
     
     /**
      * Get all roles assigned to a user
@@ -229,7 +178,7 @@ class AuthorizationService
             // Use relationship criteria with dot notation to find permissions 
             // that are related to this role through the roles_permissions relationship
             $criteria = [
-                'roles_permissions.role_id' => $role->get('id'),
+                'roles_permissions.roles_id' => $role->get('id'),
                 'action' => $permission,
                 'model' => $model
             ];
@@ -566,8 +515,14 @@ class AuthorizationService
      */
     protected function determineComponent(array $route, Request $request): string
     {
-        // First check if request has model parameter
+        // First check if request has a valid model parameter
         if ($request->has('modelName') && !empty($request->get('modelName'))) {
+            try {
+                $this->modelFactory->new($request->get('modelName'));
+            } catch (\Exception $e) {
+                throw new NotFoundException('Model not found: ' . $request->get('modelName'));
+            }
+
             $component = $request->get('modelName');
             $this->logger->debug('Using model from request as component', [
                 'component' => $component,
@@ -642,7 +597,9 @@ class AuthorizationService
             ]);
             
             return false;
-            
+        } catch (NotFoundException $e) {
+            // Re-throw not found exceptions for proper handling
+            throw $e;   
         } catch (\Exception $e) {
             $this->logger->error('Error checking enhanced user permission', [
                 'user_id' => $currentUser->get('id'),

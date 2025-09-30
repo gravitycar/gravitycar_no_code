@@ -123,9 +123,16 @@ class RouterTest extends TestCase
             'path' => '/api/users',
             'apiClass' => 'MockApiController',
             'apiMethod' => 'getUsers',
-            'parameterNames' => ['api', 'users'], // Match path components
-            'allowedRoles' => ['*']
+            'parameterNames' => ['api', 'users'] // Match path components
         ];
+        
+        // Mock authentication - return a mock user
+        $mockUser = $this->createMock(\Gravitycar\Models\ModelBase::class);
+        $mockUser->method('get')->with('id')->willReturn('test-user-id');
+        $this->currentUserProvider->method('getCurrentUser')->willReturn($mockUser);
+        
+        // Mock authorization - allow the request
+        $this->authorizationService->method('hasPermissionForRoute')->willReturn(true);
         
         // Mock route registry to return candidate routes
         $this->routeRegistry->method('getRoutesByMethodAndLength')
@@ -171,9 +178,16 @@ class RouterTest extends TestCase
             'path' => '/api/users/{id}',
             'apiClass' => 'MockApiController',
             'apiMethod' => 'getUser',
-            'parameterNames' => ['api', 'users', 'id'], // Match path components
-            'allowedRoles' => ['*']
+            'parameterNames' => ['api', 'users', 'id'] // Match path components
         ];
+        
+        // Mock authentication - return a mock user
+        $mockUser = $this->createMock(\Gravitycar\Models\ModelBase::class);
+        $mockUser->method('get')->with('id')->willReturn('test-user-id');
+        $this->currentUserProvider->method('getCurrentUser')->willReturn($mockUser);
+        
+        // Mock authorization - allow the request
+        $this->authorizationService->method('hasPermissionForRoute')->willReturn(true);
         
         // Mock route registry - no exact length match
         $this->routeRegistry->method('getRoutesByMethodAndLength')
@@ -206,8 +220,7 @@ class RouterTest extends TestCase
             'path' => '/api/users',
             'apiClass' => 'NonexistentController',
             'apiMethod' => 'getUsers',
-            'parameterNames' => ['api', 'users'], // Match path components
-            'allowedRoles' => ['*']
+            'parameterNames' => ['api', 'users'] // Match path components
         ];
         
         $this->routeRegistry->method('getRoutesByMethodAndLength')
@@ -232,8 +245,7 @@ class RouterTest extends TestCase
             'path' => '/api/users',
             'apiClass' => 'MockApiController',
             'apiMethod' => 'actuallyNonexistentMethod',
-            'parameterNames' => ['api', 'users'], // Match path components
-            'allowedRoles' => ['*']
+            'parameterNames' => ['api', 'users'] // Match path components
         ];
         
         $this->routeRegistry->method('getRoutesByMethodAndLength')
@@ -260,9 +272,16 @@ class RouterTest extends TestCase
             'path' => '/api/users',
             'apiClass' => 'MockApiController',
             'apiMethod' => 'getUsers',
-            'parameterNames' => ['api', 'users'], // Match path components
-            'allowedRoles' => ['*']
+            'parameterNames' => ['api', 'users'] // Match path components
         ];
+        
+        // Mock authentication - return a mock user
+        $mockUser = $this->createMock(\Gravitycar\Models\ModelBase::class);
+        $mockUser->method('get')->with('id')->willReturn('test-user-id');
+        $this->currentUserProvider->method('getCurrentUser')->willReturn($mockUser);
+        
+        // Mock authorization - allow the request
+        $this->authorizationService->method('hasPermissionForRoute')->willReturn(true);
         
         $this->routeRegistry->method('getRoutesByMethodAndLength')
             ->willReturn([$route]);
@@ -377,37 +396,7 @@ class RouterTest extends TestCase
         $this->assertArrayHasKey('pagination', $result);
     }
 
-    public function testHandleAuthenticationWithPublicRoute(): void
-    {
-        $route = [
-            'path' => '/api/public',
-            'allowedRoles' => ['*']
-        ];
-        $request = new Request('/api/public', ['api', 'public'], 'GET', []);
-        
-        $method = $this->getPrivateMethod($this->router, 'handleAuthentication');
-        
-        // Should not throw any exception for public route
-        $method->invoke($this->router, $route, $request);
-        
-        $this->assertTrue(true); // Assert we reach here without exception
-    }
 
-    public function testHandleAuthenticationWithNullAllowedRoles(): void
-    {
-        $route = [
-            'path' => '/api/public',
-            'allowedRoles' => null
-        ];
-        $request = new Request('/api/public', ['api', 'public'], 'GET', []);
-        
-        $method = $this->getPrivateMethod($this->router, 'handleAuthentication');
-        
-        // Should not throw any exception for route with null allowed roles
-        $method->invoke($this->router, $route, $request);
-        
-        $this->assertTrue(true); // Assert we reach here without exception
-    }
 
     public function testExtractModelNameFromRoute(): void
     {

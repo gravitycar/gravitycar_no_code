@@ -383,15 +383,7 @@ class Router {
             'route' => $route['path'],
             'method' => $request->getMethod()
         ]);
-        
-        // Check if route requires authentication
-        $allowedRoles = $route['allowedRoles'] ?? null;
-        
-        // Public routes (no authentication required)
-        if ($allowedRoles === null || in_array('*', $allowedRoles) || in_array('all', $allowedRoles)) {
-            return;
-        }
-        
+
         try {
             // Get current user from JWT token
             $currentUser = $this->currentUserProvider->getCurrentUser();
@@ -412,7 +404,7 @@ class Router {
                 ]);
             }
             
-        } catch (UnauthorizedException | ForbiddenException $e) {
+        } catch (UnauthorizedException | ForbiddenException | NotFoundException $e) {
             // Re-throw authentication/authorization exceptions
             throw $e;
         } catch (\Exception $e) {
@@ -423,31 +415,6 @@ class Router {
         }
     }
 
-    /**
-     * Check model-specific permissions for CRUD operations
-     */
-    protected function checkModelPermissions(array $route, Request $request, $user): void {
-        // Extract model name from route path or controller class
-        $modelName = $this->extractModelName($route);
-        
-        if (!$modelName) {
-            return; // No model-specific permissions needed
-        }
-        
-        // Map HTTP methods to actions
-        $method = $request->getMethod();
-        $action = $this->mapMethodToAction($method, $route['path']);
-        
-        if ($action) {
-            if (!$this->authorizationService->hasPermission($action, $modelName)) {
-                throw new ForbiddenException("Insufficient permissions for $action on $modelName", [
-                    'action' => $action,
-                    'model' => $modelName,
-                    'user_id' => $user->get('id')
-                ]);
-            }
-        }
-    }
 
     /**
      * Extract model name from route information

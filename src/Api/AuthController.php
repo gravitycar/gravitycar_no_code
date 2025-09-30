@@ -26,6 +26,14 @@ class AuthController extends ApiControllerBase
     private ?AuthenticationService $authService;
     private ?GoogleOAuthService $googleOAuthService;
 
+    protected array $rolesAndActions = [
+        // Full permissions by default - controllers can override this property
+        'admin' => ['list', 'delete', 'create', 'update', 'read', 'logout', 'me'],
+        'manager' => ['list', 'delete', 'create', 'update', 'read', 'logout', 'me'],
+        'user' => ['list', 'delete', 'create', 'update', 'read', 'logout', 'me'],
+        'guest' => ['read', 'create', 'update', 'list', 'delete']
+        ];
+    
     /**
      * Pure dependency injection constructor - all dependencies explicitly provided
      * For backwards compatibility during route discovery, all parameters are optional with null defaults
@@ -70,77 +78,72 @@ class AuthController extends ApiControllerBase
     }
 
     /**
-     * Get routes for this controller
+     * Register routes for APIRouteRegistry compatibility
      */
-    public function getRoutes(): array
+    public function registerRoutes(): array
     {
         return [
             [
+                // Public endpoint
                 'method' => 'GET',
                 'path' => '/auth/google/url',
                 'apiClass' => self::class,
                 'apiMethod' => 'getGoogleAuthUrl',
                 'parameterNames' => [],
-                'allowedRoles' => ['all'] // Public endpoint
             ],
             [
+                 // Public endpoint
                 'method' => 'POST',
                 'path' => '/auth/google',
                 'apiClass' => self::class,
                 'apiMethod' => 'authenticateWithGoogle',
                 'parameterNames' => [],
-                'allowedRoles' => ['all'] // Public endpoint
             ],
             [
+                // Public endpoint
                 'method' => 'POST',
                 'path' => '/auth/login',
                 'apiClass' => self::class,
                 'apiMethod' => 'authenticateTraditional',
                 'parameterNames' => [],
-                'allowedRoles' => ['all'] // Public endpoint
             ],
             [
+                 // Public endpoint (but requires valid refresh token)
                 'method' => 'POST',
                 'path' => '/auth/refresh',
                 'apiClass' => self::class,
                 'apiMethod' => 'refreshToken',
                 'parameterNames' => [],
-                'allowedRoles' => ['all'] // Public endpoint (but requires valid refresh token)
             ],
             [
+                // Requires authentication
                 'method' => 'POST',
                 'path' => '/auth/logout',
                 'apiClass' => self::class,
                 'apiMethod' => 'logout',
                 'parameterNames' => [],
-                'allowedRoles' => ['user'] // Requires authentication
+                'rbacAction' => 'logout',
             ],
             [
+                // JWT authentication only, no specific roles required
                 'method' => 'GET',
                 'path' => '/auth/me',
                 'apiClass' => self::class,
                 'apiMethod' => 'getMe',
                 'parameterNames' => [],
-                'allowedRoles' => ['all'] // JWT authentication only, no specific roles required
+                'rbacAction' => 'me',
             ],
             [
+                 // Public endpoint
                 'method' => 'POST',
                 'path' => '/auth/register',
                 'apiClass' => self::class,
                 'apiMethod' => 'register',
                 'parameterNames' => [],
-                'allowedRoles' => ['all'] // Public endpoint
             ]
         ];
     }
 
-    /**
-     * Register routes for APIRouteRegistry compatibility
-     */
-    public function registerRoutes(): array
-    {
-        return $this->getRoutes();
-    }
 
     /**
      * GET /auth/google/url - Get Google OAuth authorization URL
