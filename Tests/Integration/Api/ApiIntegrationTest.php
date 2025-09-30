@@ -75,7 +75,7 @@ class ApiIntegrationTest extends IntegrationTestCase
             $this->fail('Expected GCException for invalid model');
         } catch (\Gravitycar\Exceptions\GCException $e) {
             // The framework now auto-discovers routes, so we expect model validation errors
-            $this->assertStringContainsString('Model not found or cannot be instantiated', $e->getMessage());
+            $this->assertStringContainsString('Model not found', $e->getMessage());
         }
     }
 
@@ -185,7 +185,7 @@ class ApiIntegrationTest extends IntegrationTestCase
             $this->router->handleRequest();
         } catch (\Gravitycar\Exceptions\GCException $e) {
             // Expected since this is not a valid model
-            $this->assertStringContainsString('Model not found or cannot be instantiated', $e->getMessage());
+            $this->assertStringContainsString('Model not found', $e->getMessage());
         }
 
         // Verify authorization header is available

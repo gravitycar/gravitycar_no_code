@@ -16,6 +16,7 @@ use Gravitycar\Services\AuthenticationService;
 use Gravitycar\Services\AuthorizationService;
 use Gravitycar\Services\GoogleOAuthService;
 use Gravitycar\Services\UserService;
+use Gravitycar\Services\PermissionsBuilder;
 use Gravitycar\Exceptions\ContainerException;
 use Exception;
 
@@ -322,6 +323,16 @@ class ContainerConfig {
             'databaseConnector' => $di->lazyGet('database_connector')
         ];
 
+        // PermissionsBuilder - prototype service for building permissions from metadata
+        $di->set('permissions_builder', $di->lazyNew(\Gravitycar\Services\PermissionsBuilder::class));
+        $di->params[\Gravitycar\Services\PermissionsBuilder::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'apiRouteRegistry' => $di->lazyGet('api_route_registry')
+        ];
+
         // TMDB Services
         $di->set('tmdb_api_service', $di->lazyNew(\Gravitycar\Services\TMDBApiService::class));
         $di->params[\Gravitycar\Services\TMDBApiService::class] = [
@@ -528,6 +539,9 @@ class ContainerConfig {
             'componentMapper' => $di->lazyGet('react_component_mapper'),
             'cache' => $di->lazyGet('documentation_cache')
         ];
+        
+        // Alias for OpenAPIGenerator service (APIControllerFactory expects underscore naming)
+        $di->set('open_api_generator', $di->lazyGet('openapi_generator'));
     }
 
     /**
@@ -669,7 +683,7 @@ class ContainerConfig {
     private static function registerFallbackModels(Container $di): void {
         $fallbackModels = [
             'Books' => 'Gravitycar\\Models\\books\\Books',
-            'GoogleOauthTokens' => 'Gravitycar\\Models\\google_oauth_tokens\\GoogleOauthTokens',
+            'GoogleOauthTokens' => 'Gravitycar\\Models\\googleoauthtokens\\GoogleOauthTokens',
             'Installer' => 'Gravitycar\\Models\\installer\\Installer',
             'JwtRefreshTokens' => 'Gravitycar\\Models\\jwt_refresh_tokens\\JwtRefreshTokens',
             'Movie_Quote_Trivia_Games' => 'Gravitycar\\Models\\movie_quote_trivia_games\\Movie_Quote_Trivia_Games',

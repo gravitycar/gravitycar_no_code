@@ -71,3 +71,7 @@
 - [] GoogleAuthTokens::cleanupExpiredTokens() should be using a DatabaseConnector method instead of building its own SQL.
 - [X] ContainerConfig hard-codes model names to register them. BAD! Make it ues the MetadataEngine.
 - [X] we need to handle this case: Model class does not exist: Gravitycar\Models\Favicon.ico\Favicon.ico
+- [] Login failure does not display an error message to the user. But the error is present in the response from the server. Also, the response from the server for a failed login has an http code of 200, should be 401.
+- [] The google books enrich method isn't being used anymore. BookGoogleBooksIntegrationService::enrichBookData() should be used by the GoogleBooksController, but the registered route seems to have vanished? I know it was there because we have enriched book records.
+- [] Completely do away with "public" routes and the allowedRoles system. Replaced by RBAC. May need full access for most routes for most users. See Router::handleAuthentication() where it checks allowedRoles.
+- [] RolesAndActions are not stored in metadata_cache unless there are overrides. They should all be in cache.

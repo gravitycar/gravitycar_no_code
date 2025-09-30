@@ -52,7 +52,7 @@ class RequestParameterParser
             'parsedAt' => date('c')
         ];
         
-        $this->logger->info('Request parsing completed', [
+        $this->logger->debug('Request parsing completed', [
             'format' => $format,
             'filters_count' => count($result['filters'] ?? []),
             'sorts_count' => count($result['sorting'] ?? []),

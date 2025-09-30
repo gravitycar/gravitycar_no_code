@@ -55,7 +55,7 @@ class FilterCriteria
             
             // Check if field exists on model
             if (!isset($modelFields[$fieldName])) {
-                $this->logger->warning('Filter field does not exist on model, skipping', [
+                $this->logger->debug("Filter field '$fieldName' does not exist on model '$modelName', skipping", [
                     'field' => $fieldName,
                     'model' => $modelName,
                     'available_fields' => array_keys($modelFields)
@@ -111,13 +111,6 @@ class FilterCriteria
                 'field_type' => get_class($field)
             ]);
         }
-        
-        $this->logger->info('Filter validation completed', [
-            'model' => $modelName,
-            'input_filter_count' => count($filters),
-            'validated_filter_count' => count($validatedFilters)
-        ]);
-        
         return $validatedFilters;
     }
     

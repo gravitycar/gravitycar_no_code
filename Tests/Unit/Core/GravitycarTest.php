@@ -173,7 +173,7 @@ class GravitycarTest extends TestCase {
         // This would normally process the request through the router
         // With auto-discovery, we expect a model not found error for non-existent models
         $this->expectException(GCException::class);
-        $this->expectExceptionMessage('Model not found or cannot be instantiated');
+        $this->expectExceptionMessage('Model not found');
 
         $app->run();
     }
@@ -349,7 +349,7 @@ class GravitycarTest extends TestCase {
 
         // Run would process the request but will fail due to non-existent model
         $this->expectException(GCException::class);
-        $this->expectExceptionMessage('Model not found or cannot be instantiated');
+        $this->expectExceptionMessage('Model not found');
 
         $app->run();
     }

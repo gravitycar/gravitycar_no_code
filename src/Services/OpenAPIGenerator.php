@@ -450,7 +450,13 @@ class OpenAPIGenerator {
         $tableName = $modelData['table'] ?? null;
         $fields = $modelData['fields'] ?? [];
         foreach ($fields as $fieldName => $fieldData) {
-            $properties[$fieldName] = $this->generateFieldSchema($fieldData, $tableName);
+            // Ensure field data includes the field name for proper field initialization
+            $fieldDataWithName = $fieldData;
+            if (!isset($fieldDataWithName['name'])) {
+                $fieldDataWithName['name'] = $fieldName;
+            }
+            
+            $properties[$fieldName] = $this->generateFieldSchema($fieldDataWithName, $tableName);
             if ($fieldData['required'] ?? false) {
                 $required[] = $fieldName;
             }
@@ -483,7 +489,13 @@ class OpenAPIGenerator {
                 continue;
             }
             
-            $properties[$fieldName] = $this->generateFieldSchema($fieldData, $tableName);
+            // Ensure field data includes the field name for proper field initialization
+            $fieldDataWithName = $fieldData;
+            if (!isset($fieldDataWithName['name'])) {
+                $fieldDataWithName['name'] = $fieldName;
+            }
+            
+            $properties[$fieldName] = $this->generateFieldSchema($fieldDataWithName, $tableName);
             if ($fieldData['required'] ?? false) {
                 $required[] = $fieldName;
             }

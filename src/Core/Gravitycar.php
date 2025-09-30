@@ -54,8 +54,6 @@ class Gravitycar {
             return $this;
         }
 
-        $this->logBootstrapStart();
-
         try {
             foreach ($this->bootstrapSteps as $step => $method) {
                 $this->logBootstrapStep($step);
@@ -120,7 +118,7 @@ class Gravitycar {
      */
     public function shutdown(): void {
         if ($this->logger) {
-            $this->logger->info('Gravitycar application shutting down');
+            $this->logger->debug('Gravitycar application shutting down');
         }
 
         // Cleanup resources
@@ -166,7 +164,7 @@ class Gravitycar {
             // We'll need to modify the Config service to accept custom path
             // For now, log this requirement
             if ($this->logger) {
-                $this->logger->info('Custom config path requested', [
+                $this->logger->debug('Custom config path requested', [
                     'path' => $this->configOptions['config_path']
                 ]);
             }
@@ -209,7 +207,7 @@ class Gravitycar {
         
         // The validateMetadata method is protected and requires metadata parameter
         // It's already called internally by loadAllMetadata, so we don't need to call it again
-        $this->logger->info('Metadata loaded successfully', [
+        $this->logger->debug('Metadata loaded successfully', [
             'models_count' => count($metadata['models'] ?? []),
             'relationships_count' => count($metadata['relationships'] ?? [])
         ]);
@@ -224,7 +222,7 @@ class Gravitycar {
         // The Router class uses the 'route' method to handle requests
         // Route generation and caching would be handled by APIRouteRegistry
         // For now, just ensure we can get the router service
-        $this->logger->info('Router service initialized successfully');
+        $this->logger->debug('Router service initialized successfully');
     }
 
     /**
@@ -246,7 +244,7 @@ class Gravitycar {
         $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
         $uri = $_SERVER['REQUEST_URI'] ?? '/';
         
-        $this->logger->info('Processing request', [
+        $this->logger->debug('Processing request', [
             'method' => $method,
             'uri' => $uri
         ]);
@@ -314,25 +312,11 @@ class Gravitycar {
     }
 
     /**
-     * Log bootstrap start
-     */
-    private function logBootstrapStart(): void {
-        // Use error_log initially since logger might not be available yet
-        // Only log to error_log in web environment, not during CLI/tests
-        if (php_sapi_name() !== 'cli') {
-            error_log("Gravitycar application bootstrap starting (environment: {$this->environment})");
-        }
-    }
-
-    /**
      * Log individual bootstrap step
      */
     private function logBootstrapStep(string $step): void {
         if ($this->logger) {
-            $this->logger->info("Bootstrap step: {$step}");
-        } elseif (php_sapi_name() !== 'cli') {
-            // Only log to error_log in web environment, not during CLI/tests
-            error_log("Bootstrap step: {$step}");
+            $this->logger->debug("Bootstrap step: {$step}");
         }
     }
 
@@ -340,7 +324,7 @@ class Gravitycar {
      * Log bootstrap completion
      */
     private function logBootstrapComplete(): void {
-        $this->logger->info('Gravitycar application bootstrap completed successfully');
+        $this->logger->debug('Gravitycar application bootstrap completed successfully');
     }
 
     /**

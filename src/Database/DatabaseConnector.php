@@ -226,7 +226,7 @@ class DatabaseConnector implements DatabaseConnectorInterface {
                 $model->set('id', $lastInsertId);
             }
 
-            $this->logger->info('Model created successfully', [
+            $this->logger->debug('Model created successfully', [
                 'model_class' => get_class($model),
                 'table_name' => $tableName,
                 'id' => $model->get('id')
@@ -283,7 +283,7 @@ class DatabaseConnector implements DatabaseConnectorInterface {
 
             $result = $queryBuilder->executeStatement();
 
-            $this->logger->info('Model updated successfully', [
+            $this->logger->debug('Model updated successfully', [
                 'model_class' => get_class($model),
                 'table_name' => $tableName,
                 'id' => $id
@@ -324,7 +324,7 @@ class DatabaseConnector implements DatabaseConnectorInterface {
             $queryBuilder->setParameter('id', $id);
             $result = $queryBuilder->executeStatement();
 
-            $this->logger->info('Model deleted successfully', [
+            $this->logger->debug('Model deleted successfully', [
                 'model_class' => get_class($model),
                 'table_name' => $tableName,
                 'id' => $id
@@ -386,7 +386,7 @@ class DatabaseConnector implements DatabaseConnectorInterface {
 
             $result = $queryBuilder->executeStatement();
 
-            $this->logger->info('Model soft deleted successfully', [
+            $this->logger->debug('Model soft deleted successfully', [
                 'model_class' => get_class($model),
                 'table_name' => $tableName,
                 'id' => $id
@@ -427,7 +427,7 @@ class DatabaseConnector implements DatabaseConnectorInterface {
             $queryBuilder->setParameter('id', $id);
             $result = $queryBuilder->executeStatement();
 
-            $this->logger->info('Model hard deleted successfully', [
+            $this->logger->debug('Model hard deleted successfully', [
                 'model_class' => get_class($model),
                 'table_name' => $tableName,
                 'id' => $id
@@ -518,7 +518,9 @@ class DatabaseConnector implements DatabaseConnectorInterface {
             $this->logger->error('Failed to find models', [
                 'model_class' => is_string($model) ? $model : get_class($model),
                 'criteria' => $criteria,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'query' => isset($queryBuilder) ? $queryBuilder->getSQL() : 'N/A',
+                'params' => isset($queryBuilder) ? $queryBuilder->getParameters() : 'N/A'
             ]);
             throw new GCException('Database find operation failed: ' . $e->getMessage(), [], 0, $e);
         }
@@ -1238,19 +1240,21 @@ class DatabaseConnector implements DatabaseConnectorInterface {
         $relationshipTable = $relationship->getTableName();
         $modelIdField = $relationship->getModelIdField($model);
         
-        $queryBuilder->innerJoin(
+        $joinOK = $queryBuilder->innerJoin(
             $mainAlias,
             $relationshipTable,
             $relationshipAlias,
             "{$mainAlias}.id = {$relationshipAlias}.{$modelIdField}"
         );
 
-        $this->logger->debug("Added relationship JOIN", [
-            'relationship_table' => $relationshipTable,
-            'relationship_alias' => $relationshipAlias,
-            'model_id_field' => $modelIdField,
-            'main_alias' => $mainAlias
-        ]);
+        if (!$joinOK) {
+            throw new GCException("Failed to add JOIN for relationship table {$relationshipTable}", [
+                'relationship_table' => $relationshipTable,
+                'relationship_alias' => $relationshipAlias,
+                'model_id_field' => $modelIdField,
+                'main_alias' => $mainAlias
+            ]);
+        }
     }
 
     /**
@@ -1352,7 +1356,7 @@ class DatabaseConnector implements DatabaseConnectorInterface {
             $result = $queryBuilder->executeQuery();
             $records = $result->fetchAllAssociative();
 
-            $this->logger->info('React-compatible find operation completed', [
+            $this->logger->debug('React-compatible find operation completed', [
                 'model_class' => get_class($model),
                 'record_count' => count($records),
                 'has_filters' => !empty($validatedParams['filters']),
@@ -1367,6 +1371,8 @@ class DatabaseConnector implements DatabaseConnectorInterface {
             $this->logger->error('React-compatible find operation failed', [
                 'model_class' => get_class($model),
                 'validated_params' => $validatedParams,
+                'query' => $queryBuilder->getSQL(),
+                'params' => $queryBuilder->getParameters(),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
@@ -1908,6 +1914,51 @@ class DatabaseConnector implements DatabaseConnectorInterface {
      */
     public function isHealthy(): bool {
         return $this->testConnection();
+    }
+
+    /**
+     * Truncate a table efficiently while preserving structure
+     * Works with both model tables and relationship junction tables
+     * 
+     * @param ModelBase $model The model whose table should be truncated (includes RelationshipBase)
+     * @throws GCException If truncation fails
+     */
+    public function truncate(ModelBase $model): void
+    {
+        try {
+            $tableName = $model->getTableName();
+            
+            $this->logger->debug('Truncating table', [
+                'model' => get_class($model),
+                'table' => $tableName
+            ]);
+            
+            $sql = "TRUNCATE TABLE `{$tableName}`";
+            $this->connection->executeStatement($sql);
+            
+            $this->logger->debug('Successfully truncated table', [
+                'model' => get_class($model),
+                'table' => $tableName
+            ]);
+            
+        } catch (\PDOException $e) {
+            $this->logger->error('Failed to truncate table', [
+                'error' => $e->getMessage(),
+                'model' => get_class($model),
+                'table' => $model->getTableName()
+            ]);
+            
+            throw new GCException(
+                'Database truncation failed: ' . $e->getMessage(),
+                [
+                    'error' => $e->getMessage(),
+                    'model' => get_class($model),
+                    'table' => $model->getTableName()
+                ],
+                0,
+                $e
+            );
+        }
     }
 
 }

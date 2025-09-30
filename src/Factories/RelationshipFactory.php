@@ -78,7 +78,7 @@ class RelationshipFactory {
             // Register the relationship
             $this->registerRelationship($relationship, $metadata);
 
-            $this->logger->info('Relationship created successfully via MetadataEngine', [
+            $this->logger->debug('Relationship created successfully via MetadataEngine', [
                 'relationship_name' => $metadata['name'],
                 'relationship_type' => $type,
                 'owner' => $this->owner

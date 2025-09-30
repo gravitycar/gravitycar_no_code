@@ -180,6 +180,10 @@ class Router {
                 'controller_class' => $controllerClass
             ]);
         }
+
+        // Attach controller class name to Request for context-aware operations. 
+        // Use get_class because that's what PermissionsBuilder uses to create permissions for the controllers.
+        $request->setApiControllerClassName(get_class($controller));
         
         // Authentication and authorization middleware
         $this->handleAuthentication($route, $request);
@@ -360,7 +364,7 @@ class Router {
         // If we collected any validation errors, throw them
         $validationResult->throwIfHasErrors('Parameter validation failed');
         
-        $this->logger->info('Model validation completed successfully', [
+        $this->logger->debug('Model validation completed successfully', [
             'model' => get_class($model),
             'validated_filters' => count($validatedParams['filters']),
             'validated_search_fields' => count($validatedParams['search']['fields'] ?? []),
@@ -375,14 +379,11 @@ class Router {
      * Handle authentication and authorization for the route
      */
     protected function handleAuthentication(array $route, Request $request): void {
-        // Check if route requires authentication
-        $allowedRoles = $route['allowedRoles'] ?? null;
-        
-        // Public routes (no authentication required)
-        if ($allowedRoles === null || in_array('*', $allowedRoles) || in_array('all', $allowedRoles)) {
-            return;
-        }
-        
+        $this->logger->debug('Handling authentication for route', [
+            'route' => $route['path'],
+            'method' => $request->getMethod()
+        ]);
+
         try {
             // Get current user from JWT token
             $currentUser = $this->currentUserProvider->getCurrentUser();
@@ -394,28 +395,16 @@ class Router {
                 ]);
             }
             
-            // Check if user has required role
-            $hasRequiredRole = false;
-            
-            foreach ($allowedRoles as $role) {
-                if ($this->authorizationService->hasRole($currentUser, $role)) {
-                    $hasRequiredRole = true;
-                    break;
-                }
-            }
-            
-            if (!$hasRequiredRole) {
+            // Use unified permission checking with new hasPermissionForRoute method
+            if (!$this->authorizationService->hasPermissionForRoute($route, $request, $currentUser)) {
                 throw new ForbiddenException('Insufficient permissions', [
                     'route' => $route['path'],
-                    'required_roles' => $allowedRoles,
+                    'method' => $request->getMethod(),
                     'user_id' => $currentUser->get('id')
                 ]);
             }
             
-            // Additional permission checking for model-based routes
-            $this->checkModelPermissions($route, $request, $currentUser);
-            
-        } catch (UnauthorizedException | ForbiddenException $e) {
+        } catch (UnauthorizedException | ForbiddenException | NotFoundException $e) {
             // Re-throw authentication/authorization exceptions
             throw $e;
         } catch (\Exception $e) {
@@ -426,31 +415,6 @@ class Router {
         }
     }
 
-    /**
-     * Check model-specific permissions for CRUD operations
-     */
-    protected function checkModelPermissions(array $route, Request $request, $user): void {
-        // Extract model name from route path or controller class
-        $modelName = $this->extractModelName($route);
-        
-        if (!$modelName) {
-            return; // No model-specific permissions needed
-        }
-        
-        // Map HTTP methods to actions
-        $method = $request->getMethod();
-        $action = $this->mapMethodToAction($method, $route['path']);
-        
-        if ($action) {
-            if (!$this->authorizationService->hasPermission($action, $modelName)) {
-                throw new ForbiddenException("Insufficient permissions for $action on $modelName", [
-                    'action' => $action,
-                    'model' => $modelName,
-                    'user_id' => $user->get('id')
-                ]);
-            }
-        }
-    }
 
     /**
      * Extract model name from route information
@@ -562,6 +526,23 @@ class Router {
         $pathComponents = $this->parsePathComponents($actualPath);
         $routeComponents = $this->parsePathComponents($route['path']);
         
+        // Priority 0: If route has empty parameterNames and is a static route, return empty array
+        if (empty($route['parameterNames'])) {
+            // Check if this is a fully static route (no wildcards or {param} patterns)
+            $hasWildcards = false;
+            foreach ($routeComponents as $component) {
+                if ($component === '?' || (str_starts_with($component, '{') && str_ends_with($component, '}'))) {
+                    $hasWildcards = true;
+                    break;
+                }
+            }
+            
+            // If it's a static route with no wildcards, don't create parameter mappings
+            if (!$hasWildcards) {
+                return [];
+            }
+        }
+        
         // Priority 1: If route has explicit parameter names and count matches path components, use them
         if (!empty($route['parameterNames'])) {
             // For static routes, parameter names should match all path components
@@ -615,6 +596,9 @@ class Router {
                 } elseif ($routeComponent === '?') {
                     // This is a wildcard position, determine parameter name
                     if ($i === 0) {
+                        if ($actualPath == '/auth/google') {
+                            $this->logger->info("Debugging /auth/google request - added modelName to parameterNames", ['routeComponent' => $routeComponent,'route' => $route]);
+                        }
                         $parameterNames[] = 'modelName'; // First component is usually model name
                     } else {
                         $parameterNames[] = 'param' . ($i + 1); // Generic parameter name
@@ -628,7 +612,6 @@ class Router {
                 $parameterNames[] = 'component' . ($i + 1);
             }
         }
-        
         return $parameterNames;
     }
 }

@@ -248,10 +248,10 @@ class ModelFactoryTest extends UnitTestCase
     public function testModelNameResolution(): void
     {
         $testCases = [
-            'Users' => 'Gravitycar\Models\Users\Users',
-            'Movies' => 'Gravitycar\Models\Movies\Movies', 
-            'Movie_Quotes' => 'Gravitycar\Models\Movie_Quotes\Movie_Quotes',
-            'TestModel' => 'Gravitycar\Models\TestModel\TestModel'
+            'Users' => 'Gravitycar\Models\users\Users',
+            'Movies' => 'Gravitycar\Models\movies\Movies', 
+            'Movie_Quotes' => 'Gravitycar\Models\movie_quotes\Movie_Quotes',
+            'TestModel' => 'Gravitycar\Models\testmodel\TestModel'
         ];
 
         // Use reflection to access private method

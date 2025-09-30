@@ -11,12 +11,13 @@ return [
             'required' => true,
             'validationRules' => ['Required'],
         ],
-        'model' => [
-            'name' => 'model',
+        'component' => [
+            'name' => 'component',
             'type' => 'Text',
-            'label' => 'Model Name',
+            'label' => 'Application Component',
             'required' => false,
             'defaultValue' => '',
+            'description' => 'Application component (model name or controller class) this permission applies to',
             'validationRules' => [],
         ],
         'description' => [
@@ -50,10 +51,17 @@ return [
         ],
         // End of model-specific fields
     ],
+    // NEW: Permissions management is admin-only
+    'rolesAndActions' => [
+        'admin' => ['*'], // Only admins can manage permissions
+        // All other roles inherit default: no access
+    ],
+    
     'validationRules' => [],
     'relationships' => ['roles_permissions', 'users_permissions'],
     'ui' => [
-        'listFields' => ['action', 'model', 'description', 'is_route_permission', 'created_at'],
-        'createFields' => ['action', 'model', 'description', 'allowed_roles', 'is_route_permission', 'route_pattern'],
+        'listFields' => ['action', 'component', 'description', 'is_route_permission', 'created_at'],
+        'createFields' => ['action', 'component', 'description', 'allowed_roles', 'is_route_permission', 'route_pattern'],
+        'editFields' => ['action', 'component', 'description', 'allowed_roles', 'is_route_permission', 'route_pattern'],
     ],
 ];

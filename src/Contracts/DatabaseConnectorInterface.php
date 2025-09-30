@@ -90,6 +90,12 @@ interface DatabaseConnectorInterface
      * Hard delete a record (permanently remove from database)
      */
     public function hardDelete($model): bool;
+
+    /**
+     * Truncate a table efficiently while preserving structure
+     * @param ModelBase $model The model whose table should be truncated
+     */
+    public function truncate(\Gravitycar\Models\ModelBase $model): void;
     
     // =====================================
     // Query Operations

@@ -140,6 +140,15 @@ return [
         ],
         // End of model-specific fields
     ],
+    
+    // NEW: Override default permissions for user management
+    'rolesAndActions' => [
+        'admin' => ['*'], // Admin keeps full access
+        'manager' => ['list', 'read'], // Managers can view users but not modify
+        'user' => ['read'], // Users can only view their own data
+        'guest' => [] // Guests have no access to user data
+    ],
+    
     'validationRules' => [],
     'relationships' => ['users_roles', 'users_permissions', 'users_jwt_refresh_tokens', 'users_google_oauth_tokens'],
     'apiRoutes' => [

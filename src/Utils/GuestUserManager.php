@@ -65,19 +65,18 @@ class GuestUserManager
                     'guest_user_id' => $guestUser->get('id'),
                     'email' => $guestUser->get('email')
                 ]);
-                self::$cachedGuestUser = $guestUser;
-                return $guestUser;
+            } else {
+                // Create new guest user if none exists
+                $guestUser = $this->createGuestUser();
+                $this->logger->info('Created new guest user', [
+                    'guest_user_id' => $guestUser->get('id'),
+                    'email' => $guestUser->get('email')
+                ]);
             }
-            
-            // Create new guest user if none exists
-            $guestUser = $this->createGuestUser();
-            
-            $this->logger->info('Created new guest user', [
-                'guest_user_id' => $guestUser->get('id'),
-                'email' => $guestUser->get('email')
-            ]);
-            
+
             self::$cachedGuestUser = $guestUser;
+            $this->addGuestRoleToGuestUser($guestUser);
+
             return $guestUser;
             
         } catch (\Exception $e) {
@@ -90,6 +89,36 @@ class GuestUserManager
             ], 0, $e);
         }
     }
+
+
+    public function addGuestRoleToGuestUser(ModelBase $guestUser): void
+    {
+        $role = $this->modelFactory->new('Roles');
+        $guestRole = $role->find(['name' => 'guest'], [], ['limit' => 1])[0];
+
+        if (!$guestRole) {
+            throw new GCException('Guest role not found in roles table');
+        }
+
+        if ($guestUser->hasRelation('users_roles', $guestRole)) {
+            // Guest role already assigned
+            return;
+        }
+
+        try {
+            // add guest role to user if not already assigned
+            $guestUser->addRelation('users_roles', $guestRole);
+        } catch (\Exception $e) {
+            $this->logger->error('Failed to assign guest role to guest user', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw new GCException('Failed to assign guest role: ' . $e->getMessage(), [
+                'original_error' => $e->getMessage()
+            ], 0, $e);
+        }
+    }   
+
     
     /**
      * Find existing guest user by email

@@ -191,4 +191,87 @@ class AuthorizationServiceTest extends UnitTestCase
         $this->assertIsBool($result3);
         $this->assertIsBool($result4);
     }
+
+    public function testDetermineActionFromHttpMethodMappings(): void
+    {
+        // Test HTTP method to action mappings
+        $mappings = [
+            'GET' => 'read',
+            'POST' => 'create', 
+            'PUT' => 'update',
+            'DELETE' => 'delete'
+        ];
+        
+        // Use reflection to test protected method
+        $reflection = new \ReflectionClass($this->authzService);
+        $method = $reflection->getMethod('determineAction');
+        $method->setAccessible(true);
+        
+        foreach ($mappings as $httpMethod => $expectedAction) {
+            $request = $this->createMock(\Gravitycar\Api\Request::class);
+            $request->method('getMethod')->willReturn($httpMethod);
+            $action = $method->invoke($this->authzService, [], $request);
+            $this->assertEquals($expectedAction, $action, "Failed for HTTP method: $httpMethod");
+        }
+    }
+
+    public function testDetermineActionUsesExplicitRBACAction(): void
+    {
+        $route = ['RBACAction' => 'custom_action'];
+        $request = $this->createMock(\Gravitycar\Api\Request::class);
+        
+        // Use reflection to test protected method
+        $reflection = new \ReflectionClass($this->authzService);
+        $method = $reflection->getMethod('determineAction');
+        $method->setAccessible(true);
+        
+        $action = $method->invoke($this->authzService, $route, $request);
+        $this->assertEquals('custom_action', $action);
+    }
+
+    public function testDetermineComponentFromRequestModel(): void
+    {
+        $route = ['apiClass' => 'SomeController'];
+        $request = $this->createMock(\Gravitycar\Api\Request::class);
+        $request->method('has')->with('modelName')->willReturn(true);
+        $request->method('get')->with('modelName')->willReturn('Users');
+        
+        // Use reflection to test protected method
+        $reflection = new \ReflectionClass($this->authzService);
+        $method = $reflection->getMethod('determineComponent');
+        $method->setAccessible(true);
+        
+        $component = $method->invoke($this->authzService, $route, $request);
+        $this->assertEquals('Users', $component);
+    }
+
+    public function testDetermineComponentFallsBackToApiClass(): void
+    {
+        $route = ['apiClass' => 'TestController'];
+        $request = $this->createMock(\Gravitycar\Api\Request::class);
+        $request->method('has')->with('modelName')->willReturn(false);
+        
+        // Use reflection to test protected method
+        $reflection = new \ReflectionClass($this->authzService);
+        $method = $reflection->getMethod('determineComponent');
+        $method->setAccessible(true);
+        
+        $component = $method->invoke($this->authzService, $route, $request);
+        $this->assertEquals('TestController', $component);
+    }
+
+    public function testHasPermissionForRouteFailsSecurelyOnException(): void
+    {
+        // Test that exceptions result in denied access (fail-secure)
+        $this->mockModelFactory->method('new')
+            ->willThrowException(new \Exception('Database error'));
+        
+        $route = [];
+        $request = $this->createMock(\Gravitycar\Api\Request::class);
+        $request->method('has')->willReturn(false);
+        $request->method('getMethod')->willReturn('GET');
+        
+        $result = $this->authzService->hasPermissionForRoute($route, $request, $this->mockUser);
+        $this->assertFalse($result, 'Should fail securely on exception');
+    }
 }

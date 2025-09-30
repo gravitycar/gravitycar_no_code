@@ -39,7 +39,7 @@ class ResponseFormatter
         
         $formatTime = round((microtime(true) - $startTime) * 1000, 2);
         
-        $this->logger->info("Response formatted", [
+        $this->logger->debug("Response formatted", [
             'format' => $format,
             'record_count' => count($data),
             'format_time_ms' => $formatTime,

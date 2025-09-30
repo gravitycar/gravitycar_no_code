@@ -80,6 +80,15 @@ return [
         ],
         // End of model-specific fields
     ],
+    
+    // NEW: Allow broader access to movie content
+    'rolesAndActions' => [
+        'admin' => ['*'], // Admin keeps full access
+        'manager' => ['*'], // Managers can fully manage movies
+        'user' => ['list', 'read'], // Users can browse and view movies
+        // guest inherits default: [] (no access)
+    ],
+    
     'validationRules' => [],
     'relationships' => ['movies_movie_quotes'],
     'ui' => [

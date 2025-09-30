@@ -1,11 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { fetchWithDebug } from '../../utils/apiUtils';
 import type { FieldComponentProps } from '../../types';
-
-// Get API base URL from environment or fallback to localhost
-const getApiBaseUrl = (): string => {
-  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
-};
 
 // Enhanced props interface for relationship management
 interface RelationshipContext {
@@ -103,12 +99,8 @@ const RelatedRecordSelect: React.FC<EnhancedRelatedRecordProps> = ({
       
       try {
         console.log(`RelatedRecordSelect: Fetching metadata for related model: ${relatedModel}`);
-        const response = await fetch(`${getApiBaseUrl()}/metadata/models/${relatedModel}`, {
+        const response = await fetchWithDebug(`/metadata/models/${relatedModel}`, {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
-          }
         });
 
         if (response.ok) {
@@ -146,15 +138,11 @@ const RelatedRecordSelect: React.FC<EnhancedRelatedRecordProps> = ({
         params.append('search', search.trim());
       }
       
-      const url = `${getApiBaseUrl()}/${relatedModel}?${params.toString()}`;
-      console.log(`RelatedRecordSelect: Making request to ${url}`);
+      const endpoint = `/${relatedModel}?${params.toString()}`;
+      console.log(`RelatedRecordSelect: Making request to ${endpoint}`);
       
-      const response = await fetch(url, {
+      const response = await fetchWithDebug(endpoint, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
-        }
       });
 
       console.log(`RelatedRecordSelect: Response status: ${response.status}`);
@@ -313,12 +301,8 @@ const RelatedRecordSelect: React.FC<EnhancedRelatedRecordProps> = ({
     if (!relatedModel || !recordId) return;
     
     try {
-      const response = await fetch(`${getApiBaseUrl()}/${relatedModel}/${recordId}`, {
+      const response = await fetchWithDebug(`/${relatedModel}/${recordId}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('auth_token') || ''}`
-        }
       });
       if (response.ok) {
         const responseData = await response.json();

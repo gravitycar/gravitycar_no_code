@@ -59,6 +59,18 @@ abstract class ModelBase {
     protected ?string $deletedAt = null;
     /** @var string|null */
     protected ?string $deletedBy = null;
+    
+    /**
+     * Default roles and actions for all models
+     * Can be overridden by individual models via metadata
+     * @var array
+     */
+    protected array $rolesAndActions = [
+        'admin' => ['*'], // Admin can perform all actions
+        'manager' => ['list', 'read', 'create', 'update', 'delete'],
+        'user' => ['list', 'read', 'create', 'update', 'delete'],
+        'guest' => [] // Guest has no default permissions
+    ];
 
     /**
      * Pure dependency injection constructor - all dependencies explicitly provided
@@ -1551,5 +1563,68 @@ abstract class ModelBase {
     public function getReactCompatibilityInfo(): array
     {
         return $this->getReactCompatibility();
+    }
+
+    /**
+     * Get roles and actions for this model, merging defaults with metadata overrides
+     * 
+     * @return array Combined roles and actions configuration
+     */
+    public function getRolesAndActions(): array {
+        $defaultRoles = $this->rolesAndActions;
+        
+        // Check if model metadata contains rolesAndActions override
+        $metadataOverrides = $this->metadata['rolesAndActions'] ?? [];
+        
+        if (empty($metadataOverrides)) {
+            $this->logger->debug('No rolesAndActions overrides found in metadata, using defaults', [
+                'model' => static::class,
+                'default_roles' => array_keys($defaultRoles)
+            ]);
+            return $defaultRoles;
+        }
+        
+        // Merge overrides with defaults (overrides take precedence)
+        $mergedRoles = $defaultRoles;
+        
+        foreach ($metadataOverrides as $role => $actions) {
+            if (!is_array($actions)) {
+                $this->logger->warning('Invalid rolesAndActions override format, skipping role', [
+                    'model' => static::class,
+                    'role' => $role,
+                    'invalid_actions' => $actions
+                ]);
+                continue;
+            }
+            
+            $mergedRoles[$role] = $actions;
+            $this->logger->debug('Applied rolesAndActions override', [
+                'model' => static::class,
+                'role' => $role,
+                'actions' => $actions
+            ]);
+        }
+        
+        return $mergedRoles;
+    }
+
+    /**
+     * Get all possible actions for this model (used by PermissionsBuilder)
+     * 
+     * @return array List of all unique actions across all roles
+     */
+    public function getAllPossibleActions(): array {
+        $rolesAndActions = $this->getRolesAndActions();
+        $allActions = [];
+        
+        foreach ($rolesAndActions as $role => $actions) {
+            if (in_array('*', $actions)) {
+                // If wildcard found, return all standard CRUD actions
+                return ['list', 'read', 'create', 'update', 'delete'];
+            }
+            $allActions = array_merge($allActions, $actions);
+        }
+        
+        return array_unique($allActions);
     }
 }

@@ -1,11 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
 import { apiService } from '../../services/api';
-
-// Get API base URL from environment or fallback to localhost
-const getApiBaseUrl = (): string => {
-  return import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
-};
+import { fetchWithDebug } from '../../utils/apiUtils';
 import type { ModelMetadata } from '../../types';
 
 interface TMDBEnhancedCreateFormProps {
@@ -46,7 +42,7 @@ export const TMDBEnhancedCreateForm: React.FC<TMDBEnhancedCreateFormProps> = ({
     try {
       console.log('🎬 Searching TMDB for:', title);
       
-      const response = await fetch(`${getApiBaseUrl()}/movies/tmdb/search`, {
+      const response = await fetchWithDebug('/movies/tmdb/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
