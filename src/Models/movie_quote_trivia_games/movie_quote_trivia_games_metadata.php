@@ -51,4 +51,10 @@ return [
         'createFields' => [], // Games created via special endpoint
         'editFields' => [], // Games are read-only after creation
     ],
+    'rolesAndActions' => [
+        'admin' => ['*'], // Only admins can manage permissions
+        'manager' => ['read', 'create', 'update', 'delete'],
+        'user' => ['read', 'create', 'update', 'delete'],
+        'guest' => ['read', 'create', 'update', 'delete'],
+    ],
 ];

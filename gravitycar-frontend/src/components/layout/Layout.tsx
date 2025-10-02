@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useAuth } from '../../hooks/useAuth';
+import NavigationSidebar from '../navigation/NavigationSidebar';
 
 interface LayoutProps {
   children: ReactNode;
@@ -20,7 +21,7 @@ const Layout = ({ children }: LayoutProps) => {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <h1 className="text-xl font-semibold text-gray-900">
-                Gravitycar Frontend
+                Gravitycar Framework
               </h1>
             </div>
             
@@ -41,73 +42,25 @@ const Layout = ({ children }: LayoutProps) => {
         </div>
       </header>
 
-      {/* Navigation */}
-      {isAuthenticated && (
-        <nav className="bg-gray-50 border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex space-x-8 h-12 items-center">
-              <a
-                href="/dashboard"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-              >
-                Dashboard
-              </a>
-              <a
-                href="/metadata-test"
-                className="text-blue-600 hover:text-blue-900 px-3 py-2 rounded-md text-sm font-medium font-semibold"
-              >
-                🧪 Metadata Test
-              </a>
-              <a
-                href="/users"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-              >
-                Users
-              </a>
-              <a
-                href="/movies"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-              >
-                Movies
-              </a>
-              <a
-                href="/books"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-              >
-                Books
-              </a>
-              <a
-                href="/quotes"
-                className="text-gray-600 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
-              >
-                Movie Quotes
-              </a>
-              <a
-                href="/trivia"
-                className="text-green-600 hover:text-green-900 px-3 py-2 rounded-md text-sm font-medium font-semibold"
-              >
-                🎬 Movie Trivia
-              </a>
-              <a
-                href="/movies-quotes-demo"
-                className="text-purple-600 hover:text-purple-900 px-3 py-2 rounded-md text-sm font-medium font-semibold"
-              >
-                🔗 Relationship Demo
-              </a>
+      {/* Main Layout with Sidebar */}
+      <div className="flex h-screen pt-16">
+        {/* Dynamic Navigation Sidebar */}
+        {isAuthenticated && (
+          <NavigationSidebar className="w-64 flex-shrink-0" />
+        )}
+
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+            <div className="px-4 py-6 sm:px-0">
+              {children}
             </div>
           </div>
-        </nav>
-      )}
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          {children}
-        </div>
-      </main>
+        </main>
+      </div>
 
       {/* Footer */}
-      <footer className="bg-white border-t mt-auto">
+      <footer className="bg-white border-t">
         <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
           <p className="text-center text-sm text-gray-500">
             © 2025 Gravitycar Framework. Built with React and TypeScript.

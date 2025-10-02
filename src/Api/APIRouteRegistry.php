@@ -367,7 +367,8 @@ class APIRouteRegistry
                     'Gravitycar\\Services\\OpenAPIGenerator' => 'open_api_generator',
                     'Gravitycar\\Api\\APIRouteRegistry' => 'api_route_registry',
                     'Gravitycar\\Services\\DocumentationCache' => 'documentation_cache',
-                    'Gravitycar\\Services\\ReactComponentMapper' => 'react_component_mapper'
+                    'Gravitycar\\Services\\ReactComponentMapper' => 'react_component_mapper',
+                    'Gravitycar\\Services\\NavigationBuilder' => 'navigation_builder'
                 ];
                 
                 if (!isset($serviceMap[$typeName])) {

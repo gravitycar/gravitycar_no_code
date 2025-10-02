@@ -86,7 +86,7 @@ return [
         'admin' => ['*'], // Admin keeps full access
         'manager' => ['*'], // Managers can fully manage movies
         'user' => ['list', 'read'], // Users can browse and view movies
-        // guest inherits default: [] (no access)
+        'guest' => ['list', 'read'], // Guests can browse and view movies
     ],
     
     'validationRules' => [],

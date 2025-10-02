@@ -36,5 +36,11 @@ return [
             ]
         ],
     ],
+    'rolesAndActions' => [
+        'admin' => ['*'], // Only admins can manage permissions
+        'manager' => ['list', 'read', 'create', 'update', 'delete'],
+        'user' => ['list', 'read', 'create', 'update', 'delete'],
+        'guest' => ['list', 'read', 'create', 'update', 'delete'],
+    ],
 ];
 

@@ -55,4 +55,10 @@ return [
         'listFields' => ['user_id', 'expires_at', 'created_at', 'revoked_at'],
         'createFields' => ['user_id', 'token_hash', 'expires_at', 'device_info'],
     ],
+    'rolesAndActions' => [
+        'admin' => ['*'], // Only admins can manage
+        'manager' => ['read'],
+        'user' => ['read'],
+        'guest' => ['read'],
+    ],
 ];

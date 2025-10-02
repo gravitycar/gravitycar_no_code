@@ -27,6 +27,8 @@ class DatabaseConnector implements DatabaseConnectorInterface {
     protected ?Connection $connection = null;
     /** @var int */
     protected int $joinCounter = 0;
+    /** @var array */
+    protected array $joinedRelationships = [];
 
     public function __construct($logger, Config $config, ?array $dbParams = null) {
         $this->logger = $logger;
@@ -490,6 +492,10 @@ class DatabaseConnector implements DatabaseConnectorInterface {
 
             $conn = $this->getConnection();
             $queryBuilder = $conn->createQueryBuilder();
+
+            // Reset JOIN tracking for this query to prevent cross-query contamination
+            $this->joinedRelationships = [];
+            $this->joinCounter = 0;
 
             // Use the existing model instance directly - NO expensive ServiceLocator::get() call
             $tableName = $model->getTableName();
@@ -1057,8 +1063,7 @@ class DatabaseConnector implements DatabaseConnectorInterface {
             $groupedCriteria[$relationshipName][$fieldName] = $value;
         }
 
-        // Static tracking to prevent duplicate JOINs across method calls
-        static $joinedRelationships = [];
+        // Use instance property to track JOINs for this query (reset at start of find())
 
         foreach ($groupedCriteria as $relationshipName => $criteria) {
             try {
@@ -1077,12 +1082,12 @@ class DatabaseConnector implements DatabaseConnectorInterface {
                 $joinKey = get_class($model) . '::' . $relationshipName;
 
                 // Add JOIN if not already added
-                if (!isset($joinedRelationships[$joinKey])) {
+                if (!isset($this->joinedRelationships[$joinKey])) {
                     $this->addRelationshipJoin($queryBuilder, $relationship, $model, $mainAlias, $relationshipAlias);
-                    $joinedRelationships[$joinKey] = $relationshipAlias;
+                    $this->joinedRelationships[$joinKey] = $relationshipAlias;
                     $this->joinCounter++;
                 } else {
-                    $relationshipAlias = $joinedRelationships[$joinKey];
+                    $relationshipAlias = $this->joinedRelationships[$joinKey];
                 }
 
                 // Apply WHERE conditions on relationship fields
@@ -1144,8 +1149,8 @@ class DatabaseConnector implements DatabaseConnectorInterface {
             }
         }
 
-        // Static tracking to prevent duplicate JOINs across method calls
-        static $joinedRelatedModels = [];
+        // Use instance property to track related model JOINs for this query (reset at start of find())
+        // Note: Using same joinedRelationships array for consistency
 
         foreach ($groupedCriteria as $relationshipName => $relatedModels) {
             try {
@@ -1180,12 +1185,12 @@ class DatabaseConnector implements DatabaseConnectorInterface {
                     $joinKey = get_class($model) . '::' . $relationshipName . '::' . $relatedModelName;
 
                     // Add JOINs if not already added
-                    if (!isset($joinedRelatedModels[$joinKey])) {
+                    if (!isset($this->joinedRelationships[$joinKey])) {
                         $this->addRelatedModelJoin($queryBuilder, $relationship, $model, $relatedModel, $mainAlias, $relationshipAlias, $relatedModelAlias);
-                        $joinedRelatedModels[$joinKey] = $relatedModelAlias;
+                        $this->joinedRelationships[$joinKey] = $relatedModelAlias;
                         $this->joinCounter++;
                     } else {
-                        $relatedModelAlias = $joinedRelatedModels[$joinKey];
+                        $relatedModelAlias = $this->joinedRelationships[$joinKey];
                     }
 
                     // Apply WHERE conditions on related model fields

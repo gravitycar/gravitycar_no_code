@@ -175,4 +175,10 @@ return [
         // Note: Fields not listed in createFields/editFields/listFields are automatically hidden
         // The frontend uses positive inclusion rather than negative exclusion
     ],
+    'rolesAndActions' => [
+        'admin' => ['*'], // Only admins can manage permissions
+        'manager' => ['read', 'create', 'update', 'delete'],
+        'user' => ['read', 'create', 'update', 'delete'],
+        'guest' => ['read', 'create', 'update', 'delete'],
+    ],
 ];

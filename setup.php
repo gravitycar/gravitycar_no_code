@@ -283,8 +283,36 @@ try {
         printWarning("Warning: Setup continued but permissions may not be current");
         printInfo("You can run 'php setup.php' again or manually rebuild permissions");
     }
-    // Step 6: Create sample user records
-    printHeader("Step 6: Creating Sample Users");
+    
+    // Step 6: Build Navigation Cache
+    printHeader("Step 6: Building Navigation Cache");
+    printInfo("Building role-specific navigation caches...");
+
+    try {
+        $container = \Gravitycar\Core\ContainerConfig::getContainer();
+        $navigationBuilder = $container->get('navigation_builder');
+        
+        $cacheResults = $navigationBuilder->buildAllRoleNavigationCaches();
+        
+        $successCount = count(array_filter($cacheResults, fn($r) => $r['success']));
+        $totalRoles = count($cacheResults);
+        
+        printSuccess("Navigation cache built: {$successCount}/{$totalRoles} roles cached successfully");
+        
+        foreach ($cacheResults as $role => $result) {
+            if ($result['success']) {
+                printInfo("  ✓ {$role}: {$result['items_count']} navigation items");
+            } else {
+                printWarning("  ✗ {$role}: {$result['error']}");
+            }
+        }
+        
+    } catch (Exception $e) {
+        printWarning("Could not build navigation cache: " . $e->getMessage());
+    }
+    
+    // Step 7: Create sample user records
+    printHeader("Step 7: Creating Sample Users");
     
     // Sample user data
     $usersData = [
@@ -344,13 +372,11 @@ try {
             }
             
             if ($existingUser) {
-                printWarning("User {$userData['username']} already exists, skipping");
-                $skippedUsers[] = $userData['username'];
-                continue;
+                printWarning("User {$userData['username']} already exists - updating");
+                $user = $existingUser;
+            } else {
+                $user = $modelFactory->new('Users');
             }
-            
-            // Create new user using DI-managed ModelFactory
-            $user = $modelFactory->new('Users');
             
             // Set user data
             foreach ($userData as $field => $value) {
@@ -361,8 +387,13 @@ try {
                 }
             }
             
-            // Create the user
-            $success = $user->create();
+            if ($existingUser) {
+                // Update existing user
+                $success = $user->update();
+            } else {
+                // Create the user
+                $success = $user->create();
+            }
             
             if ($success) {
                 $createdUsers[] = [

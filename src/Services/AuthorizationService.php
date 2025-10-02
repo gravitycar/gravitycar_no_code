@@ -180,7 +180,7 @@ class AuthorizationService
             $criteria = [
                 'roles_permissions.roles_id' => $role->get('id'),
                 'action' => $permission,
-                'model' => $model
+                'component' => $model
             ];
             
             // Find permissions using DatabaseConnector with relationship criteria

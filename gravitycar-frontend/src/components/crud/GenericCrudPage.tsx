@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { useNotify } from '../../contexts/NotificationContext';
 import { useModelMetadata } from '../../hooks/useModelMetadata';
 import { apiService } from '../../services/api';
@@ -53,6 +54,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
 }) => {
   const notify = useNotify();
   const { metadata, loading: metadataLoading, error: metadataError } = useModelMetadata(modelName);
+  const [searchParams, setSearchParams] = useSearchParams();
   
   const [state, setState] = useState<PageState>({
     items: [],
@@ -604,6 +606,34 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
       loadItems();
     }
   }, [modelName, metadataLoading, metadata]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handle navigation create events and URL parameters
+  useEffect(() => {
+    // Check for create action in URL parameters
+    const action = searchParams.get('action');
+    if (action === 'create') {
+      setState(prev => ({ ...prev, isCreateModalOpen: true }));
+      // Clear the action parameter
+      setSearchParams(prev => {
+        prev.delete('action');
+        return prev;
+      });
+    }
+
+    // Listen for navigation create events
+    const handleNavigationCreate = (event: CustomEvent) => {
+      const { modelName: eventModelName } = event.detail;
+      if (eventModelName.toLowerCase() === modelName.toLowerCase()) {
+        setState(prev => ({ ...prev, isCreateModalOpen: true }));
+      }
+    };
+
+    window.addEventListener('navigation-create', handleNavigationCreate as EventListener);
+
+    return () => {
+      window.removeEventListener('navigation-create', handleNavigationCreate as EventListener);
+    };
+  }, [modelName, searchParams, setSearchParams]);
 
   // Show loading state
   if (metadataLoading || (state.loading && state.items.length === 0)) {

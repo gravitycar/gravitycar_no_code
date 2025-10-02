@@ -14,6 +14,14 @@ use Monolog\Logger;
  * MovieQuotes model class for Gravitycar framework.
  */
 class Movie_Quotes extends ModelBase {
+    
+    protected array $rolesAndActions = [
+        'admin' => ['*'], // Admin can perform all actions
+        'manager' => ['list', 'read', 'create', 'update', 'delete'],
+        'user' => ['list', 'read', 'create', 'update', 'delete'],
+        'guest' => ['list', 'read', 'create', 'update', 'delete'] 
+    ];
+
     /**
      * Pure dependency injection constructor
      */

@@ -28,6 +28,14 @@ class MetadataAPIController extends ApiControllerBase {
     private ?ReactComponentMapper $componentMapper;
     private ?DocumentationCache $cache;
     
+    protected array $rolesAndActions = [
+        // Full permissions by default - controllers can override this property
+        'admin' => ['*'],
+        'manager' => ['*'],
+        'user' => ['*'],
+        'guest' => ['*']
+    ];
+    
     /**
      * Pure dependency injection constructor - all dependencies explicitly provided
      * For backwards compatibility during route discovery, all parameters are optional with null defaults

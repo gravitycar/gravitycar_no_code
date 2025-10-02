@@ -7,10 +7,7 @@ import Login from './components/auth/Login';
 import Dashboard from './pages/Dashboard';
 import MetadataTestPage from './pages/MetadataTestPage';
 import TestRelatedRecord from './pages/TestRelatedRecord';
-import UsersPage from './pages/UsersPage';
-import MoviesPage from './pages/MoviesPage';
-import BooksPage from './pages/BooksPage';
-import MovieQuotesPage from './pages/MovieQuotesPage';
+import DynamicModelRoute from './components/routing/DynamicModelRoute';
 import MoviesQuotesRelationshipDemo from './pages/MoviesQuotesRelationshipDemo';
 import TriviaPage from './pages/TriviaPage';
 import './App.css';
@@ -93,51 +90,6 @@ const AppRoutes = () => {
         }
       />
       
-      {/* Users Management Route - COMPLETED */}
-      <Route
-        path="/users"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <UsersPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      
-      <Route
-        path="/movies"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <MoviesPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      
-      <Route
-        path="/books"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <BooksPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      
-      <Route
-        path="/quotes"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <MovieQuotesPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      
       <Route
         path="/movies-quotes-demo"
         element={
@@ -163,6 +115,19 @@ const AppRoutes = () => {
       
       {/* Default route */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      
+      {/* Dynamic Model Routes - handles any model using GenericCrudPage */}
+      {/* This must be placed AFTER all specific routes but BEFORE the 404 route */}
+      <Route
+        path="/:modelName"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <DynamicModelRoute />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
       
       {/* 404 route */}
       <Route 

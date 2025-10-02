@@ -17,6 +17,7 @@ use Monolog\Logger;
  */
 class Permissions extends ModelBase
 {
+    
     /**
      * Pure dependency injection constructor
      */

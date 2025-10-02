@@ -333,6 +333,18 @@ class ContainerConfig {
             'apiRouteRegistry' => $di->lazyGet('api_route_registry')
         ];
 
+        // Navigation Services
+        $di->set('navigation_config', $di->lazyNew(\Gravitycar\Navigation\NavigationConfig::class));
+        
+        $di->set('navigation_builder', $di->lazyNew(\Gravitycar\Services\NavigationBuilder::class));
+        $di->params[\Gravitycar\Services\NavigationBuilder::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'authorizationService' => $di->lazyGet('authorization_service'),
+            'navigationConfig' => $di->lazyGet('navigation_config'),
+            'modelFactory' => $di->lazyGet('model_factory')
+        ];
+
         // TMDB Services
         $di->set('tmdb_api_service', $di->lazyNew(\Gravitycar\Services\TMDBApiService::class));
         $di->params[\Gravitycar\Services\TMDBApiService::class] = [
