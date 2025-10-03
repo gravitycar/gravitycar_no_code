@@ -528,6 +528,23 @@ class ContainerConfig {
             'logger' => $di->lazyGet('logger'),
             'metadataEngine' => $di->lazyGet('metadata_engine')
         ];
+        
+        // OpenAPI Permission Filter Service
+        $di->set('openapi_permission_filter', $di->lazyNew(\Gravitycar\Services\OpenAPIPermissionFilter::class));
+        $di->params[\Gravitycar\Services\OpenAPIPermissionFilter::class] = [
+            'authorizationService' => $di->lazyGet('authorization_service'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'logger' => $di->lazyGet('logger')
+        ];
+        
+        // OpenAPI Model Route Builder Service
+        $di->set('openapi_model_route_builder', $di->lazyNew(\Gravitycar\Services\OpenAPIModelRouteBuilder::class));
+        $di->params[\Gravitycar\Services\OpenAPIModelRouteBuilder::class] = [
+            'metadataEngine' => $di->lazyGet('metadata_engine'),
+            'fieldFactory' => $di->lazyGet('field_factory'),
+            'modelFactory' => $di->lazyGet('model_factory'),
+            'logger' => $di->lazyGet('logger')
+        ];
 
         $di->set('openapi_generator', $di->lazyNew(\Gravitycar\Services\OpenAPIGenerator::class));
         $di->params[\Gravitycar\Services\OpenAPIGenerator::class] = [
@@ -537,7 +554,9 @@ class ContainerConfig {
             'databaseConnector' => $di->lazyGet('database_connector'),
             'config' => $di->lazyGet('config'),
             'componentMapper' => $di->lazyGet('react_component_mapper'),
-            'cache' => $di->lazyGet('documentation_cache')
+            'cache' => $di->lazyGet('documentation_cache'),
+            'permissionFilter' => $di->lazyGet('openapi_permission_filter'),
+            'modelRouteBuilder' => $di->lazyGet('openapi_model_route_builder')
         ];
         
         // Alias for OpenAPIGenerator service (APIControllerFactory expects underscore naming)
