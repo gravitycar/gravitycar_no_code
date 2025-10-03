@@ -405,31 +405,77 @@ class OpenAPIModelRouteBuilder {
     }
     
     /**
-     * Generate field example value
+     * Generate field example value (enhanced with common patterns)
      */
     private function generateFieldExample(string $fieldName, array $fieldInfo): mixed {
-        switch ($fieldInfo['type'] ?? 'Text') {
+        $fieldType = $fieldInfo['type'] ?? 'Text';
+        
+        // Check for enum/options first
+        if (isset($fieldInfo['options']) && !empty($fieldInfo['options'])) {
+            $options = array_keys($fieldInfo['options']);
+            return $options[0] ?? 'example';
+        }
+        
+        switch ($fieldType) {
             case 'Integer':
-                return $fieldName === 'release_year' ? 2024 : 1;
+                // Common integer field patterns
+                if (str_contains($fieldName, 'year')) return 2024;
+                if (str_contains($fieldName, 'age')) return 25;
+                if (str_contains($fieldName, 'count')) return 10;
+                if (str_contains($fieldName, 'rating')) return 8;
+                return 1;
+                
             case 'Boolean':
-                return true;
+                return str_contains($fieldName, 'is_') || str_contains($fieldName, 'has_') ? true : false;
+                
             case 'Date':
             case 'DateTime':
                 return '2024-01-01';
+                
+            case 'Email':
+                return 'user@example.com';
+                
+            case 'Float':
+                if (str_contains($fieldName, 'rating')) return 8.5;
+                if (str_contains($fieldName, 'price')) return 19.99;
+                return 1.0;
+                
             default:
+                // Common text field patterns
                 $examples = [
-                    'release_year' => 1980,
                     'name' => 'Example Name',
-                    'email' => 'user@example.com'
+                    'title' => 'Example Title',
+                    'email' => 'user@example.com',
+                    'username' => 'example_user',
+                    'description' => 'This is an example description',
+                    'quote' => 'This is an example quote',
+                    'synopsis' => 'This is an example synopsis',
+                    'release_year' => 2024
                 ];
                 return $examples[$fieldName] ?? 'example';
         }
     }
     
     /**
-     * Get example ID for model
+     * Get example ID for model (uses real database data if available)
      */
     private function getExampleId(string $modelName): string {
+        try {
+            // Try to get a real record from the database
+            $model = $this->modelFactory->new($modelName);
+            $records = $model->find([], [], ['limit' => 1]); // Get first record
+            
+            if (!empty($records) && isset($records[0])) {
+                $recordData = $records[0]->toArray();
+                if (isset($recordData['id'])) {
+                    return (string)$recordData['id'];
+                }
+            }
+        } catch (\Exception $e) {
+            $this->logger->debug("Could not get real example ID for {$modelName}: " . $e->getMessage());
+        }
+        
+        // Fallback to example UUIDs
         $examples = [
             'Movies' => '123e4567-e89b-12d3-a456-426614174000',
             'Users' => '234e5678-e89b-12d3-a456-426614174001',
@@ -520,14 +566,14 @@ class OpenAPIModelRouteBuilder {
     }
     
     /**
-     * Generate success response schema
+     * Generate success response schema with real examples
      */
     private function generateSuccessResponse(string $modelName, string $operation): array {
         switch ($operation) {
             case 'list':
             case 'listDeleted':
             case 'listRelated':
-                return [
+                $response = [
                     'description' => "Collection of {$modelName} records",
                     'content' => [
                         'application/json' => [
@@ -541,17 +587,19 @@ class OpenAPIModelRouteBuilder {
                                     ],
                                     'meta' => ['$ref' => '#/components/schemas/Pagination']
                                 ]
-                            ]
+                            ],
+                            'example' => $this->generateCollectionExample($modelName)
                         ]
                     ]
                 ];
+                return $response;
                 
             case 'retrieve':
             case 'create':
             case 'update':
             case 'restore':
             case 'createAndLink':
-                return [
+                $response = [
                     'description' => "Single {$modelName} record",
                     'content' => [
                         'application/json' => [
@@ -561,10 +609,12 @@ class OpenAPIModelRouteBuilder {
                                     'success' => ['type' => 'boolean'],
                                     'data' => ['$ref' => "#/components/schemas/{$modelName}"]
                                 ]
-                            ]
+                            ],
+                            'example' => $this->generateSingleRecordExample($modelName)
                         ]
                     ]
                 ];
+                return $response;
                 
             case 'delete':
             case 'link':
@@ -597,10 +647,51 @@ class OpenAPIModelRouteBuilder {
     }
     
     /**
-     * Generate example request body (to be enhanced with real data in Phase 4)
+     * Generate example request body with real database data
      */
     private function generateExampleRequestBody(string $modelName, string $operation): array {
-        // Simple fallback examples for now - Phase 4 will enhance with real database data
+        try {
+            // Try to get a real record from the database
+            $model = $this->modelFactory->new($modelName);
+            $metadata = $this->metadataEngine->getModelMetadata($modelName);
+            $records = $model->find([], [], ['limit' => 1]); // Get first record
+            
+            if (!empty($records) && isset($records[0])) {
+                $recordData = $records[0]->toArray();
+                
+                // Filter out read-only and system fields for create/update examples
+                $example = [];
+                foreach ($metadata['fields'] ?? [] as $fieldName => $fieldDef) {
+                    if (isset($recordData[$fieldName])) {
+                        // Skip read-only fields and IDs for create operation
+                        if ($operation === 'create' && 
+                            ($fieldDef['type'] === 'ID' || ($fieldDef['readonly'] ?? false))) {
+                            continue;
+                        }
+                        
+                        // Skip audit fields (created_at, updated_at, etc.)
+                        if (in_array($fieldName, ['created_at', 'updated_at', 'deleted_at', 
+                                                   'created_by', 'updated_by', 'deleted_by'])) {
+                            continue;
+                        }
+                        
+                        $example[$fieldName] = $recordData[$fieldName];
+                    }
+                }
+                
+                if (!empty($example)) {
+                    // For update operations, include the ID
+                    if ($operation === 'update' && isset($recordData['id'])) {
+                        $example['id'] = $recordData['id'];
+                    }
+                    return $example;
+                }
+            }
+        } catch (\Exception $e) {
+            $this->logger->debug("Could not generate real example for {$modelName}: " . $e->getMessage());
+        }
+        
+        // Fallback to simple examples
         $examples = [
             'Movies' => ['name' => 'Example Movie Title', 'release_year' => 2024],
             'Users' => ['username' => 'example_user', 'email' => 'user@example.com'],
@@ -614,5 +705,79 @@ class OpenAPIModelRouteBuilder {
         }
         
         return $examples[$modelName] ?? ['name' => "Example {$modelName}"];
+    }
+    
+    /**
+     * Generate collection example response with real data
+     */
+    
+    /**
+     * Generate collection example response with real data
+     */
+    private function generateCollectionExample(string $modelName): array {
+        try {
+            $model = $this->modelFactory->new($modelName);
+            $records = $model->find([], [], ['limit' => 2]); // Get up to 2 records
+            
+            if (!empty($records)) {
+                $data = [];
+                foreach ($records as $record) {
+                    $data[] = $record->toArray();
+                }
+                
+                return [
+                    'success' => true,
+                    'data' => $data,
+                    'meta' => [
+                        'page' => 1,
+                        'pageSize' => count($data),
+                        'total' => count($data),
+                        'totalPages' => 1
+                    ]
+                ];
+            }
+        } catch (\Exception $e) {
+            $this->logger->debug("Could not generate collection example for {$modelName}: " . $e->getMessage());
+        }
+        
+        // Fallback example
+        return [
+            'success' => true,
+            'data' => [],
+            'meta' => [
+                'page' => 1,
+                'pageSize' => 0,
+                'total' => 0,
+                'totalPages' => 0
+            ]
+        ];
+    }
+    
+    /**
+     * Generate single record example response with real data
+     */
+    private function generateSingleRecordExample(string $modelName): array {
+        try {
+            $model = $this->modelFactory->new($modelName);
+            $records = $model->find([], [], ['limit' => 1]);
+            
+            if (!empty($records) && isset($records[0])) {
+                return [
+                    'success' => true,
+                    'data' => $records[0]->toArray()
+                ];
+            }
+        } catch (\Exception $e) {
+            $this->logger->debug("Could not generate single record example for {$modelName}: " . $e->getMessage());
+        }
+        
+        // Fallback example
+        return [
+            'success' => true,
+            'data' => [
+                'id' => $this->getExampleId($modelName),
+                'name' => "Example {$modelName}"
+            ]
+        ];
     }
 }
