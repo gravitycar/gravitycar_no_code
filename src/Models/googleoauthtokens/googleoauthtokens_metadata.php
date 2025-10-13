@@ -54,4 +54,10 @@ return [
         'listFields' => ['user_id', 'scope', 'token_expires_at', 'created_at', 'revoked_at'],
         'createFields' => ['user_id', 'access_token_hash', 'refresh_token_hash', 'token_expires_at', 'scope'],
     ],
+    'rolesAndActions' => [
+        'admin' => ['*'], // Only admins can manage permissions
+        'manager' => [], // Managers have no access
+        'user' => [], // Users have no access
+        'guest' => [], // Guests have no access
+    ],
 ];

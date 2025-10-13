@@ -89,42 +89,49 @@ class MetadataAPIController extends ApiControllerBase {
             [
                 'method' => 'GET',
                 'path' => '/metadata/models',
-                'apiClass' => '\\Gravitycar\\Api\\MetadataAPIController',
+                'apiClass' => 'Gravitycar\\Api\\MetadataAPIController',
                 'apiMethod' => 'getModels',
                 'parameterNames' => []
             ],
             [
                 'method' => 'GET',
                 'path' => '/metadata/models/?',
-                'apiClass' => '\\Gravitycar\\Api\\MetadataAPIController',
+                'apiClass' => 'Gravitycar\\Api\\MetadataAPIController',
                 'apiMethod' => 'getModelMetadata',
                 'parameterNames' => ['modelName']
             ],
             [
                 'method' => 'GET',
                 'path' => '/metadata/field-types',
-                'apiClass' => '\\Gravitycar\\Api\\MetadataAPIController',
+                'apiClass' => 'Gravitycar\\Api\\MetadataAPIController',
                 'apiMethod' => 'getFieldTypes',
                 'parameterNames' => []
             ],
             [
                 'method' => 'GET',
                 'path' => '/metadata/relationships',
-                'apiClass' => '\\Gravitycar\\Api\\MetadataAPIController',
+                'apiClass' => 'Gravitycar\\Api\\MetadataAPIController',
                 'apiMethod' => 'getRelationships',
                 'parameterNames' => []
             ],
             [
                 'method' => 'GET',
+                'path' => '/metadata/relationships/?',
+                'apiClass' => 'Gravitycar\\Api\\MetadataAPIController',
+                'apiMethod' => 'getRelationshipMetadata',
+                'parameterNames' => ['relationshipName']
+            ],
+            [
+                'method' => 'GET',
                 'path' => '/help',
-                'apiClass' => '\\Gravitycar\\Api\\MetadataAPIController',
+                'apiClass' => 'Gravitycar\\Api\\MetadataAPIController',
                 'apiMethod' => 'getHelp',
                 'parameterNames' => []
             ],
             [
                 'method' => 'POST',
                 'path' => '/metadata/cache/clear',
-                'apiClass' => '\\Gravitycar\\Api\\MetadataAPIController',
+                'apiClass' => 'Gravitycar\\Api\\MetadataAPIController',
                 'apiMethod' => 'clearDocumentationCache',
                 'parameterNames' => []
             ]
@@ -369,6 +376,81 @@ class MetadataAPIController extends ApiControllerBase {
             throw new InternalServerErrorException(
                 'Failed to retrieve relationships metadata',
                 ['original_error' => $e->getMessage()],
+                $e
+            );
+        }
+    }
+    
+    /**
+     * Get metadata for a specific relationship
+     */
+    public function getRelationshipMetadata(Request $request): array {
+        $relationshipName = $request->get('relationshipName');
+        if (!$relationshipName) {
+            throw new BadRequestException('Relationship name is required', [
+                'available_parameters' => array_keys($request->all())
+            ]);
+        }
+        
+        try {
+            // Check cache first
+            if ($this->config->get('documentation.cache_enabled', true)) {
+                $cached = $this->cache->getCachedRelationshipMetadata($relationshipName);
+                if ($cached !== null) {
+                    return $cached;
+                }
+            }
+            
+            /** @var MetadataEngine $metadataEngine */
+            $metadataEngine = $this->metadataEngine;
+            $metadata = $metadataEngine->getCachedMetadata();
+            $relationships = $metadata['relationships'] ?? [];
+            
+            // Find the specific relationship
+            if (!isset($relationships[$relationshipName])) {
+                throw new NotFoundException(
+                    "Relationship '{$relationshipName}' not found",
+                    [
+                        'relationship' => $relationshipName,
+                        'available_relationships' => array_keys($relationships)
+                    ]
+                );
+            }
+            
+            $relationshipData = $relationships[$relationshipName];
+            
+            // Enhance with additional information
+            $result = [
+                'success' => true,
+                'status' => 200,
+                'data' => [
+                    'name' => $relationshipName,
+                    'type' => $relationshipData['type'] ?? 'unknown',
+                    'modelOne' => $relationshipData['modelOne'] ?? null,
+                    'modelMany' => $relationshipData['modelMany'] ?? null,
+                    'modelA' => $relationshipData['modelA'] ?? null,
+                    'modelB' => $relationshipData['modelB'] ?? null,
+                    'table' => $relationshipData['table'] ?? null,
+                    'constraints' => $relationshipData['constraints'] ?? [],
+                    'additionalFields' => $relationshipData['additionalFields'] ?? [],
+                    'description' => $relationshipData['description'] ?? "Relationship: {$relationshipName}"
+                ],
+                'timestamp' => date('c')
+            ];
+            
+            // Cache if enabled
+            if ($this->config->get('documentation.cache_enabled', true)) {
+                $this->cache->cacheRelationshipMetadata($relationshipName, $result);
+            }
+            
+            return $result;
+            
+        } catch (NotFoundException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            throw new InternalServerErrorException(
+                "Failed to retrieve metadata for relationship '{$relationshipName}'",
+                ['relationship' => $relationshipName, 'original_error' => $e->getMessage()],
                 $e
             );
         }

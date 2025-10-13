@@ -3,8 +3,12 @@ namespace Gravitycar\Services;
 
 use Gravitycar\Services\AuthorizationService;
 use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Factories\APIControllerFactory;
+use Gravitycar\Api\APIRouteRegistry;
+use Gravitycar\Api\APIPathScorer;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Api\Request;
+use Gravitycar\Exceptions\GCException;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -16,6 +20,9 @@ use Psr\Log\LoggerInterface;
 class OpenAPIPermissionFilter {
     private AuthorizationService $authorizationService;
     private ModelFactory $modelFactory;
+    private APIControllerFactory $apiControllerFactory;
+    private APIRouteRegistry $routeRegistry;
+    private APIPathScorer $pathScorer;
     private LoggerInterface $logger;
     private array $permissionCache = [];
     private ?ModelBase $testUser = null;
@@ -23,10 +30,16 @@ class OpenAPIPermissionFilter {
     public function __construct(
         AuthorizationService $authorizationService,
         ModelFactory $modelFactory,
+        APIControllerFactory $apiControllerFactory,
+        APIRouteRegistry $routeRegistry,
+        APIPathScorer $pathScorer,
         LoggerInterface $logger
     ) {
         $this->authorizationService = $authorizationService;
         $this->modelFactory = $modelFactory;
+        $this->apiControllerFactory = $apiControllerFactory;
+        $this->routeRegistry = $routeRegistry;
+        $this->pathScorer = $pathScorer;
         $this->logger = $logger;
     }
     
@@ -50,7 +63,24 @@ class OpenAPIPermissionFilter {
         try {
             $testUser = $this->getTestUser();
             $request = $this->createTestRequest($route);
-            
+
+            // we have to do all of this to get the apiControllerClassName set on the request so the permissions check will identify Model requests correctly.
+            $pathLength = count(explode('/', trim($route['path'], '/')));
+            $candidateRoutes = $this->routeRegistry->getRoutesByMethodAndLength($route['method'], $pathLength);
+            $bestRoute = $this->pathScorer->findBestMatch($route['method'], $route['path'], $candidateRoutes);
+
+            if (empty($bestRoute['controllerDependencies'])) {
+                throw new GCException('No controller dependencies found for route ' . $route['path'] . ' during permission check', ['route' => $route]);
+            }
+
+
+            $controller = $this->apiControllerFactory->createControllerWithDependencyList(
+                $bestRoute['apiClass'],
+                $bestRoute['controllerDependencies'],
+            );
+            $request->setApiControllerClassName(get_class($controller));
+
+            /*
             // Check if this is a relationship route requiring dual permission check
             if ($this->isRelationshipRoute($route['path'])) {
                 $hasPermission = $this->checkRelationshipRoutePermissions($route, $request, $testUser);
@@ -62,7 +92,15 @@ class OpenAPIPermissionFilter {
                     $testUser
                 );
             }
-            
+            */
+
+            // Standard single-model permission check
+            $hasPermission = $this->authorizationService->hasPermissionForRoute(
+                $route,
+                $request,
+                $testUser
+            );
+
             if (!$hasPermission) {
                 // This is EXPECTED - user doesn't have permission
                 $this->logger->debug('Route excluded from documentation - user lacks permission', [
@@ -132,6 +170,29 @@ class OpenAPIPermissionFilter {
         $pathParts = explode('/', trim($url, '/'));
         $parameterNames = $route['parameterNames'] ?? [];
         
+        // If no parameterNames provided, infer from path
+        if (empty($parameterNames) && !empty($pathParts)) {
+            // Check if first segment looks like a model name (starts with uppercase)
+            $firstSegment = $pathParts[0] ?? '';
+            if ($route['apiClass'] === 'Gravitycar\\Api\\ModelBaseAPIController') {
+                // Model route - first segment is modelName
+                $parameterNames = ['modelName'];
+                // Additional segments
+                for ($i = 1; $i < count($pathParts); $i++) {
+                    if (str_contains($pathParts[$i], '{')) {
+                        // Parameter placeholder - extract name
+                        $parameterNames[] = trim($pathParts[$i], '{}');
+                    } else {
+                        // Literal segment
+                        $parameterNames[] = '';
+                    }
+                }
+            } else {
+                // Non-model route (auth, metadata, etc.) - use empty parameterNames
+                $parameterNames = array_fill(0, count($pathParts), '');
+            }
+        }
+        
         // Ensure parameterNames matches path components count
         if (count($parameterNames) < count($pathParts)) {
             // Pad with empty strings
@@ -148,13 +209,14 @@ class OpenAPIPermissionFilter {
             'SERVER_PORT' => '8081'
         ];
         
-        // Parse path and add example values for dynamic segments
+        // Parse path and add values for parameters
         for ($i = 0; $i < count($pathParts); $i++) {
             if (!empty($parameterNames[$i])) {
                 // For dynamic path segments, use example values
                 if (str_contains($pathParts[$i], '{')) {
                     $requestData[$parameterNames[$i]] = 'example-value';
                 } else {
+                    // Use the actual value from the path
                     $requestData[$parameterNames[$i]] = $pathParts[$i];
                 }
             }
@@ -360,14 +422,28 @@ class OpenAPIPermissionFilter {
         }
         
         $pathParts = explode('/', trim($path, '/'));
-        $parameterNames = array_pad([], count($pathParts), '');
+        
+        // Build parameterNames - first segment is always modelName
+        $parameterNames = ['modelName'];
+        if (count($pathParts) > 1) {
+            $parameterNames[] = 'id';
+        }
+        
+        // Ensure parameterNames matches path parts count
+        $parameterNames = array_pad($parameterNames, count($pathParts), '');
         
         $requestData = [
             'REQUEST_METHOD' => $method,
             'REQUEST_URI' => $path,
             'SERVER_NAME' => 'localhost',
-            'SERVER_PORT' => '8081'
+            'SERVER_PORT' => '8081',
+            'modelName' => $modelName  // CRITICAL: Set modelName for AuthorizationService
         ];
+        
+        // Add ID if present
+        if (count($pathParts) > 1) {
+            $requestData['id'] = $pathParts[1];
+        }
         
         return new Request($path, $parameterNames, $method, $requestData);
     }

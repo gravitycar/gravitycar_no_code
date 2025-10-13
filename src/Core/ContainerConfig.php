@@ -534,6 +534,9 @@ class ContainerConfig {
         $di->params[\Gravitycar\Services\OpenAPIPermissionFilter::class] = [
             'authorizationService' => $di->lazyGet('authorization_service'),
             'modelFactory' => $di->lazyGet('model_factory'),
+            'apiControllerFactory' => $di->lazyGet('api_controller_factory'),
+            'routeRegistry' => $di->lazyGet('api_route_registry'),
+            'pathScorer' => $di->lazyGet('api_path_scorer'),
             'logger' => $di->lazyGet('logger')
         ];
         
@@ -543,7 +546,8 @@ class ContainerConfig {
             'metadataEngine' => $di->lazyGet('metadata_engine'),
             'fieldFactory' => $di->lazyGet('field_factory'),
             'modelFactory' => $di->lazyGet('model_factory'),
-            'logger' => $di->lazyGet('logger')
+            'logger' => $di->lazyGet('logger'),
+            'modelBaseAPIController' => $di->lazyGet('model_base_api_controller')
         ];
 
         $di->set('openapi_generator', $di->lazyNew(\Gravitycar\Services\OpenAPIGenerator::class));

@@ -4,6 +4,7 @@ namespace Gravitycar\Services;
 use Gravitycar\Contracts\MetadataEngineInterface;
 use Gravitycar\Factories\FieldFactory;
 use Gravitycar\Factories\ModelFactory;
+use Gravitycar\Models\Api\Api\ModelBaseAPIController;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -20,22 +21,98 @@ class OpenAPIModelRouteBuilder {
     private FieldFactory $fieldFactory;
     private ModelFactory $modelFactory;
     private LoggerInterface $logger;
+    private ModelBaseAPIController $modelBaseAPIController;
     
     public function __construct(
         MetadataEngineInterface $metadataEngine,
         FieldFactory $fieldFactory,
         ModelFactory $modelFactory,
-        LoggerInterface $logger
+        LoggerInterface $logger,
+        ModelBaseAPIController $modelBaseAPIController
     ) {
         $this->metadataEngine = $metadataEngine;
         $this->fieldFactory = $fieldFactory;
         $this->modelFactory = $modelFactory;
         $this->logger = $logger;
+        $this->modelBaseAPIController = $modelBaseAPIController;
+    }
+    
+    /**
+     * Collect model operations with proper route structures from ModelBaseAPIController
+     * Returns array of [path => [method => ['operation' => opDef, 'route' => routeArray]]]
+     * 
+     * This method uses ModelBaseAPIController::registerRoutes() as the source of truth
+     * for route structures, ensuring proper parameterNames arrays for permission checking.
+     * 
+     * @param string $modelName The model name (e.g., 'Movies', 'Users')
+     * @return array Array with 'operation' and 'route' keys for each path/method
+     */
+    public function collectModelOperations(string $modelName): array {
+        $results = [];
+        
+        // Get wildcard routes from ModelBaseAPIController instance
+        $wildcardRoutes = $this->modelBaseAPIController->registerRoutes();
+        
+        // For each wildcard route, replace first ? with model name and remaining ? with {param}
+        foreach ($wildcardRoutes as $wildcardRoute) {
+            $path = $wildcardRoute['path'];
+            $operation = $wildcardRoute['apiMethod'];
+            $method = strtolower($wildcardRoute['method']);
+            $parameterNames = $wildcardRoute['parameterNames'];
+            
+            // Split path and replace wildcards according to parameterNames
+            $pathParts = explode('/', trim($path, '/'));
+            $openApiParts = [];
+            
+            for ($i = 0; $i < count($pathParts); $i++) {
+                if ($pathParts[$i] === '?') {
+                    // This is a wildcard - check parameterNames
+                    if (isset($parameterNames[$i]) && !empty($parameterNames[$i])) {
+                        if ($parameterNames[$i] === 'modelName') {
+                            // Replace with actual model name
+                            $openApiParts[] = $modelName;
+                        } else {
+                            // Replace with OpenAPI path parameter
+                            $openApiParts[] = '{' . $parameterNames[$i] . '}';
+                        }
+                    } else {
+                        // Empty parameterName - keep literal
+                        $openApiParts[] = $pathParts[$i];
+                    }
+                } else {
+                    // Literal path segment
+                    $openApiParts[] = $pathParts[$i];
+                }
+            }
+            
+            $openApiPath = '/' . implode('/', $openApiParts);
+            $modelPath = preg_replace('/\?/', $modelName, $path, 1);  // For backend routing
+            
+            // Generate OpenAPI operation definition
+            $operationDef = $this->generateModelOperation($modelName, $wildcardRoute['method'], $operation);
+            
+            // Build proper route structure with parameterNames (for permission checking)
+            $route = array_merge($wildcardRoute, []);
+            $route['path'] = $modelPath;
+            $route['apiMethod'] = $operation;
+            
+            // Store both operation and route (use OpenAPI path for spec)
+            if (!isset($results[$openApiPath])) {
+                $results[$openApiPath] = [];
+            }
+            $results[$openApiPath][$method] = [
+                'operation' => $operationDef,
+                'route' => $route
+            ];
+        }
+        
+        return $results;
     }
     
     /**
      * Generate all routes for a model (CRUD + soft delete + relationships)
      * 
+     * @deprecated Use collectModelOperations() instead for proper route structures
      * @param string $modelName The model name (e.g., 'Movies', 'Users')
      * @return array Array of route definitions
      */
@@ -120,6 +197,7 @@ class OpenAPIModelRouteBuilder {
      * Generate natural language description for operation
      */
     private function generateNaturalLanguageDescription(string $modelName, string $operation): string {
+        $relationshipsTip = "To discover what relationships are available for a given model, use the metadata/models/{$modelName} endpoint and look for the 'relationships' section. It will list the names of the relationships available for that model. To link or unlink a related record, you will need the ID of that related record.";
         $descriptions = [
             'list' => "Retrieve {$modelName} records from the gravitycar api with optional search parameters in the query string.",
             'retrieve' => "Get a specific {$modelName} record by its unique identifier.",
@@ -128,10 +206,10 @@ class OpenAPIModelRouteBuilder {
             'delete' => "Delete a {$modelName} record by its unique identifier (soft delete).",
             'listDeleted' => "Retrieve soft-deleted {$modelName} records that can be restored.",
             'restore' => "Restore a previously deleted {$modelName} record by its unique identifier.",
-            'listRelated' => "Get related records linked to a specific {$modelName} via the specified relationship.",
-            'createAndLink' => "Create a new related record and automatically link it to the specified {$modelName}.",
-            'link' => "Create a relationship link between a {$modelName} record and an existing related record.",
-            'unlink' => "Remove a relationship link between a {$modelName} record and a related record."
+            'listRelated' => "Get related records linked to a specific {$modelName} via the specified relationship. $relationshipsTip",
+            'createAndLink' => "Create a new related record and automatically link it to the specified {$modelName}. $relationshipsTip",
+            'link' => "Create a relationship link between a {$modelName} record and an existing related record. $relationshipsTip",
+            'unlink' => "Remove a relationship link between a {$modelName} record and a related record. $relationshipsTip"
         ];
         
         return $descriptions[$operation] ?? "Perform {$operation} operation on {$modelName}";

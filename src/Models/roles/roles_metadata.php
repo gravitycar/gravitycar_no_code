@@ -43,4 +43,10 @@ return [
         'listFields' => ['name', 'description', 'is_oauth_default', 'is_system_role', 'created_at'],
         'createFields' => ['name', 'description', 'is_oauth_default', 'is_system_role'],
     ],
+    'rolesAndActions' => [
+        'admin' => ['*'], // Only admins can manage permissions
+        'manager' => [], // Managers have no access
+        'user' => [], // Users have no access
+        'guest' => [], // Guests have no access
+    ],
 ];

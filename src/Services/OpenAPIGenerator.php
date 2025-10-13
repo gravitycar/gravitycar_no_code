@@ -85,7 +85,7 @@ class OpenAPIGenerator {
      */
     public function generateSpecification(): array {
         // Check cache first
-        if ($this->config->get('documentation.cache_enabled', true)) {
+        if ($this->config->get('documentation.cache_enabled', false)) {
             $cached = $this->cache->getCachedOpenAPISpec();
             if ($cached !== null) {
                 return $cached;
@@ -166,6 +166,7 @@ class OpenAPIGenerator {
     
     /**
      * Generate explicit model paths for all models
+     * Uses collectModelOperations() which provides proper route structures with parameterNames
      */
     private function generateExplicitModelPaths(): array {
         $paths = [];
@@ -173,21 +174,16 @@ class OpenAPIGenerator {
         
         foreach ($models as $modelName) {
             try {
-                // Generate routes for this model
-                $modelRoutes = $this->modelRouteBuilder->generateModelRoutes($modelName);
+                // Collect operations with proper route structures
+                $modelOperations = $this->modelRouteBuilder->collectModelOperations($modelName);
                 
                 // Filter routes by permissions and merge
-                foreach ($modelRoutes as $path => $operations) {
-                    foreach ($operations as $method => $operationDef) {
-                        // Create route array for permission check
-                        $route = [
-                            'path' => $path,
-                            'method' => strtoupper($method),
-                            'apiClass' => "Gravitycar\\Models\\{$modelName}\\{$modelName}",
-                            'apiMethod' => $this->inferApiMethodFromOperation($method, $path)
-                        ];
+                foreach ($modelOperations as $path => $methods) {
+                    foreach ($methods as $method => $data) {
+                        $route = $data['route'];
+                        $operationDef = $data['operation'];
                         
-                        // Check if route is accessible to users
+                        // Check if route is accessible to users (route now has proper parameterNames)
                         if ($this->permissionFilter->isRouteAccessibleToUsers($route)) {
                             if (!isset($paths[$path])) {
                                 $paths[$path] = [];
@@ -212,9 +208,8 @@ class OpenAPIGenerator {
         $paths = [];
         
         foreach ($staticRoutes as $route) {
-            // Only include non-model routes (no wildcards, or special endpoints)
-            if (!str_contains($route['path'], '?') && 
-                !preg_match('/^\/[A-Z]/', $route['path'])) {
+            // Only include non-model routes
+            if (!is_a($route['apiClass'], '\\Gravitycar\\Models\\api\\Api\\ModelBaseAPIController', true)) {
                 
                 // Check permission
                 if ($this->permissionFilter->isRouteAccessibleToUsers($route)) {
@@ -387,6 +382,10 @@ class OpenAPIGenerator {
     private function generateOperationSummary(array $route, string $modelName): string {
         $method = $route['method'];
         
+        if (isset($route['summary']) && !empty($route['summary'])) {
+            return $route['summary'];
+        }
+
         if ($modelName) {
             switch ($method) {
                 case 'GET':
@@ -412,6 +411,9 @@ class OpenAPIGenerator {
      * Generate operation ID
      */
     private function generateOperationId(array $route): string {
+        if (isset($route['operationId']) && !empty($route['operationId'])) {
+            return $route['operationId'];
+        }
         $method = strtolower($route['method']);
         $path = str_replace(['/', '{', '}'], ['_', '', ''], trim($route['path'], '/'));
         return $method . '_' . $path;
@@ -499,6 +501,10 @@ class OpenAPIGenerator {
      * Generate path parameters
      */
     private function generatePathParameters(array $route): array {
+        if (isset($route['parameters']) && !empty($route['parameters'])) {
+            // Use explicitly defined parameters if available
+            return $route['parameters'];
+        }
         $parameters = [];
         $parameterNames = $route['parameterNames'] ?? [];
         

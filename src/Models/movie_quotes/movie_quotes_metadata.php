@@ -33,8 +33,14 @@ return [
                 'displayField' => 'name',
                 'allowCreate' => true,
                 'searchable' => true,
-            ]
+            ],
         ],
     ],
+    'rolesAndActions' => [
+        'admin' => ['*'],
+        'manager' => ['*'],
+        'user' => ['*'],
+        'guest' => ['list', 'read'],
+    ]
 ];
 

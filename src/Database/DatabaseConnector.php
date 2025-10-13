@@ -27,6 +27,7 @@ class DatabaseConnector implements DatabaseConnectorInterface {
     protected ?Connection $connection = null;
     /** @var int */
     protected int $joinCounter = 0;
+    protected array $joinedRelationships = [];
 
     public function __construct($logger, Config $config, ?array $dbParams = null) {
         $this->logger = $logger;
@@ -482,6 +483,9 @@ class DatabaseConnector implements DatabaseConnectorInterface {
             if (is_string($model)) {
                 $model = $this->getModelFactory()->new($model);
             }
+
+            $this->joinedRelationships = [];
+            $this->joinCounter = 0;
             
             // Check if the model has the required methods (duck typing for tests)
             if (!is_object($model) || !method_exists($model, 'getTableName') || !method_exists($model, 'getAlias') || !method_exists($model, 'getFields')) {
@@ -1057,9 +1061,6 @@ class DatabaseConnector implements DatabaseConnectorInterface {
             $groupedCriteria[$relationshipName][$fieldName] = $value;
         }
 
-        // Static tracking to prevent duplicate JOINs across method calls
-        static $joinedRelationships = [];
-
         foreach ($groupedCriteria as $relationshipName => $criteria) {
             try {
                 // Get relationship object from model
@@ -1077,12 +1078,12 @@ class DatabaseConnector implements DatabaseConnectorInterface {
                 $joinKey = get_class($model) . '::' . $relationshipName;
 
                 // Add JOIN if not already added
-                if (!isset($joinedRelationships[$joinKey])) {
+                if (!isset($this->joinedRelationships[$joinKey])) {
                     $this->addRelationshipJoin($queryBuilder, $relationship, $model, $mainAlias, $relationshipAlias);
-                    $joinedRelationships[$joinKey] = $relationshipAlias;
+                    $this->joinedRelationships[$joinKey] = $relationshipAlias;
                     $this->joinCounter++;
                 } else {
-                    $relationshipAlias = $joinedRelationships[$joinKey];
+                    $relationshipAlias = $this->joinedRelationships[$joinKey];
                 }
 
                 // Apply WHERE conditions on relationship fields
