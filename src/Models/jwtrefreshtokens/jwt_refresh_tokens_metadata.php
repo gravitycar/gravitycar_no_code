@@ -55,4 +55,10 @@ return [
         'listFields' => ['user_id', 'expires_at', 'created_at', 'revoked_at'],
         'createFields' => ['user_id', 'token_hash', 'expires_at', 'device_info'],
     ],
+    'rolesAndActions' => [
+        'admin' => ['*'], // Admin keeps full access
+        'manager' => [], // Managers can fully manage movies
+        'user' => [], // Users can browse and view movies
+        'guest' => [], // Guests can only list and read movie info
+    ],
 ];

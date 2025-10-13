@@ -190,6 +190,54 @@ class DocumentationCache {
     }
     
     /**
+     * Get cached relationship metadata
+     */
+    public function getCachedRelationshipMetadata(string $relationshipName): ?array {
+        if (!$this->config->get('documentation.cache_enabled', true)) {
+            return null;
+        }
+        
+        $cacheFile = $this->cacheDir . 'relationship_' . $relationshipName . '.php';
+        
+        if (!file_exists($cacheFile)) {
+            return null;
+        }
+        
+        // Check cache TTL
+        $ttl = $this->config->get('documentation.cache_ttl', 3600);
+        if (time() - filemtime($cacheFile) > $ttl) {
+            return null;
+        }
+        
+        $cached = require $cacheFile;
+        if ($this->config->get('documentation.log_cache_operations', false)) {
+            $this->logger->debug("Relationship metadata cache hit", ['relationship' => $relationshipName]);
+        }
+        return $cached;
+    }
+    
+    /**
+     * Cache relationship metadata
+     */
+    public function cacheRelationshipMetadata(string $relationshipName, array $metadata): void {
+        if (!$this->config->get('documentation.cache_enabled', true)) {
+            return;
+        }
+        
+        $metadata['timestamp'] = date('c');
+        $cacheFile = $this->cacheDir . 'relationship_' . $relationshipName . '.php';
+        $content = '<?php return ' . var_export($metadata, true) . ';';
+        
+        if (file_put_contents($cacheFile, $content) !== false) {
+            if ($this->config->get('documentation.log_cache_operations', false)) {
+                $this->logger->info("Relationship metadata cached", ['relationship' => $relationshipName, 'file' => $cacheFile]);
+            }
+        } else {
+            $this->logger->warning("Failed to cache relationship metadata", ['relationship' => $relationshipName, 'file' => $cacheFile]);
+        }
+    }
+    
+    /**
      * Clear all documentation cache
      */
     public function clearCache(): void {

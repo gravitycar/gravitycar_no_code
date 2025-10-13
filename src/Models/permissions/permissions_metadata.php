@@ -54,7 +54,9 @@ return [
     // NEW: Permissions management is admin-only
     'rolesAndActions' => [
         'admin' => ['*'], // Only admins can manage permissions
-        // All other roles inherit default: no access
+        'manager' => [], // Managers have no access
+        'user' => [], // Users have no access
+        'guest' => [], // Guests have no access
     ],
     
     'validationRules' => [],

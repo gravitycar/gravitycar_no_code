@@ -52,28 +52,67 @@ class TMDBController extends ApiControllerBase {
             [
                 'method' => 'GET',
                 'path' => '/movies/tmdb/search',
-                'apiClass' => '\\Gravitycar\\Api\\TMDBController',
+                'apiClass' => 'Gravitycar\\Api\\TMDBController',
                 'apiMethod' => 'search',
-                'parameterNames' => []
+                'parameterNames' => [],
+                'summary' => "Search an external service, 'The Movie Database' (TMDB), for data about movies matching the 'title' paramter. Use this endpoint to get a list of possible matches to the provided 'title' parameter. The TMDB service may return more than one movie. When it does, you will need to present your user with those matches and ask the user to select one to use. You will need to collect the id from TMDB and pass that to the /movies/tmdb/enrich endpoint as the 'tmdb_id' parameter to retrieve the enrichment data. Then you can use that data to populate the fields for creating a new Movies record in the gravitycar framework. DO NOT use this endpoint for searching the gravitycar framework for movies.",
+                'operationId' => 'get_enrichment_data_for_movies',
+                'parameters' => [
+                    [
+                        'name' => 'title',
+                        'in' => 'query',
+                        'required' => true,
+                        'schema' => [
+                            'type' => 'string'
+                        ],
+                        'description' => 'The title (or partial title) of the movie to search for.'
+                    ]
+                ]
             ],
             [
                 'method' => 'POST',
                 'path' => '/movies/tmdb/search',
-                'apiClass' => '\\Gravitycar\\Api\\TMDBController',
+                'apiClass' => 'Gravitycar\\Api\\TMDBController',
                 'apiMethod' => 'searchPost',
-                'parameterNames' => []
+                'parameterNames' => [],
+                'operationId' => 'post_enrichment_data_for_movies',
+                'summary' => "Search an external service, 'The Movie Database' (TMDB), for data about movies matching the 'title' parameter. Use this endpoint to get a list of possible matches to the provided 'title' parameter. The TMDB service may return more than one movie. When it does, you will need to present your user with those matches and ask the user to select one to use. You will need to collect the id from TMDB and pass that to the /movies/tmdb/enrich endpoint as the 'tmdb_id' parameter to retrieve the enrichment data. Then you can use that data to populate the fields for creating a new Movies record in the gravitycar framework. DO NOT use this endpoint for searching the gravitycar framework for movies.",
+                'parameters' => [
+                    [
+                        'name' => 'title',
+                        'in' => 'requestBody',
+                        'required' => true,
+                        'schema' => [
+                            'type' => 'string'
+                        ],
+                        'description' => 'The title (or partial title) of the movie to search for.'
+                    ]
+                ]
             ],
             [
                 'method' => 'GET',
                 'path' => '/movies/tmdb/enrich/?',
-                'apiClass' => '\\Gravitycar\\Api\\TMDBController',
+                'apiClass' => 'Gravitycar\\Api\\TMDBController',
                 'apiMethod' => 'enrich',
-                'parameterNames' => ['tmdbId']
+                'parameterNames' => ['tmdbId'],
+                'operationId' => 'post_enrichment_data_for_movies',
+                'summary' => "Retrieve enrichment data about movies from an external service, 'The Movie Database' (TMDB). You will need to collect TMDB ID from the 'get_enrichment_data_for_movies' operation and then pass that ID to this endpoint as 'tmdb_id'. Use the data it returns to populate the fields for the Movies record you want to create. DO NOT use this endpoint for searching the gravitycar framework for movies.",
+                'parameters' => [
+                    [
+                        'name' => 'tmdbId',
+                        'in' => 'query',
+                        'required' => true,
+                        'schema' => [
+                            'type' => 'integer'
+                        ],
+                        'description' => 'The TMDB ID of the movie to get enrichment data for.'
+                    ]
+                ]
             ],
             [
                 'method' => 'POST',
                 'path' => '/movies/?/tmdb/refresh',
-                'apiClass' => '\\Gravitycar\\Api\\TMDBController',
+                'apiClass' => 'Gravitycar\\Api\\TMDBController',
                 'apiMethod' => 'refresh',
                 'parameterNames' => ['movieId']
             ]

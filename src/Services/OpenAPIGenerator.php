@@ -5,6 +5,8 @@ use Gravitycar\Contracts\MetadataEngineInterface;
 use Gravitycar\Api\APIRouteRegistry;
 use Gravitycar\Services\ReactComponentMapper;
 use Gravitycar\Services\DocumentationCache;
+use Gravitycar\Services\OpenAPIPermissionFilter;
+use Gravitycar\Services\OpenAPIModelRouteBuilder;
 use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Core\Config;
 use Gravitycar\Factories\FieldFactory;
@@ -13,6 +15,11 @@ use Psr\Log\LoggerInterface;
 /**
  * OpenAPIGenerator: Generates OpenAPI 3.0.3 specifications from framework metadata
  * Uses pure dependency injection - all dependencies explicitly provided via constructor
+ * 
+ * Enhanced with:
+ * - Explicit model routes replacing wildcards
+ * - Permission-based filtering
+ * - Rich documentation with natural language descriptions
  */
 class OpenAPIGenerator {
     private LoggerInterface $logger;
@@ -22,6 +29,8 @@ class OpenAPIGenerator {
     private Config $config;
     private ReactComponentMapper $componentMapper;
     private DocumentationCache $cache;
+    private OpenAPIPermissionFilter $permissionFilter;
+    private OpenAPIModelRouteBuilder $modelRouteBuilder;
     private ?APIRouteRegistry $routeRegistry = null;
     
     /**
@@ -34,6 +43,8 @@ class OpenAPIGenerator {
      * @param Config $config
      * @param ReactComponentMapper $componentMapper
      * @param DocumentationCache $cache
+     * @param OpenAPIPermissionFilter $permissionFilter
+     * @param OpenAPIModelRouteBuilder $modelRouteBuilder
      */
     public function __construct(
         LoggerInterface $logger,
@@ -42,7 +53,9 @@ class OpenAPIGenerator {
         DatabaseConnectorInterface $databaseConnector,
         Config $config,
         ReactComponentMapper $componentMapper,
-        DocumentationCache $cache
+        DocumentationCache $cache,
+        OpenAPIPermissionFilter $permissionFilter,
+        OpenAPIModelRouteBuilder $modelRouteBuilder
     ) {
         // All dependencies explicitly injected - no ServiceLocator fallbacks
         $this->logger = $logger;
@@ -52,6 +65,8 @@ class OpenAPIGenerator {
         $this->config = $config;
         $this->componentMapper = $componentMapper;
         $this->cache = $cache;
+        $this->permissionFilter = $permissionFilter;
+        $this->modelRouteBuilder = $modelRouteBuilder;
     }
 
     
@@ -70,7 +85,7 @@ class OpenAPIGenerator {
      */
     public function generateSpecification(): array {
         // Check cache first
-        if ($this->config->get('documentation.cache_enabled', true)) {
+        if ($this->config->get('documentation.cache_enabled', false)) {
             $cached = $this->cache->getCachedOpenAPISpec();
             if ($cached !== null) {
                 return $cached;
@@ -131,23 +146,184 @@ class OpenAPIGenerator {
     
     /**
      * Generate OpenAPI paths section
+     * 
+     * Generates explicit routes for all models, then adds static/auth routes.
+     * Filters routes based on 'user' role permissions.
      */
     private function generatePaths(): array {
         $paths = [];
-        $routes = $this->getRouteRegistry()->getRoutes();
         
-        foreach ($routes as $route) {
-            $path = $route['path'];
-            $method = strtolower($route['method']);
-            
-            if (!isset($paths[$path])) {
-                $paths[$path] = [];
+        // Generate explicit model routes
+        $modelPaths = $this->generateExplicitModelPaths();
+        $paths = array_merge($paths, $modelPaths);
+        
+        // Add static routes (auth, metadata, etc.)
+        $staticPaths = $this->generateStaticPaths();
+        $paths = array_merge($paths, $staticPaths);
+        
+        return $paths;
+    }
+    
+    /**
+     * Generate explicit model paths for all models
+     * Uses collectModelOperations() which provides proper route structures with parameterNames
+     */
+    private function generateExplicitModelPaths(): array {
+        $paths = [];
+        $models = $this->metadataEngine->getAvailableModels();
+        
+        foreach ($models as $modelName) {
+            try {
+                // Collect operations with proper route structures
+                $modelOperations = $this->modelRouteBuilder->collectModelOperations($modelName);
+                
+                // Filter routes by permissions and merge
+                foreach ($modelOperations as $path => $methods) {
+                    foreach ($methods as $method => $data) {
+                        $route = $data['route'];
+                        $operationDef = $data['operation'];
+                        
+                        // Check if route is accessible to users (route now has proper parameterNames)
+                        if ($this->permissionFilter->isRouteAccessibleToUsers($route)) {
+                            if (!isset($paths[$path])) {
+                                $paths[$path] = [];
+                            }
+                            $paths[$path][$method] = $operationDef;
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                $this->logger->warning("Could not generate routes for model {$modelName}: " . $e->getMessage());
             }
-            
-            $paths[$path][$method] = $this->generateOperationFromRoute($route);
         }
         
         return $paths;
+    }
+    
+    /**
+     * Generate static paths (auth, metadata, openapi, etc.)
+     */
+    private function generateStaticPaths(): array {
+        $staticRoutes = $this->getRouteRegistry()->getRoutes();
+        $paths = [];
+        
+        foreach ($staticRoutes as $route) {
+            // Only include non-model routes
+            if (!is_a($route['apiClass'], '\\Gravitycar\\Models\\api\\Api\\ModelBaseAPIController', true)) {
+                
+                // Check permission
+                if ($this->permissionFilter->isRouteAccessibleToUsers($route)) {
+                    $path = $route['path'];
+                    $method = strtolower($route['method']);
+                    
+                    if (!isset($paths[$path])) {
+                        $paths[$path] = [];
+                    }
+                    
+                    // Enrich with OpenAPI defaults
+                    $paths[$path][$method] = $this->enrichRouteWithOpenAPIDefaults($route);
+                }
+            }
+        }
+        
+        return $paths;
+    }
+    
+    /**
+     * Enrich route with OpenAPI defaults (for static routes)
+     */
+    private function enrichRouteWithOpenAPIDefaults(array $route): array {
+        $modelName = $this->extractModelNameFromRoute($route);
+        
+        $operation = [
+            'summary' => $this->generateOperationSummary($route, $modelName),
+            'operationId' => $this->generateOperationIdFromRoute($route),
+            'tags' => $this->generateTagsFromPath($route['path']),
+            'responses' => $this->generateResponsesForRoute($route, $modelName)
+        ];
+        
+        // Add parameters for routes with path parameters
+        if (str_contains($route['path'], '{')) {
+            $operation['parameters'] = $this->generatePathParameters($route);
+        }
+        
+        // Add request body for POST/PUT/PATCH requests
+        if (in_array($route['method'], ['POST', 'PUT', 'PATCH'])) {
+            $operation['requestBody'] = $this->generateRequestBody($modelName);
+        }
+        
+        return $operation;
+    }
+    
+    /**
+     * Infer API method name from HTTP method and path pattern
+     */
+    private function inferApiMethodFromOperation(string $httpMethod, string $path): string {
+        $method = strtoupper($httpMethod);
+        
+        if (str_contains($path, '/deleted')) {
+            return 'listDeleted';
+        }
+        
+        if (str_contains($path, '/restore')) {
+            return 'restore';
+        }
+        
+        if (str_contains($path, '/link')) {
+            if (preg_match('/\{idToLink\}/', $path)) {
+                return $method === 'PUT' ? 'link' : 'unlink';
+            } else {
+                return $method === 'GET' ? 'listRelated' : 'createAndLink';
+            }
+        }
+        
+        if (preg_match('/\{id\}/', $path)) {
+            return match($method) {
+                'GET' => 'retrieve',
+                'PUT' => 'update',
+                'DELETE' => 'delete',
+                default => 'unknown'
+            };
+        }
+        
+        return match($method) {
+            'GET' => 'list',
+            'POST' => 'create',
+            default => 'unknown'
+        };
+    }
+    
+    /**
+     * Generate tags from path
+     */
+    private function generateTagsFromPath(string $path): array {
+        $path = trim($path, '/');
+        $pathParts = explode('/', $path);
+        $firstPart = $pathParts[0] ?? '';
+        
+        // Special endpoint tags
+        $specialTags = [
+            'auth' => ['authentication'],
+            'metadata' => ['system', 'metadata'],
+            'openapi.json' => ['documentation'],
+            'help' => ['documentation']
+        ];
+        
+        if (isset($specialTags[$firstPart])) {
+            return $specialTags[$firstPart];
+        }
+        
+        // Default to API tag
+        return ['api'];
+    }
+    
+    /**
+     * Generate operation ID from route
+     */
+    private function generateOperationIdFromRoute(array $route): string {
+        $method = strtolower($route['method']);
+        $path = str_replace(['/', '{', '}'], ['_', '', ''], trim($route['path'], '/'));
+        return $method . '_' . $path;
     }
     
     /**
@@ -206,6 +382,10 @@ class OpenAPIGenerator {
     private function generateOperationSummary(array $route, string $modelName): string {
         $method = $route['method'];
         
+        if (isset($route['summary']) && !empty($route['summary'])) {
+            return $route['summary'];
+        }
+
         if ($modelName) {
             switch ($method) {
                 case 'GET':
@@ -231,6 +411,9 @@ class OpenAPIGenerator {
      * Generate operation ID
      */
     private function generateOperationId(array $route): string {
+        if (isset($route['operationId']) && !empty($route['operationId'])) {
+            return $route['operationId'];
+        }
         $method = strtolower($route['method']);
         $path = str_replace(['/', '{', '}'], ['_', '', ''], trim($route['path'], '/'));
         return $method . '_' . $path;
@@ -318,6 +501,10 @@ class OpenAPIGenerator {
      * Generate path parameters
      */
     private function generatePathParameters(array $route): array {
+        if (isset($route['parameters']) && !empty($route['parameters'])) {
+            // Use explicitly defined parameters if available
+            return $route['parameters'];
+        }
         $parameters = [];
         $parameterNames = $route['parameterNames'] ?? [];
         

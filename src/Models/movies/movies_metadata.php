@@ -85,8 +85,8 @@ return [
     'rolesAndActions' => [
         'admin' => ['*'], // Admin keeps full access
         'manager' => ['*'], // Managers can fully manage movies
-        'user' => ['list', 'read'], // Users can browse and view movies
-        // guest inherits default: [] (no access)
+        'user' => ['*'], // Users can browse and view movies
+        'guest' => ['list', 'read'], // Guests can only list and read movie info
     ],
     
     'validationRules' => [],
