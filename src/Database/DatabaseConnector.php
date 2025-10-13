@@ -484,6 +484,9 @@ class DatabaseConnector implements DatabaseConnectorInterface {
             if (is_string($model)) {
                 $model = $this->getModelFactory()->new($model);
             }
+
+            $this->joinedRelationships = [];
+            $this->joinCounter = 0;
             
             // Check if the model has the required methods (duck typing for tests)
             if (!is_object($model) || !method_exists($model, 'getTableName') || !method_exists($model, 'getAlias') || !method_exists($model, 'getFields')) {

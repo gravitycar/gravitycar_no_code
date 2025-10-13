@@ -14,7 +14,7 @@
                 "/mnt/g/projects/gravitycar_no_code": "${workspaceFolder}"
             },
             "xdebugSettings": {
-                "max_children": 999, // Max number of array/object children
+                "max_children": 99, // Max number of array/object children
                 "max_depth": 10,     // Max depth for data structures
                 "max_data": 10240    // Max length of string values (set to -1 for no limit)
             }

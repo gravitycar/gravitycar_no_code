@@ -33,11 +33,11 @@ return [
                 'displayField' => 'name',
                 'allowCreate' => true,
                 'searchable' => true,
-            ]
+            ],
         ],
     ],
     'rolesAndActions' => [
-        'admin' => ['*'], // Only admins can manage permissions
+        'admin' => ['*'],
         'manager' => ['list', 'read', 'create', 'update', 'delete'],
         'user' => ['list', 'read', 'create', 'update', 'delete'],
         'guest' => ['list', 'read', 'create', 'update', 'delete'],

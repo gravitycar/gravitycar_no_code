@@ -58,4 +58,10 @@ return [
     'ui' => [
         'createFields' => ['host', 'port', 'dbname', 'username', 'password', 'admin_username', 'admin_password'],
     ],
+    'rolesAndActions' => [
+        'admin' => ['*'], // Only admins can manage permissions
+        'manager' => [], // Managers have no access
+        'user' => [], // Users have no access
+        'guest' => [], // Guests have no access
+    ],
 ];

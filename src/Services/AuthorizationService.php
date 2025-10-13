@@ -516,13 +516,7 @@ class AuthorizationService
     protected function determineComponent(array $route, Request $request): string
     {
         // First check if request has a valid model parameter
-        if ($request->has('modelName') && !empty($request->get('modelName'))) {
-            try {
-                $this->modelFactory->new($request->get('modelName'));
-            } catch (\Exception $e) {
-                throw new NotFoundException('Model not found: ' . $request->get('modelName'));
-            }
-
+        if ($this->requestIsValidModelRequest($route, $request)) {
             $component = $request->get('modelName');
             $this->logger->debug('Using model from request as component', [
                 'component' => $component,
@@ -540,6 +534,39 @@ class AuthorizationService
         ]);
         
         return $component;
+    }
+
+
+    public function requestIsValidModelRequest(array $route, Request $request): bool
+    {
+        if ($this->requestIsModelRequest($route, $request) && $this->requestModelIsValid($route, $request)) {
+            return true;
+        }
+        return false;
+    }
+
+    public function requestIsModelRequest(array $route, Request $request): bool
+    {
+        if (is_a($request->getApiControllerClassName(), 'Gravitycar\Models\api\Api\ModelBaseAPIController', true)) {
+            return true;
+        }
+        return false;
+    }
+
+
+    public function requestModelIsValid(array $route, Request $request): bool
+    {
+        if ($request->has('modelName') && !empty($request->get('modelName'))) {
+            try {
+                $this->modelFactory->new($request->get('modelName'));
+                return true;
+            } catch (\Exception $e) {
+                throw new NotFoundException('Model not found: ' . $request->get('modelName'));
+            }
+        } else {
+            throw new NotFoundException('Model name parameter is missing for model request');
+        }
+        return false;
     }
 
     /**

@@ -31,7 +31,7 @@ return [
     // API Documentation System Configuration
     'documentation' => [
         // Caching Configuration
-        'cache_enabled' => true,
+        'cache_enabled' => false,
         'cache_ttl_seconds' => 3600, // 1 hour cache expiration
         'cache_directory' => 'cache/documentation/',
         'auto_clear_cache_on_metadata_change' => false, // Manual cache clearing for small scale

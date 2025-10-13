@@ -59,6 +59,6 @@ return [
         'admin' => ['*'], // Only admins can manage
         'manager' => ['read'],
         'user' => ['read'],
-        'guest' => ['read'],
+        'guest' => [],
     ],
 ];
