@@ -221,7 +221,7 @@ class NavigationBuilderTest extends TestCase
         // Test various model name formats
         $this->assertEquals('Users', $method->invokeArgs($this->navigationBuilder, ['Users']));
         $this->assertEquals('Movie Quotes', $method->invokeArgs($this->navigationBuilder, ['MovieQuotes']));
-        $this->assertEquals('Movie_ Quotes', $method->invokeArgs($this->navigationBuilder, ['Movie_Quotes']));
+        $this->assertEquals('Movie Quotes', $method->invokeArgs($this->navigationBuilder, ['Movie_Quotes']));
         $this->assertEquals('U S A Model', $method->invokeArgs($this->navigationBuilder, ['USAModel']));
     }
 

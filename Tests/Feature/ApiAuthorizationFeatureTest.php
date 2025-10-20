@@ -120,6 +120,8 @@ class ApiAuthorizationFeatureTest extends TestCase
             // Test model parameter extraction
             $route = [];
             $request = new Request('/Users', ['modelName'], 'GET', ['modelName' => 'Users']);
+            // Set the API controller class name to make it a valid model request
+            $request->setApiControllerClassName('Gravitycar\\Models\\api\\Api\\ModelBaseAPIController');
             
             $component = $method->invoke($this->authorizationService, $route, $request);
             $this->assertEquals('Users', $component);

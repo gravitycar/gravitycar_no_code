@@ -13,9 +13,9 @@ class NavigationConfig
     protected array $config = [];
     protected string $configFilePath;
 
-    public function __construct()
+    public function __construct(?string $configFilePath = null)
     {
-        $this->configFilePath = 'src/Navigation/navigation_config.php';
+        $this->configFilePath = $configFilePath ?? 'src/Navigation/navigation_config.php';
         $this->loadConfig();
     }
 

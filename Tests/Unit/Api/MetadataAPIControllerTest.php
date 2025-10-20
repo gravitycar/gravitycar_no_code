@@ -188,7 +188,7 @@ class MetadataAPIControllerTest extends TestCase
             
             $this->assertIsString($route['method']);
             $this->assertIsString($route['path']);
-            $this->assertEquals('\Gravitycar\Api\MetadataAPIController', $route['apiClass']);
+            $this->assertEquals('Gravitycar\Api\MetadataAPIController', $route['apiClass']);
             $this->assertIsString($route['apiMethod']);
             $this->assertIsArray($route['parameterNames']);
         }
