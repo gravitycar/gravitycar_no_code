@@ -9,25 +9,52 @@ class NavigationAPIIntegrationTest extends TestCase
 {
     private $container;
     private $navigationBuilder;
+    private string $testConfigDir;
     private string $testConfigFile;
 
     protected function setUp(): void
     {
         parent::setUp();
         
-        // Create test navigation config file
-        $this->testConfigFile = 'src/Navigation/navigation_config.php';
+        // Create test-specific config directory - NEVER touch source files!
+        $this->testConfigDir = sys_get_temp_dir() . '/gravitycar_test_navigation_' . uniqid();
+        mkdir($this->testConfigDir, 0755, true);
+        $this->testConfigFile = $this->testConfigDir . '/navigation_config.php';
+        
+        // Create test navigation config file in test directory
         $this->createTestNavigationConfig();
         
+        // Create a custom NavigationConfig instance pointing to our test file
+        $testNavigationConfig = new \Gravitycar\Navigation\NavigationConfig($this->testConfigFile);
+        
+        // Get container and create NavigationBuilder with test config
         $this->container = ContainerConfig::getContainer();
-        $this->navigationBuilder = $this->container->get('navigation_builder');
+        $logger = $this->container->get('logger');
+        $metadataEngine = $this->container->get('metadata_engine');
+        $authorizationService = $this->container->get('authorization_service');
+        $modelFactory = $this->container->get('model_factory');
+        
+        // Create NavigationBuilder with test configuration
+        $this->navigationBuilder = new \Gravitycar\Services\NavigationBuilder(
+            $logger,
+            $metadataEngine,
+            $authorizationService,
+            $testNavigationConfig,
+            $modelFactory
+        );
     }
 
     protected function tearDown(): void
     {
-        // Clean up test config file
-        if (file_exists($this->testConfigFile)) {
-            unlink($this->testConfigFile);
+        // Clean up test config directory - this is OUR test directory, safe to delete
+        if (is_dir($this->testConfigDir)) {
+            $files = glob($this->testConfigDir . '/*');
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    unlink($file);
+                }
+            }
+            rmdir($this->testConfigDir);
         }
         
         // Clean up cache files created during tests

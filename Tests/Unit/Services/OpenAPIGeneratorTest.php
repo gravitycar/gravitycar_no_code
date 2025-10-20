@@ -10,6 +10,8 @@ use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Core\Config;
 use Gravitycar\Services\ReactComponentMapper;
 use Gravitycar\Services\DocumentationCache;
+use Gravitycar\Services\OpenAPIPermissionFilter;
+use Gravitycar\Services\OpenAPIModelRouteBuilder;
 use Psr\Log\LoggerInterface;
 use PHPUnit\Framework\TestCase;
 use PHPUnit\Framework\MockObject\MockObject;
@@ -24,6 +26,8 @@ class OpenAPIGeneratorTest extends TestCase
     protected Config|MockObject $mockConfig;
     protected ReactComponentMapper|MockObject $mockComponentMapper;
     protected DocumentationCache|MockObject $mockCache;
+    protected OpenAPIPermissionFilter|MockObject $mockPermissionFilter;
+    protected OpenAPIModelRouteBuilder|MockObject $mockModelRouteBuilder;
 
     protected function setUp(): void
     {
@@ -40,6 +44,8 @@ class OpenAPIGeneratorTest extends TestCase
         $this->mockConfig = $this->createMock(Config::class);
         $this->mockComponentMapper = $this->createMock(ReactComponentMapper::class);
         $this->mockCache = $this->createMock(DocumentationCache::class);
+        $this->mockPermissionFilter = $this->createMock(OpenAPIPermissionFilter::class);
+        $this->mockModelRouteBuilder = $this->createMock(OpenAPIModelRouteBuilder::class);
         
         // Configure mock config
         $this->mockConfig->method('get')->willReturnCallback(function($key, $default = null) {
@@ -62,7 +68,9 @@ class OpenAPIGeneratorTest extends TestCase
             $this->mockDatabaseConnector,
             $this->mockConfig,
             $this->mockComponentMapper,
-            $this->mockCache
+            $this->mockCache,
+            $this->mockPermissionFilter,
+            $this->mockModelRouteBuilder
         );
     }
 

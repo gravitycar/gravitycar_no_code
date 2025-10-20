@@ -51,25 +51,25 @@ class TMDBControllerTest extends TestCase {
         // Test first route (GET search)
         $this->assertEquals('GET', $routes[0]['method']);
         $this->assertEquals('/movies/tmdb/search', $routes[0]['path']);
-        $this->assertEquals('\\Gravitycar\\Api\\TMDBController', $routes[0]['apiClass']);
+        $this->assertEquals('Gravitycar\\Api\\TMDBController', $routes[0]['apiClass']);
         $this->assertEquals('search', $routes[0]['apiMethod']);
         
         // Test second route (POST search)
         $this->assertEquals('POST', $routes[1]['method']);
         $this->assertEquals('/movies/tmdb/search', $routes[1]['path']);
-        $this->assertEquals('\\Gravitycar\\Api\\TMDBController', $routes[1]['apiClass']);
+        $this->assertEquals('Gravitycar\\Api\\TMDBController', $routes[1]['apiClass']);
         $this->assertEquals('searchPost', $routes[1]['apiMethod']);
         
         // Test third route (GET enrich)
         $this->assertEquals('GET', $routes[2]['method']);
         $this->assertEquals('/movies/tmdb/enrich/?', $routes[2]['path']);
-        $this->assertEquals('\\Gravitycar\\Api\\TMDBController', $routes[2]['apiClass']);
+        $this->assertEquals('Gravitycar\\Api\\TMDBController', $routes[2]['apiClass']);
         $this->assertEquals('enrich', $routes[2]['apiMethod']);
         
         // Test fourth route (POST refresh)
         $this->assertEquals('POST', $routes[3]['method']);
         $this->assertEquals('/movies/?/tmdb/refresh', $routes[3]['path']);
-        $this->assertEquals('\\Gravitycar\\Api\\TMDBController', $routes[3]['apiClass']);
+        $this->assertEquals('Gravitycar\\Api\\TMDBController', $routes[3]['apiClass']);
         $this->assertEquals('refresh', $routes[3]['apiMethod']);
     }
     

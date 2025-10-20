@@ -235,6 +235,11 @@ class AuthorizationServiceTest extends UnitTestCase
         $request = $this->createMock(\Gravitycar\Api\Request::class);
         $request->method('has')->with('modelName')->willReturn(true);
         $request->method('get')->with('modelName')->willReturn('Users');
+        // Mock the API controller class name to make it a valid model request
+        $request->method('getApiControllerClassName')->willReturn('Gravitycar\\Models\\api\\Api\\ModelBaseAPIController');
+        
+        // Mock the ModelFactory to recognize 'Users' as a valid model
+        $this->mockModelFactory->method('new')->with('Users')->willReturn($this->createMock(ModelBase::class));
         
         // Use reflection to test protected method
         $reflection = new \ReflectionClass($this->authzService);
