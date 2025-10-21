@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
-import type { User, Movie, MovieQuote } from '../types';
+import type { Movie, MovieQuote } from '../types';
 
 interface TriviaGameScore {
   id: string;

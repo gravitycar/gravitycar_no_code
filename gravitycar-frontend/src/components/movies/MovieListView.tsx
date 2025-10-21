@@ -14,7 +14,6 @@ export const MovieListView: React.FC<MovieListViewProps> = ({ refreshTrigger = 0
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState<'name' | 'release_year' | 'created_at'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -122,68 +121,6 @@ export const MovieListView: React.FC<MovieListViewProps> = ({ refreshTrigger = 0
     }
     return '/api/placeholder/300/450';
   };
-
-  const renderMovieCard = (movie: Movie) => (
-    <div key={movie.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-      <div className="aspect-[2/3] relative">
-        <img
-          src={getMoviePoster(movie)}
-          alt={movie.name}
-          className="w-full h-full object-cover"
-          onError={(e) => {
-            e.currentTarget.src = '/api/placeholder/300/450';
-          }}
-        />
-        {movie.tmdb_id && (
-          <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded">
-            TMDB
-          </div>
-        )}
-        {movie.obscurity_score && (
-          <div className="absolute top-2 left-2 bg-gray-800 text-white text-xs px-2 py-1 rounded">
-            {movie.obscurity_score}%
-          </div>
-        )}
-      </div>
-      
-      <div className="p-4">
-        <h3 className="font-semibold text-lg mb-2 line-clamp-2">{movie.name}</h3>
-        <p className="text-gray-600 text-sm mb-2">{formatReleaseYear(movie)}</p>
-        
-        {movie.synopsis && (
-          <p className="text-gray-700 text-sm mb-3 line-clamp-3">{movie.synopsis}</p>
-        )}
-        
-        <div className="flex justify-between items-center">
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setEditingMovie(movie)}
-              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => handleDeleteMovie(movie)}
-              className="text-red-600 hover:text-red-800 text-sm font-medium"
-            >
-              Delete
-            </button>
-          </div>
-          
-          {movie.trailer_url && (
-            <a
-              href={movie.trailer_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-green-600 hover:text-green-800 text-sm font-medium"
-            >
-              Trailer
-            </a>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 
   const renderMovieRow = (movie: Movie) => (
     <tr key={movie.id} className="hover:bg-gray-50">
