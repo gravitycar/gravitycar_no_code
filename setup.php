@@ -320,7 +320,7 @@ try {
             'username' => 'mike@gravitycar.com',
             'email' => 'mike@gravitycar.com',
             'first_name' => 'Mike',
-            'last_name' => 'Developer',
+            'last_name' => 'Andersen',
             'password' => 'bageldog',
             'user_type' => 'admin',
             'user_timezone' => 'UTC'

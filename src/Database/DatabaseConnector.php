@@ -1252,7 +1252,7 @@ class DatabaseConnector implements DatabaseConnectorInterface {
             $mainAlias,
             $relationshipTable,
             $relationshipAlias,
-            "{$mainAlias}.id = {$relationshipAlias}.{$modelIdField}"
+            "{$mainAlias}.id = {$relationshipAlias}.{$modelIdField} and {$relationshipAlias}.deleted_at IS NULL"
         );
 
         if (!$joinOK) {
@@ -1295,7 +1295,7 @@ class DatabaseConnector implements DatabaseConnectorInterface {
             $relationshipAlias,
             $relatedModelTable,
             $relatedModelAlias,
-            "{$relationshipAlias}.{$relatedModelIdField} = {$relatedModelAlias}.id"
+            "{$relationshipAlias}.{$relatedModelIdField} = {$relatedModelAlias}.id and {$relatedModelAlias}.deleted_at IS NULL"
         );
 
         $this->logger->debug("Added related model JOINs", [

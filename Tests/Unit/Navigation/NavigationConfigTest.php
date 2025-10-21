@@ -14,13 +14,10 @@ class NavigationConfigTest extends TestCase
 
     protected function setUp(): void
     {
-        // Create temporary config file for testing
-        $this->testConfigDir = 'src/Navigation';
+        // Create test-specific config directory in temp - NEVER touch source files!
+        $this->testConfigDir = sys_get_temp_dir() . '/gravitycar_test_nav_config_' . uniqid();
+        mkdir($this->testConfigDir, 0755, true);
         $this->testConfigFile = $this->testConfigDir . '/navigation_config.php';
-        
-        if (!is_dir($this->testConfigDir)) {
-            mkdir($this->testConfigDir, 0755, true);
-        }
         
         $testConfig = [
             'custom_pages' => [
@@ -53,24 +50,20 @@ class NavigationConfigTest extends TestCase
         
         file_put_contents($this->testConfigFile, '<?php return ' . var_export($testConfig, true) . ';');
         
-        $this->navigationConfig = new NavigationConfig();
+        $this->navigationConfig = new NavigationConfig($this->testConfigFile);
     }
 
     protected function tearDown(): void
     {
-        // Clean up test files
-        if (file_exists($this->testConfigFile)) {
-            unlink($this->testConfigFile);
-        }
-        
-        // Remove directory if empty
-        if (is_dir($this->testConfigDir) && count(scandir($this->testConfigDir)) === 2) {
+        // Clean up test config directory - this is OUR test directory, safe to delete
+        if (is_dir($this->testConfigDir)) {
+            $files = glob($this->testConfigDir . '/*');
+            foreach ($files as $file) {
+                if (is_file($file)) {
+                    unlink($file);
+                }
+            }
             rmdir($this->testConfigDir);
-        }
-        
-        // Remove src directory if empty and exists
-        if (is_dir('src') && count(scandir('src')) === 2) {
-            rmdir('src');
         }
     }
 
@@ -133,13 +126,14 @@ class NavigationConfigTest extends TestCase
 
     public function testConfigFileNotFound(): void
     {
-        // Remove the config file
+        // Remove the test config file
         unlink($this->testConfigFile);
         
         $this->expectException(NavigationBuilderException::class);
         $this->expectExceptionMessage('Navigation config file not found');
         
-        new NavigationConfig();
+        // Try to create NavigationConfig with non-existent file
+        new NavigationConfig($this->testConfigFile);
     }
 
     public function testInvalidConfigFile(): void
@@ -150,7 +144,8 @@ class NavigationConfigTest extends TestCase
         $this->expectException(NavigationBuilderException::class);
         $this->expectExceptionMessage('Navigation config file must return an array');
         
-        new NavigationConfig();
+        // Try to create NavigationConfig with invalid file
+        new NavigationConfig($this->testConfigFile);
     }
 
     public function testEmptyRoleFilter(): void

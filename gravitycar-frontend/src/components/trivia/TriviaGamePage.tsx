@@ -26,8 +26,8 @@ export default function TriviaGamePage(): React.ReactElement {
   } = useGameState();
 
   const renderWelcomeScreen = () => (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
-      <div className="max-w-2xl w-full bg-white rounded-xl shadow-lg p-8 text-center">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 px-4" style={{ paddingTop: '10px' }}>
+      <div className="max-w-2xl w-full bg-white rounded-xl shadow-lg p-8 text-center mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">
             🎬 Movie Quote Trivia

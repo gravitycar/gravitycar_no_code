@@ -14,7 +14,6 @@ export const MovieListView: React.FC<MovieListViewProps> = ({ refreshTrigger = 0
   const [error, setError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState<'name' | 'release_year' | 'created_at'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -122,68 +121,6 @@ export const MovieListView: React.FC<MovieListViewProps> = ({ refreshTrigger = 0
     }
     return '/api/placeholder/300/450';
   };
-
-  const renderMovieCard = (movie: Movie) => (
-    <div key={movie.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow">
-      <div className="aspect-[2/3] relative">
-        <img
-          src={getMoviePoster(movie)}
-          alt={movie.name}
-          className="w-full h-full object-cover"
-          onError={(e) => {
-            e.currentTarget.src = '/api/placeholder/300/450';
-          }}
-        />
-        {movie.tmdb_id && (
-          <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs px-2 py-1 rounded">
-            TMDB
-          </div>
-        )}
-        {movie.obscurity_score && (
-          <div className="absolute top-2 left-2 bg-gray-800 text-white text-xs px-2 py-1 rounded">
-            {movie.obscurity_score}%
-          </div>
-        )}
-      </div>
-      
-      <div className="p-4">
-        <h3 className="font-semibold text-lg mb-2 line-clamp-2">{movie.name}</h3>
-        <p className="text-gray-600 text-sm mb-2">{formatReleaseYear(movie)}</p>
-        
-        {movie.synopsis && (
-          <p className="text-gray-700 text-sm mb-3 line-clamp-3">{movie.synopsis}</p>
-        )}
-        
-        <div className="flex justify-between items-center">
-          <div className="flex space-x-2">
-            <button
-              onClick={() => setEditingMovie(movie)}
-              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => handleDeleteMovie(movie)}
-              className="text-red-600 hover:text-red-800 text-sm font-medium"
-            >
-              Delete
-            </button>
-          </div>
-          
-          {movie.trailer_url && (
-            <a
-              href={movie.trailer_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-green-600 hover:text-green-800 text-sm font-medium"
-            >
-              Trailer
-            </a>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 
   const renderMovieRow = (movie: Movie) => (
     <tr key={movie.id} className="hover:bg-gray-50">
@@ -303,31 +240,6 @@ export const MovieListView: React.FC<MovieListViewProps> = ({ refreshTrigger = 0
             </select>
           </div>
         </div>
-
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={() => setViewMode('grid')}
-            className={`p-2 rounded ${viewMode === 'grid' 
-              ? 'bg-blue-100 text-blue-600' 
-              : 'text-gray-400 hover:text-gray-600'
-            }`}
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-            </svg>
-          </button>
-          <button
-            onClick={() => setViewMode('list')}
-            className={`p-2 rounded ${viewMode === 'list' 
-              ? 'bg-blue-100 text-blue-600' 
-              : 'text-gray-400 hover:text-gray-600'
-            }`}
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-            </svg>
-          </button>
-        </div>
       </div>
 
       {/* Content */}
@@ -354,10 +266,6 @@ export const MovieListView: React.FC<MovieListViewProps> = ({ refreshTrigger = 0
           >
             Add First Movie
           </button>
-        </div>
-      ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-          {movies.map(renderMovieCard)}
         </div>
       ) : (
         <div className="bg-white shadow overflow-hidden sm:rounded-md">

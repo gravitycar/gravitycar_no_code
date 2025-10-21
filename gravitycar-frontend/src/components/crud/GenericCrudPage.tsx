@@ -16,7 +16,6 @@ interface GenericCrudPageProps {
   title: string;
   description?: string;
   defaultDisplayMode?: 'table' | 'grid' | 'list';
-  customGridRenderer?: (item: ModelRecord, metadata: ModelMetadata, onEdit: (item: ModelRecord) => void, onDelete: (item: ModelRecord) => void) => React.ReactNode;
 }
 
 interface PageState {
@@ -49,8 +48,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
   modelName,
   title,
   description,
-  defaultDisplayMode = 'table',
-  customGridRenderer
+  defaultDisplayMode = 'table'
 }) => {
   const notify = useNotify();
   const { metadata, loading: metadataLoading, error: metadataError } = useModelMetadata(modelName);
@@ -440,109 +438,6 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
     );
   };
 
-  // Render grid view
-  const renderGridView = () => {
-    if (customGridRenderer) {
-      return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {state.items.map(item => (
-            <div key={item.id}>
-              {customGridRenderer(item, metadata!, handleEdit, handleDelete)}
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    if (!metadata) return null;
-
-    // Default grid rendering with enhanced Image field support
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {state.items.map(item => {
-          const listFields = metadata.ui?.listFields || [];
-          
-          // Find the first Image field for featured display
-          const imageField = listFields.find(fieldName => 
-            metadata.fields?.[fieldName]?.type === 'Image'
-          );
-          const imageValue = imageField ? item[imageField] : null;
-          
-          // Get remaining fields (excluding the featured image)
-          const otherFields = listFields.filter(fieldName => fieldName !== imageField);
-          
-          return (
-            <div key={item.id} className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
-              {/* Featured Image */}
-              {imageValue && imageField ? (
-                <div className="w-full h-48 bg-gray-200 flex items-center justify-center">
-                  <img
-                    src={String(imageValue)}
-                    alt={metadata.fields?.[imageField]?.label || 'Image'}
-                    className="max-w-full max-h-full object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                      const parent = target.parentElement;
-                      if (parent) {
-                        parent.innerHTML = `
-                          <div class="text-gray-400 text-center p-4">
-                            <svg class="w-12 h-12 mx-auto mb-2" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" />
-                            </svg>
-                            <span class="text-sm">Image not available</span>
-                          </div>
-                        `;
-                      }
-                    }}
-                  />
-                </div>
-              ) : null}
-              
-              <div className="p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  {getItemDisplayName(item, metadata)}
-                </h3>
-                
-                {otherFields.slice(0, 3).map(fieldName => {
-                  const fieldMeta = metadata.fields?.[fieldName];
-                  const value = item[fieldName];
-                  if (!value) return null;
-                  
-                  return (
-                    <div key={fieldName} className="mb-2">
-                      <span className="text-sm font-medium text-gray-500">
-                        {fieldMeta?.label || fieldName.replace(/_/g, ' ')}:
-                      </span>
-                      <div className="mt-1">
-                        {fieldMeta ? renderFieldValue(fieldName, value, fieldMeta) : String(value)}
-                      </div>
-                    </div>
-                  );
-                })}
-                
-                <div className="flex justify-end space-x-2 mt-4 pt-4 border-t border-gray-200">
-                  <button
-                    onClick={() => handleEdit(item)}
-                    className="text-blue-600 hover:text-blue-700 text-sm"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(item)}
-                    className="text-red-600 hover:text-red-700 text-sm"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
   // Render pagination
   const renderPagination = () => {
     if (state.pagination.totalPages <= 1) return null;
@@ -661,39 +556,15 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" style={{ paddingTop: '10px', paddingBottom: '10px' }}>
           {/* Header */}
-          <div className="mb-8">
+          <div className="mb-4">
             <div className="flex justify-between items-center">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
                 {description && <p className="text-gray-600 mt-2">{description}</p>}
               </div>
               <div className="flex items-center space-x-4">
-                {/* Display Mode Toggle */}
-                <div className="flex border border-gray-300 rounded-md">
-                  <button
-                    onClick={() => setState(prev => ({ ...prev, displayMode: 'table' }))}
-                    className={`px-3 py-1 text-sm ${
-                      state.displayMode === 'table' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    Table
-                  </button>
-                  <button
-                    onClick={() => setState(prev => ({ ...prev, displayMode: 'grid' }))}
-                    className={`px-3 py-1 text-sm border-l border-gray-300 ${
-                      state.displayMode === 'grid' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    Grid
-                  </button>
-                </div>
-                
                 <button
                   onClick={handleCreate}
                   className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
@@ -705,7 +576,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
           </div>
 
           {/* Search */}
-          <div className="bg-white p-4 rounded-lg shadow mb-6">
+          <div className="bg-white p-4 rounded-lg shadow mb-4">
             <form onSubmit={handleSearch} className="flex gap-4">
               <input
                 type="text"
@@ -758,7 +629,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
           >
             {() => (
               <div>
-                {state.displayMode === 'table' ? renderTableView() : renderGridView()}
+                {renderTableView()}
                 {renderPagination()}
               </div>
             )}
