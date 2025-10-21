@@ -215,11 +215,15 @@ class ApiService {
 
   async getCurrentUser(): Promise<User | null> {
     try {
-      const response: AxiosResponse<User> = await this.api.get('/auth/me');
+      const response: AxiosResponse<ApiResponse<User>> = await this.api.get('/auth/me');
       console.log('✅ getCurrentUser response:', response.data);
       
-      // The /auth/me endpoint returns user data directly, not wrapped in ApiResponse
-      return response.data;
+      // The /auth/me endpoint returns data wrapped in ApiResponse structure
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      
+      return null;
     } catch (error) {
       console.error('❌ getCurrentUser failed:', error);
       return null;
