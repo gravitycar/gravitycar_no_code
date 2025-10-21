@@ -61,7 +61,7 @@ const Layout = ({ children }: LayoutProps) => {
       </header>
 
       {/* Main Layout with Sidebar */}
-      <div className="flex h-screen pt-16">
+      <div className="flex h-screen">
         {/* Dynamic Navigation Sidebar */}
         {isAuthenticated && (
           <NavigationSidebar className="w-64 flex-shrink-0" />
@@ -69,8 +69,8 @@ const Layout = ({ children }: LayoutProps) => {
 
         {/* Main Content Area */}
         <main className="flex-1 overflow-y-auto">
-          <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-            <div className="px-4 py-6 sm:px-0">
+          <div className="max-w-7xl mx-auto">
+            <div className="px-4 sm:px-6 lg:px-8">
               {children}
             </div>
           </div>
