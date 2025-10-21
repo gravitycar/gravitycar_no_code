@@ -16,7 +16,6 @@ interface GenericCrudPageProps {
   title: string;
   description?: string;
   defaultDisplayMode?: 'table' | 'grid' | 'list';
-  customGridRenderer?: (item: ModelRecord, metadata: ModelMetadata, onEdit: (item: ModelRecord) => void, onDelete: (item: ModelRecord) => void) => React.ReactNode;
 }
 
 interface PageState {
@@ -49,8 +48,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
   modelName,
   title,
   description,
-  defaultDisplayMode = 'table',
-  customGridRenderer
+  defaultDisplayMode = 'table'
 }) => {
   const notify = useNotify();
   const { metadata, loading: metadataLoading, error: metadataError } = useModelMetadata(modelName);
