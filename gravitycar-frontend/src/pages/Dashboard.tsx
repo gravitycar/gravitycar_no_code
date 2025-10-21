@@ -39,7 +39,9 @@ const Dashboard = () => {
           apiService.getUsers(1, 5),
           apiService.getMovies(1, 5),
           apiService.getMovieQuotes(1, 5),
-          apiService.getList('Movie_Quote_Trivia_Games', 1, 10) // Fetch more games to filter
+          apiService.getList('Movie_Quote_Trivia_Games', 1, 20, { 
+            sort: 'game_completed_at:desc' // Sort by most recent completion first
+          })
         ]);
 
         setStats({
@@ -50,11 +52,17 @@ const Dashboard = () => {
         });
 
         // Filter trivia games: only completed games with score >= 100
+        // Sort by completion date (most recent first)
         const filteredGames = ((triviaGamesResponse.data || []) as TriviaGameScore[])
           .filter((game) => 
             game.game_completed_at !== null && 
             game.score >= 100
           )
+          .sort((a, b) => {
+            const dateA = new Date(a.game_completed_at || a.created_at).getTime();
+            const dateB = new Date(b.game_completed_at || b.created_at).getTime();
+            return dateB - dateA; // Descending order (most recent first)
+          })
           .slice(0, 5); // Show top 5
 
         setRecentData({
