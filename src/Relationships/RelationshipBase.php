@@ -574,6 +574,9 @@ abstract class RelationshipBase extends ModelBase {
      */
     public function add(ModelBase $modelA, ModelBase $modelB, array $additionalData = []): bool {
         try {
+            // if the relationship was previously soft-deleted, restore it instead of adding a new one
+            $this->restoreRelationship($modelA, $modelB);
+
             // For ManyToMany and OneToMany, check if relationship already exists
             if ($this->has($modelA, $modelB)) {
                 $this->logger->warning('Relationship already exists', [

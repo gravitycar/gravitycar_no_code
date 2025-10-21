@@ -13,7 +13,7 @@ return [
         ],
         [
             'key' => 'trivia',
-            'title' => 'Movie Trivia',
+            'title' => 'Movie Quote Trivia Game',
             'url' => '/trivia',
             'icon' => '🎬',
             'roles' => ['admin', 'user']
