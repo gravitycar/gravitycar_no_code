@@ -661,9 +661,9 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
   return (
     <ErrorBoundary>
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" style={{ paddingTop: '10px', paddingBottom: '10px' }}>
           {/* Header */}
-          <div className="mb-8">
+          <div className="mb-4">
             <div className="flex justify-between items-center">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">{title}</h1>
@@ -681,7 +681,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
           </div>
 
           {/* Search */}
-          <div className="bg-white p-4 rounded-lg shadow mb-6">
+          <div className="bg-white p-4 rounded-lg shadow mb-4">
             <form onSubmit={handleSearch} className="flex gap-4">
               <input
                 type="text"
