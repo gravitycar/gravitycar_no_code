@@ -3,6 +3,15 @@ import { useAuth } from '../hooks/useAuth';
 import { apiService } from '../services/api';
 import type { User, Movie, MovieQuote } from '../types';
 
+interface TriviaGameScore {
+  id: string;
+  name: string;
+  score: number;
+  game_completed_at: string | null;
+  created_by_name?: string;
+  created_at: string;
+}
+
 const Dashboard = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState({
@@ -13,11 +22,11 @@ const Dashboard = () => {
   });
 
   const [recentData, setRecentData] = useState<{
-    users: User[];
+    triviaGames: TriviaGameScore[];
     movies: Movie[];
     quotes: MovieQuote[];
   }>({
-    users: [],
+    triviaGames: [],
     movies: [],
     quotes: []
   });
@@ -26,10 +35,11 @@ const Dashboard = () => {
     const fetchDashboardData = async () => {
       try {
         // Fetch basic stats (just first page for count estimates)
-        const [usersResponse, moviesResponse, quotesResponse] = await Promise.all([
+        const [usersResponse, moviesResponse, quotesResponse, triviaGamesResponse] = await Promise.all([
           apiService.getUsers(1, 5),
           apiService.getMovies(1, 5),
-          apiService.getMovieQuotes(1, 5)
+          apiService.getMovieQuotes(1, 5),
+          apiService.getList('Movie_Quote_Trivia_Games', 1, 10) // Fetch more games to filter
         ]);
 
         setStats({
@@ -39,8 +49,16 @@ const Dashboard = () => {
           isLoading: false
         });
 
+        // Filter trivia games: only completed games with score >= 100
+        const filteredGames = ((triviaGamesResponse.data || []) as TriviaGameScore[])
+          .filter((game) => 
+            game.game_completed_at !== null && 
+            game.score >= 100
+          )
+          .slice(0, 5); // Show top 5
+
         setRecentData({
-          users: usersResponse.data || [],
+          triviaGames: filteredGames,
           movies: moviesResponse.data || [],
           quotes: quotesResponse.data || []
         });
@@ -138,26 +156,32 @@ const Dashboard = () => {
 
       {/* Recent Data */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Users */}
+        {/* Latest Movie Quote Trivia Scores */}
         <div className="bg-white shadow rounded-lg">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h3 className="text-lg font-medium text-gray-900">Recent Users</h3>
+            <h3 className="text-lg font-medium text-gray-900">Latest Movie Quote Trivia Scores</h3>
           </div>
           <div className="px-6 py-4">
-            {recentData.users.length > 0 ? (
+            {recentData.triviaGames.length > 0 ? (
               <ul className="space-y-3">
-                {recentData.users.map((user) => (
-                  <li key={user.id} className="flex justify-between items-center">
+                {recentData.triviaGames.map((game) => (
+                  <li key={game.id} className="flex justify-between items-center">
                     <div>
-                      <p className="text-sm font-medium text-gray-900">{user.username}</p>
-                      <p className="text-sm text-gray-500">{user.email}</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        {game.created_by_name || 'Guest Player'}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {new Date(game.game_completed_at || game.created_at).toLocaleDateString()}
+                      </p>
                     </div>
-                    <span className="text-xs text-gray-400">ID: {user.id}</span>
+                    <span className="text-lg font-bold text-green-600">
+                      {game.score} pts
+                    </span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-gray-500 text-center py-4">No users found</p>
+              <p className="text-gray-500 text-center py-4">No high scores yet</p>
             )}
           </div>
         </div>
