@@ -670,30 +670,6 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
                 {description && <p className="text-gray-600 mt-2">{description}</p>}
               </div>
               <div className="flex items-center space-x-4">
-                {/* Display Mode Toggle */}
-                <div className="flex border border-gray-300 rounded-md">
-                  <button
-                    onClick={() => setState(prev => ({ ...prev, displayMode: 'table' }))}
-                    className={`px-3 py-1 text-sm ${
-                      state.displayMode === 'table' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    Table
-                  </button>
-                  <button
-                    onClick={() => setState(prev => ({ ...prev, displayMode: 'grid' }))}
-                    className={`px-3 py-1 text-sm border-l border-gray-300 ${
-                      state.displayMode === 'grid' 
-                        ? 'bg-blue-600 text-white' 
-                        : 'bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    Grid
-                  </button>
-                </div>
-                
                 <button
                   onClick={handleCreate}
                   className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
@@ -758,7 +734,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
           >
             {() => (
               <div>
-                {state.displayMode === 'table' ? renderTableView() : renderGridView()}
+                {renderTableView()}
                 {renderPagination()}
               </div>
             )}
