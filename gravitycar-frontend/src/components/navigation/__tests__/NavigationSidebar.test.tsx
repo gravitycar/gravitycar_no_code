@@ -210,6 +210,7 @@ describe('NavigationSidebar', () => {
   it('shows debug info in development mode', async () => {
     // Mock development environment
     const originalEnv = import.meta.env.DEV;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (import.meta.env as any).DEV = true;
 
     render(<NavigationSidebar />);
@@ -223,6 +224,7 @@ describe('NavigationSidebar', () => {
     expect(screen.getByText('Model Permissions')).toBeInTheDocument();
 
     // Restore environment
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (import.meta.env as any).DEV = originalEnv;
   });
 

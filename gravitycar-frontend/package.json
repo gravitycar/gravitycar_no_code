@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "validate": "npm run lint && npm run build",
     "preview": "vite preview",
     "kill-port": "./scripts/kill-port-3000.sh",
     "restart": "./scripts/restart-dev-server.sh"
