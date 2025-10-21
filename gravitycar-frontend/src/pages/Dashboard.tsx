@@ -61,12 +61,30 @@ const Dashboard = () => {
     );
   }
 
+  // Helper function to get display name for user
+  const getUserDisplayName = () => {
+    if (!user) return '';
+    
+    // Prefer first_name + last_name
+    if (user.first_name && user.last_name) {
+      return `${user.first_name} ${user.last_name}`;
+    }
+    
+    // Fallback to first_name only
+    if (user.first_name) {
+      return user.first_name;
+    }
+    
+    // Fallback to username or email
+    return user.username || user.email;
+  };
+
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
       <div className="bg-white shadow rounded-lg p-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Welcome back, {user?.username || user?.email}!
+          Welcome back, {getUserDisplayName()}!
         </h1>
         <p className="text-gray-600">
           Here's an overview of your Gravitycar application data.

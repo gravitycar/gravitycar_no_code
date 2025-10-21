@@ -13,6 +13,24 @@ const Layout = ({ children }: LayoutProps) => {
     await logout();
   };
 
+  // Helper function to get display name for user
+  const getUserDisplayName = () => {
+    if (!user) return '';
+    
+    // Prefer first_name + last_name
+    if (user.first_name && user.last_name) {
+      return `${user.first_name} ${user.last_name}`;
+    }
+    
+    // Fallback to first_name only
+    if (user.first_name) {
+      return user.first_name;
+    }
+    
+    // Fallback to username or email
+    return user.username || user.email;
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
@@ -28,7 +46,7 @@ const Layout = ({ children }: LayoutProps) => {
             {isAuthenticated && (
               <div className="flex items-center space-x-4">
                 <span className="text-gray-700">
-                  Welcome, {user?.username || user?.email}
+                  Welcome, {getUserDisplayName()}
                 </span>
                 <button
                   onClick={handleLogout}
