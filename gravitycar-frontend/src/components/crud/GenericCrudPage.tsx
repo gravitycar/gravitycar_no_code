@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useNotify } from '../../contexts/NotificationContext';
 import { useModelMetadata } from '../../hooks/useModelMetadata';
 import { apiService } from '../../services/api';

@@ -19,6 +19,7 @@ class NavigationService {
 
     try {
       // Use the apiService's internal axios instance pattern
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const response = await (apiService as any).api.get('/navigation');
       const navigationData = response.data as NavigationResponse;
 
@@ -46,6 +47,7 @@ class NavigationService {
 
     try {
       // Use the apiService's internal axios instance pattern
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const response = await (apiService as any).api.get(`/navigation/${role}`);
       const navigationData = response.data as NavigationResponse;
 
@@ -66,6 +68,7 @@ class NavigationService {
   async rebuildNavigationCache(): Promise<NavigationResponse> {
     try {
       // Use the apiService's internal axios instance pattern
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const response = await (apiService as any).api.post('/navigation/cache/rebuild');
       const result = response.data as NavigationResponse;
       

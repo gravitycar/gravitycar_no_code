@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { navigationService } from '../../services/navigationService';
-import { NavigationData, NavigationItem, NavigationAction } from '../../types/navigation';
+import { NavigationData, NavigationAction } from '../../types/navigation';
 import { useAuth } from '../../hooks/useAuth';
 
 interface NavigationSidebarProps {
