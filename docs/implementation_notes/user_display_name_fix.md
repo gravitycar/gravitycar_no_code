@@ -5,12 +5,31 @@ When users logged in, the UI displayed "Welcome, Mike Andersen" initially. Howev
 
 ## Analysis
 
-### Root Causes
-1. **Incorrect Display Logic**: The Layout component used `user?.username || user?.email` which doesn't display the user's full name from `first_name` and `last_name` fields.
+### Root Cause Identified
+**API Response Parsing Error**: The `apiService.getCurrentUser()` method was incorrectly parsing the `/auth/me` response. 
 
-2. **State Initialization**: The `useAuth` hook initialized user state to `null` instead of reading from localStorage, causing a brief "flash" where the user appeared logged out during page navigation until the async `checkAuth()` function completed.
+The backend returns:
+```json
+{
+  "success": true,
+  "status": 200,
+  "data": {
+    "first_name": "Mike",
+    "last_name": "Developer",
+    "username": "mike@gravitycar.com",
+    ...
+  }
+}
+```
 
-3. **User Data Mismatch**: The "Mike Andersen" name was likely old cached data in localStorage. The actual backend stores "Mike Developer" for the mike@gravitycar.com account.
+But the frontend was treating it as if the user data was unwrapped:
+```typescript
+// WRONG - Expected response.data to be the User object
+const response: AxiosResponse<User> = await this.api.get('/auth/me');
+return response.data;
+```
+
+This caused `user.first_name` to be undefined because the actual data was at `response.data.data.first_name`.
 
 ### Security Verification
 ✅ **RBAC is NOT broken** - The authentication system properly maintains user state:
@@ -23,7 +42,30 @@ When users logged in, the UI displayed "Welcome, Mike Andersen" initially. Howev
 
 ## Solution Implemented
 
-### 1. Layout Component (`gravitycar-frontend/src/components/layout/Layout.tsx`)
+### 1. Fixed API Service (`gravitycar-frontend/src/services/api.ts`)
+
+**Corrected Response Parsing:**
+```typescript
+async getCurrentUser(): Promise<User | null> {
+  try {
+    const response: AxiosResponse<ApiResponse<User>> = await this.api.get('/auth/me');
+    
+    // The /auth/me endpoint returns data wrapped in ApiResponse structure
+    if (response.data.success && response.data.data) {
+      return response.data.data;  // Extract the nested user data
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('❌ getCurrentUser failed:', error);
+    return null;
+  }
+}
+```
+
+**Key Change**: Changed from `AxiosResponse<User>` to `AxiosResponse<ApiResponse<User>>` and extract the data from `response.data.data`.
+
+### 2. Enhanced Display Logic (Layout.tsx & Dashboard.tsx)
 
 **Added `getUserDisplayName()` helper function:**
 ```typescript
@@ -52,11 +94,7 @@ const getUserDisplayName = () => {
 </span>
 ```
 
-### 2. Dashboard Page (`gravitycar-frontend/src/pages/Dashboard.tsx`)
-
-**Added same `getUserDisplayName()` helper** for consistency across all pages.
-
-### 3. useAuth Hook (`gravitycar-frontend/src/hooks/useAuth.tsx`)
+### 3. Enhanced Authentication State (useAuth.tsx)
 
 **Enhanced state initialization:**
 ```typescript
