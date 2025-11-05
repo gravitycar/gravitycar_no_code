@@ -1,6 +1,6 @@
 ---
 description: 'Feature planning and documentation for future implementation.'
-tools: ['extensions', 'codebase', 'usages', 'vscodeAPI', 'problems', 'changes', 'testFailure', 'terminalSelection', 'terminalLastCommand', 'findTestFiles', 'searchResults', 'runCommands', 'editFiles', 'createFile', 'search', 'gravitycar-api', 'gravitycar-test', 'gravitycar-server']
+tools: ['extensions', 'search/codebase', 'usages', 'vscodeAPI', 'problems', 'changes', 'testFailure', 'runCommands/terminalSelection', 'runCommands/terminalLastCommand', 'findTestFiles', 'search/searchResults', 'runCommands', 'edit/editFiles', 'edit/createFile', 'search', 'gravitycar.gravitycar-tools/gravitycar-api', 'gravitycar.gravitycar-tools/gravitycar-test', 'gravitycar.gravitycar-tools/gravitycar-server']
 ---
 
 # Feature Planning Chat Mode

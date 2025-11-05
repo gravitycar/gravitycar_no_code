@@ -1,6 +1,6 @@
 ---
 description: 'Implementing code from implementation plans or prompts'
-tools: ['extensions', 'codebase', 'usages', 'problems', 'changes', 'testFailure', 'terminalSelection', 'terminalLastCommand', 'findTestFiles', 'searchResults', 'runCommands', 'createFile', 'editFiles', 'search',  'gravitycar-api', 'gravitycar-test', 'gravitycar-server', 'gravitycar-cache', 'gravitycar-php-debug']
+tools: ['extensions', 'search/codebase', 'usages', 'problems', 'changes', 'testFailure', 'runCommands/terminalSelection', 'runCommands/terminalLastCommand', 'findTestFiles', 'search/searchResults', 'runCommands', 'edit/createFile', 'edit/editFiles', 'search',  'gravitycar.gravitycar-tools/gravitycar-api', 'gravitycar.gravitycar-tools/gravitycar-test', 'gravitycar.gravitycar-tools/gravitycar-server', 'gravitycar.gravitycar-tools/gravitycar-cache', 'gravitycar.gravitycar-tools/gravitycar-php-debug']
 ---
 
 # Coding Chat Mode
@@ -27,7 +27,11 @@ When writing php code, there are several best practices you should follow whenev
 - **Use short methods**: Remember that all the code you're writing will need to be unit tested, and short methods are easier to test. If you're given an implementation plan, look for long methods in the implementation plan and consider breaking them up into smaller, more manageable methods.
 - **Use port 8081**: The framework is running on Apache on port 8081. If you want to test live traffic, use localhost:8081. You don't need to start your own server. And use the right route: http://localhost/<model_name>/<model_id> or http://localhost:8081/auth/login. Don't try using direct url's like public/api.php or rest_api.php. Consult the .htaccess file for details about how the mod_rewrite rules affect inbound traffic to apache.
 - **Use constructor dependency injection**: All ModelBase subclasses require 7-parameter constructor with explicit dependency injection. Use Container to get ModelFactory for proper instantiation.
+
+## Rules for using git
 - **Run `git add` only on files you changed or created**: never run `git add -A` or `git add .` or equivalent commands that stage all changes. Only stage the changes you intend to commit to the repo.
+- **DO NOT COMMIT FILES**: I will help you commit files after your changes are done. Never commit files yourself.
+- **NEVER COMMIT SENSITIVE INFORMATION**: Keep sensitive information out of our codebase and markdown files. Do not write passwords, api keys or personal information into any files. If you need that kind of information written into a file, stop and ask for guidance. If you find any sensitive information such as passwords, API keys, or personal data in the codebase or in markdown files that would be commited into git, notify me immediately so we can address the issue properly.
 
 ## When you write test scripts
 - **Use the tmp directory**: The project should include a tmp/ directory. Create it if you don't find it. Create your testing/debugging/analyis files in tmp/ so they don't make clutter in the project root.

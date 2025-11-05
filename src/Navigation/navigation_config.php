@@ -17,6 +17,13 @@ return [
             'url' => '/trivia',
             'icon' => '🎬',
             'roles' => ['admin', 'user']
+        ],
+        [
+            'key' => 'dnd_chat',
+            'title' => 'D&D Chat',
+            'url' => '/dnd-chat',
+            'icon' => '⚔️',
+            'roles' => ['admin', 'user']
         ]
     ],
 
