@@ -100,15 +100,25 @@ interface NotificationContainerProps {
 function NotificationContainer({ notifications, onRemove }: NotificationContainerProps) {
   if (notifications.length === 0) return null;
 
+  // Check if there are any error notifications
+  const hasErrors = notifications.some(n => n.type === 'error');
+
+  // Center error notifications, otherwise use top-right
+  const containerClasses = hasErrors
+    ? "fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
+    : "fixed top-4 right-4 z-50 space-y-2 max-w-sm";
+
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
-      {notifications.map(notification => (
-        <NotificationToast
-          key={notification.id}
-          notification={notification}
-          onRemove={onRemove}
-        />
-      ))}
+    <div className={containerClasses}>
+      <div className={hasErrors ? "space-y-2 max-w-md pointer-events-auto" : "space-y-2"}>
+        {notifications.map(notification => (
+          <NotificationToast
+            key={notification.id}
+            notification={notification}
+            onRemove={onRemove}
+          />
+        ))}
+      </div>
     </div>
   );
 }

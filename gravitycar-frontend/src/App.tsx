@@ -10,6 +10,7 @@ import TestRelatedRecord from './pages/TestRelatedRecord';
 import DynamicModelRoute from './components/routing/DynamicModelRoute';
 import MoviesQuotesRelationshipDemo from './pages/MoviesQuotesRelationshipDemo';
 import TriviaPage from './pages/TriviaPage';
+import DnDChatPage from './pages/DnDChatPage';
 import './App.css';
 
 // Protected Route Component
@@ -108,6 +109,18 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <Layout>
               <TriviaPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      
+      {/* D&D RAG Chat Route */}
+      <Route
+        path="/dnd-chat"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <DnDChatPage />
             </Layout>
           </ProtectedRoute>
         }
