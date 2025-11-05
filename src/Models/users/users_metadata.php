@@ -115,6 +115,14 @@ return [
             'readOnly' => true,
             'validationRules' => ['DateTime'],
         ],
+        'last_activity' => [
+            'name' => 'last_activity',
+            'type' => 'DateTime',
+            'label' => 'Last Activity',
+            'required' => false,
+            'readOnly' => true,
+            'validationRules' => ['DateTime'],
+        ],
         'user_type' => [
             'name' => 'user_type',
             'type' => 'Enum',

@@ -117,5 +117,11 @@ return [
         'client_id' => $_ENV['GOOGLE_CLIENT_ID'] ?? 'test-client-id',
         'client_secret' => $_ENV['GOOGLE_CLIENT_SECRET'] ?? 'test-client-secret',
         'redirect_uri' => $_ENV['GOOGLE_REDIRECT_URI'] ?? ($_ENV['BACKEND_URL'] ?? 'http://localhost:8081') . '/auth/google/callback'
+    ],
+
+    // Authentication settings
+    'auth' => [
+        'inactivity_timeout' => (int)($_ENV['AUTH_INACTIVITY_TIMEOUT'] ?? 3600), // 1 hour in seconds
+        'activity_debounce' => (int)($_ENV['AUTH_ACTIVITY_DEBOUNCE'] ?? 60),    // Update activity every 60 seconds max
     ]
 ];
