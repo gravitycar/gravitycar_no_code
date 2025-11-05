@@ -88,7 +88,7 @@ class ApiService {
           case 400:
             message = 'Bad request. Please check your input.';
             break;
-          case 401:
+          case 401: {
             // Check if it's a session expiration
             const sessionExpired = error.response.data?.message?.includes('inactivity') || 
                                    error.response.data?.code === 'SESSION_EXPIRED';
@@ -104,6 +104,7 @@ class ApiService {
             localStorage.removeItem('user');
             window.location.href = '/login';
             break;
+          }
           case 403:
             message = 'Access denied. You don\'t have permission for this action.';
             break;
