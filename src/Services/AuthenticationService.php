@@ -146,8 +146,10 @@ class AuthenticationService
             // Store refresh token
             $this->storeRefreshToken($user, $refreshToken);
             
-            // Update last login
+            // Update last login and last activity
             $user->set('last_login_method', 'traditional');
+            $user->set('last_login', date('Y-m-d H:i:s'));
+            $user->set('last_activity', date('Y-m-d H:i:s'));
             $user->update();
             
             $this->logger->info('Traditional authentication successful', [
@@ -429,9 +431,11 @@ class AuthenticationService
                 }
             }
             
-            // Always update sync timestamp and login method
+            // Always update sync timestamp, login method, and activity
             $user->set('last_google_sync', date('Y-m-d H:i:s'));
             $user->set('last_login_method', 'google');
+            $user->set('last_login', date('Y-m-d H:i:s'));
+            $user->set('last_activity', date('Y-m-d H:i:s'));
             $updated = true;
             
             if ($updated) {

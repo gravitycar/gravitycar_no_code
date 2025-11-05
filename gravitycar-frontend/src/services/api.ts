@@ -60,6 +60,15 @@ class ApiService {
           
           // Handle authentication errors
           if (backendError.status === 401) {
+            // Check if it's a session expiration
+            const sessionExpired = error.response.data.message?.includes('inactivity') || 
+                                   error.response.data.context?.code === 'SESSION_EXPIRED';
+            
+            if (sessionExpired) {
+              // Show notification for session timeout
+              alert('Your session has expired due to inactivity. Please log in again.');
+            }
+            
             localStorage.removeItem('auth_token');
             localStorage.removeItem('user');
             // Redirect to login page
@@ -80,7 +89,17 @@ class ApiService {
             message = 'Bad request. Please check your input.';
             break;
           case 401:
-            message = 'Authentication required. Please log in.';
+            // Check if it's a session expiration
+            const sessionExpired = error.response.data?.message?.includes('inactivity') || 
+                                   error.response.data?.code === 'SESSION_EXPIRED';
+            
+            if (sessionExpired) {
+              message = 'Your session has expired due to inactivity. Please log in again.';
+              alert(message);
+            } else {
+              message = 'Authentication required. Please log in.';
+            }
+            
             localStorage.removeItem('auth_token');
             localStorage.removeItem('user');
             window.location.href = '/login';
