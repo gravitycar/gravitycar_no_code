@@ -4,6 +4,7 @@ namespace Gravitycar\Services;
 
 use Gravitycar\Contracts\CurrentUserProviderInterface;
 use Gravitycar\Contracts\UserContextInterface;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Gravitycar\Services\AuthenticationService;
 use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Models\ModelBase;
@@ -26,6 +27,7 @@ class CurrentUserProvider implements CurrentUserProviderInterface, UserContextIn
     private AuthenticationService $authService;
     private ModelFactory $modelFactory;
     private Config $config;
+    private DatabaseConnectorInterface $databaseConnector;
     private ?GuestUserManager $guestUserManager;
     
     public function __construct(
@@ -33,12 +35,14 @@ class CurrentUserProvider implements CurrentUserProviderInterface, UserContextIn
         AuthenticationService $authService,
         ModelFactory $modelFactory,
         Config $config,
+        DatabaseConnectorInterface $databaseConnector,
         ?GuestUserManager $guestUserManager = null
     ) {
         $this->logger = $logger;
         $this->authService = $authService;
         $this->modelFactory = $modelFactory;
         $this->config = $config;
+        $this->databaseConnector = $databaseConnector;
         $this->guestUserManager = $guestUserManager;
     }
 
@@ -167,6 +171,9 @@ class CurrentUserProvider implements CurrentUserProviderInterface, UserContextIn
      * Update user's last activity timestamp with debouncing
      * Only update if last activity was more than configured seconds ago
      * 
+     * Uses DatabaseConnector directly to bypass ModelBase audit trail and avoid
+     * circular dependency (update → setAuditFieldsForUpdate → getCurrentUserId → infinite loop)
+     * 
      * @param ModelBase $user
      * @return void
      */
@@ -186,9 +193,10 @@ class CurrentUserProvider implements CurrentUserProviderInterface, UserContextIn
                 }
             }
             
-            // Update last_activity
+            // Update last_activity field and persist directly via DatabaseConnector
+            // This bypasses ModelBase::update() and its audit field logic
             $user->set('last_activity', date('Y-m-d H:i:s', $currentTime));
-            $user->update();
+            $this->databaseConnector->update($user);
             
             $this->logger->debug('Updated user last_activity', [
                 'user_id' => $user->get('id'),
