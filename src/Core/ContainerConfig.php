@@ -313,6 +313,7 @@ class ContainerConfig {
             'authService' => $di->lazyGet('authentication_service'),
             'modelFactory' => $di->lazyGet('model_factory'),
             'config' => $di->lazyGet('config'),
+            'databaseConnector' => $di->lazyGet('database_connector'),
             'guestUserManager' => null // Will be created internally if needed
         ];
 

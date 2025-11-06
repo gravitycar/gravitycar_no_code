@@ -10,6 +10,7 @@ use Gravitycar\Factories\ModelFactory;
 use Gravitycar\Core\Config;
 use Gravitycar\Models\ModelBase;
 use Gravitycar\Exceptions\SessionExpiredException;
+use Gravitycar\Contracts\DatabaseConnectorInterface;
 use Monolog\Logger;
 
 /**
@@ -22,6 +23,7 @@ class InactivitySessionTimeoutTest extends TestCase
     private AuthenticationService|MockObject $mockAuthService;
     private ModelFactory|MockObject $mockModelFactory;
     private Config|MockObject $mockConfig;
+    private DatabaseConnectorInterface|MockObject $mockDatabaseConnector;
     private ModelBase|MockObject $mockUser;
 
     protected function setUp(): void
@@ -33,6 +35,7 @@ class InactivitySessionTimeoutTest extends TestCase
         $this->mockAuthService = $this->createMock(AuthenticationService::class);
         $this->mockModelFactory = $this->createMock(ModelFactory::class);
         $this->mockConfig = $this->createMock(Config::class);
+        $this->mockDatabaseConnector = $this->createMock(DatabaseConnectorInterface::class);
         $this->mockUser = $this->createMock(ModelBase::class);
         
         // Default config values
@@ -82,7 +85,7 @@ class InactivitySessionTimeoutTest extends TestCase
             $this->mockAuthService,
             $this->mockModelFactory,
             $this->mockConfig,
-            null
+            $this->mockDatabaseConnector
         );
     }
 
@@ -108,8 +111,9 @@ class InactivitySessionTimeoutTest extends TestCase
             ->method('set')
             ->with('last_activity', $this->anything());
         
-        $this->mockUser->expects($this->once())
-            ->method('update');
+        $this->mockDatabaseConnector->expects($this->once())
+            ->method('update')
+            ->with($this->mockUser);
         
         $provider = $this->createProvider(true, 'user-123');
         $currentUser = $provider->getCurrentUser();
@@ -159,8 +163,9 @@ class InactivitySessionTimeoutTest extends TestCase
             ->method('set')
             ->with('last_activity', $this->anything());
         
-        $this->mockUser->expects($this->once())
-            ->method('update');
+        $this->mockDatabaseConnector->expects($this->once())
+            ->method('update')
+            ->with($this->mockUser);
         
         $provider = $this->createProvider(true, 'user-123');
         $currentUser = $provider->getCurrentUser();
@@ -185,7 +190,7 @@ class InactivitySessionTimeoutTest extends TestCase
             });
         
         // Should NOT update (within debounce window)
-        $this->mockUser->expects($this->never())->method('update');
+        $this->mockDatabaseConnector->expects($this->never())->method('update');
         
         $provider = $this->createProvider(true, 'user-123');
         $currentUser = $provider->getCurrentUser();
@@ -214,8 +219,9 @@ class InactivitySessionTimeoutTest extends TestCase
             ->method('set')
             ->with('last_activity', $this->anything());
         
-        $this->mockUser->expects($this->once())
-            ->method('update');
+        $this->mockDatabaseConnector->expects($this->once())
+            ->method('update')
+            ->with($this->mockUser);
         
         $provider = $this->createProvider(true, 'user-123');
         $currentUser = $provider->getCurrentUser();
@@ -240,7 +246,7 @@ class InactivitySessionTimeoutTest extends TestCase
             });
         
         // Simulate update failure
-        $this->mockUser->method('update')
+        $this->mockDatabaseConnector->method('update')
             ->willThrowException(new \Exception('Database error'));
         
         // Should log error
