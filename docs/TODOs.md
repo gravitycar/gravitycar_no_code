@@ -77,3 +77,6 @@
 - [] RolesAndActions are not stored in metadata_cache unless there are overrides. They should all be in cache.
 - [] Junk ModelFactory::getAvailableModels() it does a directory scan. Only found in tests and an example file.
 - [] ModelBase should support a save() method that looks at whether a model has a non-empty id and a non-empty created_at field and then calls create() or update() appropriately.
+- [] Revoke all tokens endponit - this is a good idea from Greg.
+- [] inactive session timeout is too permissive - Go back to a fixed time, and make it 4 hours.
+- [] You might want email verification. 
