@@ -85,6 +85,8 @@ export interface DnDQueryRequest {
 export interface DnDQueryResponse {
   /** The AI-generated answer to the question */
   answer: string;
+  /** Format of the answer content (html or text) */
+  answer_format?: 'html' | 'text';
   /** Diagnostic information about the query process */
   diagnostics: string[];
   /** Any errors that occurred (non-fatal) */
