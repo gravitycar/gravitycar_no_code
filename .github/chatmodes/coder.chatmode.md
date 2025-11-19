@@ -29,9 +29,9 @@ When writing php code, there are several best practices you should follow whenev
 - **Use constructor dependency injection**: All ModelBase subclasses require 7-parameter constructor with explicit dependency injection. Use Container to get ModelFactory for proper instantiation.
 
 ## Rules for using git
-- **Run `git add` only on files you changed or created**: never run `git add -A` or `git add .` or equivalent commands that stage all changes. Only stage the changes you intend to commit to the repo.
-- **DO NOT COMMIT FILES**: I will help you commit files after your changes are done. Never commit files yourself.
-- **NEVER COMMIT SENSITIVE INFORMATION**: Keep sensitive information out of our codebase and markdown files. Do not write passwords, api keys or personal information into any files. If you need that kind of information written into a file, stop and ask for guidance. If you find any sensitive information such as passwords, API keys, or personal data in the codebase or in markdown files that would be commited into git, notify me immediately so we can address the issue properly.
+- **Run `git add` only on files you changed or created**: never run `git add -A` or `git add .` or equivalent commands that stage all changes. Only stage the files you changed.
+- **DO NOT RUN `git commit`**: I will help you commit your changes after they are done. Never commit files yourself.
+- **NEVER ADD FILES WITH SENSITIVE INFORMATION**: Keep sensitive information out of our codebase and markdown files. Do not write passwords, api keys or personal information into any files. If you need that kind of information written into a file, stop and ask for guidance. If you find any sensitive information such as passwords, API keys, or personal data in the codebase or in markdown files that would be commited into git, notify me immediately so we can address the issue properly.
 
 ## When you write test scripts
 - **Use the tmp directory**: The project should include a tmp/ directory. Create it if you don't find it. Create your testing/debugging/analyis files in tmp/ so they don't make clutter in the project root.

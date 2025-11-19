@@ -11,12 +11,14 @@ import type { DnDQueryResponse, RateLimitInfo, CostInfo } from '../types/dndRag'
 import { useNotifications } from '../contexts/NotificationContext';
 
 interface UseDnDChatReturn {
-  /** Current question text */
+  /** Current question being composed */
   question: string;
-  /** Set the question text */
+  /** Function to update the question */
   setQuestion: (question: string) => void;
   /** AI-generated answer */
   answer: string;
+  /** Format of the answer (html or text) */
+  answerFormat: 'html' | 'text';
   /** The last question that was submitted */
   lastQuestion: string;
   /** Diagnostic information from the query */
@@ -46,6 +48,7 @@ export function useDnDChat(): UseDnDChatReturn {
   // State management
   const [question, setQuestion] = useState<string>('');
   const [answer, setAnswer] = useState<string>('');
+  const [answerFormat, setAnswerFormat] = useState<'html' | 'text'>('text');
   const [lastQuestion, setLastQuestion] = useState<string>('');
   const [diagnostics, setDiagnostics] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -77,10 +80,20 @@ export function useDnDChat(): UseDnDChatReturn {
         k: 15
       });
       
-      // Update state with response data
-      setResponse(result);
+      // Update state with results
+      console.log('[useDnDChat] API Response answer_format:', result.answer_format);
+      console.log('[useDnDChat] API Response answer preview:', result.answer?.substring(0, 100));
+      
+      // Auto-detect HTML if answer_format not provided
+      const detectedFormat = result.answer_format || 
+        (result.answer.trim().startsWith('<') ? 'html' : 'text');
+      
+      console.log('[useDnDChat] Setting answerFormat to:', detectedFormat);
+      
       setAnswer(result.answer);
+      setAnswerFormat(detectedFormat);
       setDiagnostics(result.diagnostics || []);
+      setResponse(result);
       setRateLimitInfo(result.meta.rate_limit);
       setCostInfo(result.meta.cost);
       
@@ -101,6 +114,7 @@ export function useDnDChat(): UseDnDChatReturn {
       
       // Clear previous results on error
       setAnswer('');
+      setAnswerFormat('text');
       setDiagnostics([]);
       setLastQuestion('');
       
@@ -114,6 +128,7 @@ export function useDnDChat(): UseDnDChatReturn {
    */
   const clearAnswer = (): void => {
     setAnswer('');
+    setAnswerFormat('text');
     setDiagnostics([]);
     setError(null);
     setResponse(null);
@@ -125,6 +140,7 @@ export function useDnDChat(): UseDnDChatReturn {
     question,
     setQuestion,
     answer,
+    answerFormat,
     lastQuestion,
     diagnostics,
     loading,

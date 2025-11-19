@@ -18,6 +18,7 @@ const DnDChatPage: React.FC = () => {
     question,
     setQuestion,
     answer,
+    answerFormat,
     lastQuestion,
     diagnostics,
     loading,
@@ -115,8 +116,20 @@ const DnDChatPage: React.FC = () => {
                 )}
                 
                 {answer && (
-                  <div className="max-w-none">
-                    <p className="text-gray-800 whitespace-pre-wrap">{answer}</p>
+                  <div className="max-w-none prose prose-sm">
+                    {(() => {
+                      console.log('[DnDChatPage] answerFormat:', answerFormat);
+                      console.log('[DnDChatPage] answer length:', answer.length);
+                      console.log('[DnDChatPage] answer preview:', answer.substring(0, 100));
+                      return answerFormat === 'html' ? (
+                        <div 
+                          className="text-gray-800"
+                          dangerouslySetInnerHTML={{ __html: answer }} 
+                        />
+                      ) : (
+                        <p className="text-gray-800 whitespace-pre-wrap">{answer}</p>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
