@@ -53,14 +53,14 @@ const DebugPanel: React.FC<DebugPanelProps> = ({ diagnostics, isExpanded, onTogg
           {diagnostics.length === 0 ? (
             <p className="text-gray-500 italic">No diagnostic information available yet.</p>
           ) : (
-            <div className="space-y-2 max-h-80 overflow-y-auto">
+            <div className="space-y-2 max-h-80 overflow-y-auto text-left">
               {diagnostics.map((diagnostic, index) => (
                 <div
                   key={index}
-                  className="flex items-start space-x-2 text-sm"
+                  className="flex items-start space-x-2 text-sm text-left"
                 >
-                  <span className="text-blue-600 font-mono">›</span>
-                  <span className="text-gray-700 font-mono">{diagnostic}</span>
+                  <span className="text-blue-600 font-mono shrink-0">›</span>
+                  <span className="text-gray-700 font-mono break-words flex-1 text-left">{diagnostic}</span>
                 </div>
               ))}
             </div>

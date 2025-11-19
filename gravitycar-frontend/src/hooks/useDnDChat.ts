@@ -17,6 +17,8 @@ interface UseDnDChatReturn {
   setQuestion: (question: string) => void;
   /** AI-generated answer */
   answer: string;
+  /** The last question that was submitted */
+  lastQuestion: string;
   /** Diagnostic information from the query */
   diagnostics: string[];
   /** Loading state during query */
@@ -44,6 +46,7 @@ export function useDnDChat(): UseDnDChatReturn {
   // State management
   const [question, setQuestion] = useState<string>('');
   const [answer, setAnswer] = useState<string>('');
+  const [lastQuestion, setLastQuestion] = useState<string>('');
   const [diagnostics, setDiagnostics] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -63,9 +66,13 @@ export function useDnDChat(): UseDnDChatReturn {
     setLoading(true);
     setError(null);
     
+    // Store the question before clearing
+    const currentQuestion = question.trim();
+    setLastQuestion(currentQuestion);
+    
     try {
       const result = await dndRagService.query({
-        question: question.trim(),
+        question: currentQuestion,
         debug: true,
         k: 15
       });
@@ -76,6 +83,9 @@ export function useDnDChat(): UseDnDChatReturn {
       setDiagnostics(result.diagnostics || []);
       setRateLimitInfo(result.meta.rate_limit);
       setCostInfo(result.meta.cost);
+      
+      // Clear the question input for next query
+      setQuestion('');
       
       // Show any non-fatal errors from the response
       if (result.errors && result.errors.length > 0) {
@@ -92,6 +102,7 @@ export function useDnDChat(): UseDnDChatReturn {
       // Clear previous results on error
       setAnswer('');
       setDiagnostics([]);
+      setLastQuestion('');
       
     } finally {
       setLoading(false);
@@ -106,6 +117,7 @@ export function useDnDChat(): UseDnDChatReturn {
     setDiagnostics([]);
     setError(null);
     setResponse(null);
+    setLastQuestion('');
     // Keep rate limit and cost info to show historical data
   };
   
@@ -113,6 +125,7 @@ export function useDnDChat(): UseDnDChatReturn {
     question,
     setQuestion,
     answer,
+    lastQuestion,
     diagnostics,
     loading,
     error,

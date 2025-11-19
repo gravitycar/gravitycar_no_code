@@ -11,12 +11,14 @@ import { useDnDChat } from '../hooks/useDnDChat';
 import LoadingQuotes from '../components/dnd/LoadingQuotes';
 import DebugPanel from '../components/dnd/DebugPanel';
 import RateLimitDisplay from '../components/dnd/RateLimitDisplay';
+import { useNotifications } from '../contexts/NotificationContext';
 
 const DnDChatPage: React.FC = () => {
   const {
     question,
     setQuestion,
     answer,
+    lastQuestion,
     diagnostics,
     loading,
     rateLimitInfo,
@@ -24,7 +26,9 @@ const DnDChatPage: React.FC = () => {
     submitQuestion,
   } = useDnDChat();
   
+  const { showNotification } = useNotifications();
   const [debugExpanded, setDebugExpanded] = useState(false);
+  const [lastLoadingQuoteIndex, setLastLoadingQuoteIndex] = useState<number | undefined>(undefined);
   
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,22 +95,42 @@ const DnDChatPage: React.FC = () => {
               <label htmlFor="answer" className="block text-sm font-medium text-gray-700 mb-2">
                 Answer
               </label>
-              <textarea
+              <div
                 id="answer"
-                value={answer}
-                placeholder="The Dungeon Master's answer will appear here..."
-                rows={8}
-                readOnly
-                className="flex-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+                role="region"
+                aria-label="Answer from Dungeon Master"
+                className="flex-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-white overflow-y-auto min-h-[200px] max-h-[400px] focus-within:ring-2 focus-within:ring-blue-500 text-left"
+              >
+                {!answer && !lastQuestion && (
+                  <p className="text-gray-400 italic">
+                    The Dungeon Master's answer will appear here...
+                  </p>
+                )}
+                
+                {lastQuestion && (
+                  <div className="mb-4 pl-4 py-2 bg-gray-100 rounded-md border-l-4 border-blue-400">
+                    <p className="text-sm text-gray-600 font-semibold mb-1">Your Question:</p>
+                    <p className="text-sm text-gray-700 italic">{lastQuestion}</p>
+                  </div>
+                )}
+                
+                {answer && (
+                  <div className="max-w-none">
+                    <p className="text-gray-800 whitespace-pre-wrap">{answer}</p>
+                  </div>
+                )}
+              </div>
               
               {answer && (
                 <div className="mt-2 flex justify-end">
                   <button
                     type="button"
                     onClick={() => {
-                      navigator.clipboard.writeText(answer);
-                      // Could add a toast notification here
+                      const fullText = lastQuestion 
+                        ? `Q: ${lastQuestion}\n\nA: ${answer}` 
+                        : answer;
+                      navigator.clipboard.writeText(fullText);
+                      showNotification('Copied to clipboard', 'success');
                     }}
                     className="text-sm text-blue-600 hover:text-blue-800 underline"
                   >
@@ -133,7 +157,11 @@ const DnDChatPage: React.FC = () => {
       </div>
       
       {/* Loading Overlay with Quotes */}
-      <LoadingQuotes isActive={loading} />
+      <LoadingQuotes 
+        isActive={loading}
+        previousQuoteIndex={lastLoadingQuoteIndex}
+        onQuoteChange={setLastLoadingQuoteIndex}
+      />
     </div>
   );
 };

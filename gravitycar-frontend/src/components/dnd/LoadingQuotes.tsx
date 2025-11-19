@@ -2,50 +2,70 @@
  * LoadingQuotes Component
  * 
  * Displays humorous D&D-themed quotes while waiting for query responses.
- * Quotes cycle every 8 seconds (5s display + 3s fade transition).
+ * Quotes cycle every 6 seconds (2s display + 4s fade transition).
  * Automatically stops after 3 minutes (timeout).
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getRandomQuote } from '../../utils/dndQuotes';
 
 interface LoadingQuotesProps {
   /** Whether the loading overlay is active */
   isActive: boolean;
+  /** The last quote index shown (from previous session) */
+  previousQuoteIndex?: number;
+  /** Callback when a new quote is displayed */
+  onQuoteChange?: (index: number) => void;
 }
 
-const LoadingQuotes: React.FC<LoadingQuotesProps> = ({ isActive }) => {
+const LoadingQuotes: React.FC<LoadingQuotesProps> = ({ isActive, previousQuoteIndex, onQuoteChange }) => {
   const [currentQuote, setCurrentQuote] = useState<string>('');
-  const [lastIndex, setLastIndex] = useState<number | undefined>(undefined);
   const [isFading, setIsFading] = useState<boolean>(false);
+  const initialQuoteIndexRef = useRef<number | undefined>(previousQuoteIndex);
+  const lastIndexRef = useRef<number | undefined>(previousQuoteIndex);
+  const onQuoteChangeRef = useRef(onQuoteChange);
+  
+  // Keep callback ref up to date
+  useEffect(() => {
+    onQuoteChangeRef.current = onQuoteChange;
+  }, [onQuoteChange]);
   
   useEffect(() => {
     if (!isActive) {
-      // Reset state when not active
+      // Don't reset lastIndex - parent will manage it
       setCurrentQuote('');
-      setLastIndex(undefined);
       setIsFading(false);
       return;
     }
     
-    // Set initial quote immediately
-    const { quote, index } = getRandomQuote();
+    // Set initial quote, excluding previous session's last quote (only use on first activation)
+    const { quote, index } = getRandomQuote(initialQuoteIndexRef.current);
     setCurrentQuote(quote);
-    setLastIndex(index);
+    lastIndexRef.current = index;
     
-    // Cycle quotes every 5 seconds (3s display + 2s fade)
+    // Notify parent of quote change
+    if (onQuoteChangeRef.current) {
+      onQuoteChangeRef.current(index);
+    }
+    
+    // Cycle quotes every 6 seconds (2s display + 4s fade)
     const quoteInterval = setInterval(() => {
-      // Start fade out
+      // Start fade out after 2 seconds of solid display
       setIsFading(true);
       
-      // After 2 seconds, change quote and fade in
+      // After 4 seconds of fading, change quote and fade in
       setTimeout(() => {
-        const { quote: newQuote, index: newIndex } = getRandomQuote(lastIndex);
+        const { quote: newQuote, index: newIndex } = getRandomQuote(lastIndexRef.current);
         setCurrentQuote(newQuote);
-        setLastIndex(newIndex);
+        lastIndexRef.current = newIndex;
         setIsFading(false);
+        
+        // Notify parent of quote change
+        if (onQuoteChangeRef.current) {
+          onQuoteChangeRef.current(newIndex);
+        }
       }, 2000);
-    }, 5000);
+    }, 4000);
     
     // Auto-stop after 3 minutes (180000ms)
     const timeoutTimer = setTimeout(() => {
@@ -57,7 +77,7 @@ const LoadingQuotes: React.FC<LoadingQuotesProps> = ({ isActive }) => {
       clearInterval(quoteInterval);
       clearTimeout(timeoutTimer);
     };
-  }, [isActive, lastIndex]);
+  }, [isActive]);
   
   if (!isActive) {
     return null;
@@ -72,7 +92,7 @@ const LoadingQuotes: React.FC<LoadingQuotesProps> = ({ isActive }) => {
         </div>
         
         <p
-          className={`text-3xl font-bold text-white transition-opacity duration-1000 ${
+          className={`text-3xl font-bold text-white transition-opacity duration-[4000ms] ${
             isFading ? 'opacity-0' : 'opacity-100'
           }`}
         >
