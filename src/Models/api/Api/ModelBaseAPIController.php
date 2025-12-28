@@ -43,12 +43,12 @@ class ModelBaseAPIController extends ApiControllerBase {
      * @param CurrentUserProviderInterface $currentUserProvider
      */
     public function __construct(
-        Logger $logger = null,
-        ModelFactory $modelFactory = null,
-        DatabaseConnectorInterface $databaseConnector = null,
-        MetadataEngineInterface $metadataEngine = null,
-        Config $config = null,
-        CurrentUserProviderInterface $currentUserProvider = null
+        ?Logger $logger = null,
+        ?ModelFactory $modelFactory = null,
+        ?DatabaseConnectorInterface $databaseConnector = null,
+        ?MetadataEngineInterface $metadataEngine = null,
+        ?Config $config = null,
+        ?CurrentUserProviderInterface $currentUserProvider = null
     ) {
         // All dependencies explicitly injected - no ServiceLocator fallbacks
         parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config, $currentUserProvider);

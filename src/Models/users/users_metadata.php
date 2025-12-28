@@ -18,7 +18,7 @@ return [
             'type' => 'Password',
             'label' => 'Password',
             'required' => false, // Made optional for OAuth users
-            'validationRules' => [],
+            'validationRules' => ['PasswordStrength'],
         ],
         'email' => [
             'name' => 'email',

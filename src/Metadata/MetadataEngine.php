@@ -56,21 +56,6 @@ class MetadataEngine implements MetadataEngineInterface {
     }
 
     /**
-     * Private constructor for legacy singleton pattern (deprecated)
-     * @deprecated Use dependency injection instead
-     */
-    private function constructSingleton() {
-        // Initialize with default values to avoid circular dependency
-        // Services will be injected later when needed
-        $this->modelsDirPath = 'src/Models';
-        $this->relationshipsDirPath = 'src/Relationships';
-        $this->fieldsDirPath = 'src/Fields';
-        $this->cacheDirPath = 'cache/';
-        $this->coreFieldsMetadata = new CoreFieldsMetadata();
-        $this->metadataCache = $this->getCachedMetadata();
-    }
-
-    /**
      * Create a field instance for getting React component information
      */
     private function createFieldInstance(string $fieldClassName, array $metadata = []): object {

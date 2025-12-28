@@ -38,14 +38,14 @@ class GoogleBooksController extends ApiControllerBase
      * @param BookGoogleBooksIntegrationService $integrationService
      */
     public function __construct(
-        Logger $logger = null,
-        ModelFactory $modelFactory = null,
-        DatabaseConnectorInterface $databaseConnector = null,
-        MetadataEngineInterface $metadataEngine = null,
-        Config $config = null,
-        CurrentUserProviderInterface $currentUserProvider = null,
-        GoogleBooksApiService $googleBooksService = null,
-        BookGoogleBooksIntegrationService $integrationService = null
+        ?Logger $logger = null,
+        ?ModelFactory $modelFactory = null,
+        ?DatabaseConnectorInterface $databaseConnector = null,
+        ?MetadataEngineInterface $metadataEngine = null,
+        ?Config $config = null,
+        ?CurrentUserProviderInterface $currentUserProvider = null,
+        ?GoogleBooksApiService $googleBooksService = null,
+        ?BookGoogleBooksIntegrationService $integrationService = null
     )
     {
         // All dependencies explicitly injected - no ServiceLocator fallbacks

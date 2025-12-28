@@ -122,7 +122,6 @@ abstract class ModelBase {
         if (!$this->relationshipsInitialized) {
             $this->initializeRelationships();
         }
-        $this->initializeValidationRules();
     }
 
     /**
@@ -256,24 +255,6 @@ abstract class ModelBase {
         }
 
         $this->relationshipsInitialized = true;
-    }
-
-    /**
-     * Initialize validation rules from metadata
-     */
-    protected function initializeValidationRules(): void {
-        if (!isset($this->metadata['validationRules'])) {
-            return;
-        }
-
-        foreach ($this->metadata['validationRules'] as $ruleName) {
-            $ruleClass = "\\Gravitycar\\Validation\\" . $ruleName . "ValidationRule";
-            if (!class_exists($ruleClass)) {
-                $this->logger->warning("Validation rule class $ruleClass does not exist");
-                continue;
-            }
-            $this->validationRules[$ruleName] = new $ruleClass($this->logger);
-        }
     }
 
     /**

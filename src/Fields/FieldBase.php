@@ -249,8 +249,6 @@ abstract class FieldBase {
             }
 
             try {
-                $property->setAccessible(true);
-
                 // Check if the property is initialized before trying to access it
                 // This prevents errors with typed properties that haven't been set
                 if (!$property->isInitialized($this)) {

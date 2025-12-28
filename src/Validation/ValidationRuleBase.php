@@ -107,7 +107,7 @@ abstract class ValidationRuleBase {
     /**
      * Determine whether this validation rule should be applied
      */
-    public function isApplicable($value, FieldBase $field, ModelBase $model = null): bool {
+    public function isApplicable($value, FieldBase $field, ?ModelBase $model = null): bool {
         // Check if validation is enabled
         if (!$this->isEnabled) {
             return false;
@@ -121,8 +121,13 @@ abstract class ValidationRuleBase {
         // Check conditional rules if any exist
         if (!empty($this->conditionalRules)) {
             foreach ($this->conditionalRules as $condition) {
-                // Implementation of conditional logic would go here
-                // For now, we'll assume all conditions pass
+                $fieldName = $condition['field'] ?? null;
+                $expectedValue = $condition['value'] ?? null;
+                $actualValue = $model ? $model->get($fieldName) : null;
+
+                if ($actualValue !== $expectedValue) {
+                    return false;
+                }
             }
         }
 

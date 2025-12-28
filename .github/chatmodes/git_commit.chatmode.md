@@ -1,6 +1,6 @@
 ---
 description: 'Committing the latest changes'
-tools: ['changes', 'codebase', 'runCommands', 'search', 'searchResults', 'terminalLastCommand', 'terminalSelection', 'usages']
+tools: ['search/changes', 'search/codebase', 'execute/getTerminalOutput', 'execute/runInTerminal', 'read/terminalLastCommand', 'read/terminalSelection', 'search', 'search/searchResults', 'read/terminalLastCommand', 'read/terminalSelection', 'search/usages']
 ---
 
 # Git Commit Mode

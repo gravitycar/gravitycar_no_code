@@ -28,9 +28,9 @@ class SchemaGenerator {
     protected CoreFieldsMetadata $coreFieldsMetadata;
 
     public function __construct(
-        Logger $logger = null,
-        DatabaseConnectorInterface $dbConnector = null,
-        CoreFieldsMetadata $coreFieldsMetadata = null
+        ?Logger $logger = null,
+        ?DatabaseConnectorInterface $dbConnector = null,
+        ?CoreFieldsMetadata $coreFieldsMetadata = null
     ) {
         // Backward compatibility: use ServiceLocator if dependencies not provided
         $this->logger = $logger ?? ServiceLocator::getLogger();
