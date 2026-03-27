@@ -12,7 +12,7 @@ LOG_FILE="${PROJECT_ROOT}/logs/health-check.log"
 
 # Default configuration
 DEFAULT_API_URL="https://api.gravitycar.com"
-DEFAULT_FRONTEND_URL="https://react.gravitycar.com"
+DEFAULT_FRONTEND_URL="https://www.gravitycar.com"
 DEFAULT_TIMEOUT=30
 MAX_RETRIES=3
 RETRY_DELAY=10
@@ -48,7 +48,7 @@ setup_environment() {
     if [ -n "${PRODUCTION_HOST:-}" ]; then
         if [[ "$PRODUCTION_HOST" == *"gravitycar.com"* ]]; then
             API_URL="https://api.gravitycar.com"
-            FRONTEND_URL="https://react.gravitycar.com"
+            FRONTEND_URL="https://www.gravitycar.com"
         else
             # For other hosts, assume they serve both API and frontend
             API_URL="https://$PRODUCTION_HOST"

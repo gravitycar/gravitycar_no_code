@@ -15,7 +15,7 @@ echo "User: $PRODUCTION_USER"
 
 # This command will remove the old JavaScript file that contains localhost:8081
 ssh "$PRODUCTION_USER@$PRODUCTION_HOST" "
-    cd ~/public_html/react.gravitycar.com
+    cd ~/secure_html
     
     echo 'Current files before cleanup:'
     ls -la

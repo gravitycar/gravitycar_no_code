@@ -166,10 +166,10 @@ create_remote_backup() {
         fi
         
         # Backup current frontend application if it exists
-        if [ -d '/home/$PRODUCTION_USER/public_html/react.gravitycar.com' ]; then
+        if [ -d '/home/$PRODUCTION_USER/secure_html' ]; then
             mkdir -p '$backup_dir'
-            cp -r /home/$PRODUCTION_USER/public_html/react.gravitycar.com '$backup_dir/'
-            echo 'Frontend application backup created: $backup_dir/react.gravitycar.com'
+            cp -r /home/$PRODUCTION_USER/secure_html '$backup_dir/'
+            echo 'Frontend application backup created: $backup_dir/secure_html'
         else
             echo 'No existing frontend application found to backup'
         fi
@@ -257,29 +257,29 @@ deploy_frontend() {
     
     ssh "$PRODUCTION_USER@$PRODUCTION_HOST" "
         # Create frontend directory structure
-        mkdir -p /home/$PRODUCTION_USER/public_html/react.gravitycar.com
-        
+        mkdir -p /home/$PRODUCTION_USER/secure_html
+
         # Clean up old frontend files to prevent stale assets
-        log_info 'Cleaning up old frontend files...'
-        cd /home/$PRODUCTION_USER/public_html/react.gravitycar.com
-        
+        echo 'Cleaning up old frontend files...'
+        cd /home/$PRODUCTION_USER/secure_html
+
         # Remove all build artifacts to ensure clean deployment
         rm -rf assets/ 2>/dev/null || true
         rm -f index.html 2>/dev/null || true
         rm -f vite.svg 2>/dev/null || true
         rm -f build-manifest.json 2>/dev/null || true
-        
+
         echo 'Old frontend files cleaned up'
-        
+
         # Copy frontend files
         if [ -d '$REMOTE_TEMP_DIR/frontend' ]; then
-            cp -r '$REMOTE_TEMP_DIR/frontend/'* /home/$PRODUCTION_USER/public_html/react.gravitycar.com/
+            cp -r '$REMOTE_TEMP_DIR/frontend/'* /home/$PRODUCTION_USER/secure_html/
         fi
-        
+
         # Set proper permissions
-        find /home/$PRODUCTION_USER/public_html/react.gravitycar.com -type f -exec chmod 644 {} \;
-        find /home/$PRODUCTION_USER/public_html/react.gravitycar.com -type d -exec chmod 755 {} \;
-        
+        find /home/$PRODUCTION_USER/secure_html -type f -exec chmod 644 {} \;
+        find /home/$PRODUCTION_USER/secure_html -type d -exec chmod 755 {} \;
+
         echo 'Frontend deployment completed'
     "
     
@@ -342,7 +342,7 @@ verify_deployment() {
         fi
         
         # Check if frontend files exist
-        if [ ! -f '/home/$PRODUCTION_USER/public_html/react.gravitycar.com/index.html' ]; then
+        if [ ! -f '/home/$PRODUCTION_USER/secure_html/index.html' ]; then
             echo 'WARNING: Frontend index.html missing'
         fi
         

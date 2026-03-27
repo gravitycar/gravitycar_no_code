@@ -118,9 +118,6 @@ const Login = () => {
         
         <div className="text-center text-sm text-gray-600">
           <p>This is a demo application using the Gravitycar Framework</p>
-          <p className="mt-2 text-xs">
-            Try logging in with: <strong>mike@gravitycar.com</strong> / <strong>bageldog</strong>
-          </p>
         </div>
       </div>
     </div>
