@@ -34,3 +34,9 @@ build-metadata.json
 *.tar
 *.tar.gz
 *.zip
+
+# MAPS working directory
+.maps/maps.*
+
+# MAPS database (docs are tracked)
+.maps/maps.db

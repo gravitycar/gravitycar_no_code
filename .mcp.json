@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "maps": {
+      "command": "node",
+      "args": [
+        "/Users/mike/projects/mike_agentic_programming_system/dist/index.js",
+        "/Users/mike/projects/gravitycar_no_code"
+      ]
+    }
+  }
+}
