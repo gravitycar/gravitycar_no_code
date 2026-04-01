@@ -34,7 +34,12 @@
         "install-framework": "php scripts/install.php"
     },
     "config": {
-        "sort-packages": true
+        "sort-packages": true,
+        "audit": {
+            "ignore": {
+                "PKSA-y2cr-5h3j-g3ys": "php-jwt contains weak encryption - this isn't a big enough deal for our use case"
+            }
+        }
     },
     "minimum-stability": "stable",
     "prefer-stable": true
