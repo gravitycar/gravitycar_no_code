@@ -631,12 +631,10 @@ class ContainerConfig {
         
         // Dynamically discover and register all model classes
         try {
-            $modelNames = self::discoverModelNamesFromCache();
+            $modelFQCNs = self::discoverModelFQCNsFromCache();
             $registeredCount = 0;
-            
-            foreach ($modelNames as $modelName) {
-                $fullClassName = self::buildModelClassName($modelName);
-                
+
+            foreach ($modelFQCNs as $modelName => $fullClassName) {
                 // Verify the model class exists before registering
                 if (class_exists($fullClassName)) {
                     $di->set($fullClassName, $di->lazyNew($fullClassName));
@@ -648,13 +646,14 @@ class ContainerConfig {
             }
             
             // Store registry info for debugging
+            $modelNames = array_keys($modelFQCNs);
             $di->set('model_registration_info', $di->lazy(function() use ($modelNames, $registeredCount) {
                 return new class($modelNames, $registeredCount) {
                     public string $method = 'dynamic';
                     public int $discoveredCount;
                     public int $registeredCount;
                     public array $modelNames;
-                    
+
                     public function __construct(array $modelNames, int $registeredCount) {
                         $this->discoveredCount = count($modelNames);
                         $this->registeredCount = $registeredCount;
@@ -682,36 +681,40 @@ class ContainerConfig {
     }
     
     /**
-     * Discover model names from metadata cache without circular dependency
+     * Discover model FQCNs from metadata cache without circular dependency.
+     * Returns an associative array of model name => FQCN.
      */
-    private static function discoverModelNamesFromCache(): array {
+    private static function discoverModelFQCNsFromCache(): array {
         $cacheFile = 'cache/metadata_cache.php';
-        
+
         if (!file_exists($cacheFile)) {
             throw new ContainerException(
                 "Metadata cache file not found: {$cacheFile}",
                 ['cache_file' => $cacheFile, 'reason' => 'File not found']
             );
         }
-        
+
         $cachedMetadata = include $cacheFile;
-        
+
         if (!is_array($cachedMetadata) || !isset($cachedMetadata['models'])) {
             throw new ContainerException(
                 "Invalid metadata cache structure",
                 ['cache_file' => $cacheFile, 'reason' => 'Invalid cache structure - missing models array']
             );
         }
-        
-        return array_keys($cachedMetadata['models']);
-    }
-    
-    /**
-     * Build the full class name for a model
-     */
-    private static function buildModelClassName(string $modelName): string {
-        $modelNameLower = strtolower($modelName);
-        return "Gravitycar\\Models\\{$modelNameLower}\\{$modelName}";
+
+        $fqcns = [];
+        foreach ($cachedMetadata['models'] as $modelName => $modelData) {
+            if (!isset($modelData['fqcn'])) {
+                throw new ContainerException(
+                    "Model metadata missing FQCN",
+                    ['model' => $modelName, 'cache_file' => $cacheFile]
+                );
+            }
+            $fqcns[$modelName] = $modelData['fqcn'];
+        }
+
+        return $fqcns;
     }
     
     /**

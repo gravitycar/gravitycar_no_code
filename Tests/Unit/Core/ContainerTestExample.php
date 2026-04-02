@@ -70,8 +70,8 @@ class ContainerTestExample extends TestCase {
         ]);
 
         // Create a model - it automatically gets the mocked logger
-        $metadata = ['fields' => []];
-        $model = ModelFactory::new('Installer');
+        $modelFactory = ServiceLocator::getModelFactory();
+        $model = $modelFactory->new('Installer');
 
         $this->assertInstanceOf(\Gravitycar\Models\installer\Installer::class, $model);
     }

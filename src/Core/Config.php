@@ -114,6 +114,12 @@ class Config {
                     $value = substr($value, 1, -1);
                 }
                 
+                // OS environment variables (e.g. from Docker) take precedence over .env file
+                $osValue = getenv($key);
+                if ($osValue !== false) {
+                    $value = $osValue;
+                }
+
                 $this->env[$key] = $value;
                 // Also populate $_ENV for backward compatibility during transition
                 $_ENV[$key] = $value;

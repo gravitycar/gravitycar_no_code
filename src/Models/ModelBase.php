@@ -1213,7 +1213,15 @@ abstract class ModelBase {
                 ]);
         }
 
-        return "Gravitycar\\Models\\{$relatedModelName}";
+        $relatedMetadata = $this->metadataEngine->getModelMetadata($relatedModelName);
+        if (!isset($relatedMetadata['fqcn'])) {
+            throw new GCException("Related model metadata missing FQCN", [
+                'related_model' => $relatedModelName,
+                'current_model' => static::class,
+                'relationship_metadata' => $metadata
+            ]);
+        }
+        return $relatedMetadata['fqcn'];
     }
 
     public function getName():string {

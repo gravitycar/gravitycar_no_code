@@ -177,12 +177,23 @@ class ModelFactory {
         if (empty($modelName) || !is_string($modelName)) {
             throw new GCException("Invalid model name provided: must be non-empty string");
         }
-        
-        // Convert to proper case and build class name
+
         $modelName = ucfirst($modelName);
+
+        // Use cached FQCN from metadata when available
+        try {
+            $modelMetadata = $this->metadataEngine->getModelMetadata($modelName);
+            if (isset($modelMetadata['fqcn'])) {
+                return $modelMetadata['fqcn'];
+            }
+        } catch (GCException $e) {
+            // Model not in metadata cache — fall through to convention-based resolution
+        }
+
+        // Fallback to convention-based resolution
         $lowerCaseModelName = strtolower($modelName);
         $modelClass = "Gravitycar\\Models\\{$lowerCaseModelName}\\{$modelName}";
-        
+
         return $modelClass;
     }
 

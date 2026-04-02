@@ -299,13 +299,17 @@ class RelationshipFactory {
         if (isset($metadata['modelMany'])) $models[] = $metadata['modelMany'];
 
         foreach ($models as $modelName) {
-            // Convert model name to lowercase for directory structure
-            $lowerModelName = strtolower($modelName);
-            $modelClass = "Gravitycar\\Models\\{$lowerModelName}\\{$modelName}";
-            if (!class_exists($modelClass)) {
-                throw new GCException("Referenced model class does not exist: {$modelClass}", [
+            $modelMetadata = $this->metadataEngine->getModelMetadata($modelName);
+            if (!isset($modelMetadata['fqcn'])) {
+                throw new GCException("Model metadata missing FQCN", [
                     'model_name' => $modelName,
-                    'model_class' => $modelClass,
+                    'relationship_metadata' => $metadata
+                ]);
+            }
+            if (!class_exists($modelMetadata['fqcn'])) {
+                throw new GCException("Referenced model class does not exist: {$modelMetadata['fqcn']}", [
+                    'model_name' => $modelName,
+                    'model_class' => $modelMetadata['fqcn'],
                     'relationship_metadata' => $metadata
                 ]);
             }

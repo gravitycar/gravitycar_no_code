@@ -213,6 +213,7 @@ class MetadataEngine implements MetadataEngineInterface {
         // Cache not available or empty, rebuild from files
         $this->logger->info("Rebuilding metadata cache from files");
         $models = $this->scanAndLoadMetadata($this->modelsDirPath);
+        $models = $this->enrichModelsWithFQCN($models);
         $relationships = $this->scanAndLoadMetadata($this->relationshipsDirPath);
         $fieldTypes = $this->scanAndLoadFieldTypes();
         $validationRules = $this->scanAndLoadValidationRules();
@@ -268,8 +269,9 @@ class MetadataEngine implements MetadataEngineInterface {
                         // Resolve external options for fields that specify optionsClass/optionsMethod
                         $this->resolveExternalFieldOptions($data['fields']);
                         
+                        $data['directory'] = $dir;
                         $metadata[$className] = $data;
-                        
+
                         $this->logger->debug("Merged core fields with entity metadata", [
                             'entity' => $className,
                             'core_fields_count' => count($coreFields),
@@ -283,6 +285,55 @@ class MetadataEngine implements MetadataEngineInterface {
             }
         }
         return $metadata;
+    }
+
+    /**
+     * Enrich model metadata with validated fully qualified class names.
+     * Uses the directory name stored during scanning to build the FQCN,
+     * then verifies the class file exists and is loadable.
+     *
+     * @param array $models The scanned model metadata array
+     * @return array The enriched model metadata with 'fqcn' properties
+     */
+    protected function enrichModelsWithFQCN(array $models): array {
+        foreach ($models as $className => &$data) {
+            $subDir = $data['directory'] ?? null;
+            if ($subDir === null) {
+                throw new GCException("Model metadata missing 'directory' property", [
+                    'model' => $className
+                ]);
+            }
+
+            $fqcn = "Gravitycar\\Models\\{$subDir}\\{$className}";
+            $classFilePath = $this->modelsDirPath . DIRECTORY_SEPARATOR
+                . $subDir . DIRECTORY_SEPARATOR . "{$className}.php";
+
+            if (!file_exists($classFilePath)) {
+                throw new GCException("Model class file not found", [
+                    'model' => $className,
+                    'expected_path' => $classFilePath
+                ]);
+            }
+
+            require_once $classFilePath;
+
+            if (!class_exists($fqcn)) {
+                throw new GCException("Model class not found after including file", [
+                    'model' => $className,
+                    'fqcn' => $fqcn,
+                    'file' => $classFilePath
+                ]);
+            }
+
+            $data['fqcn'] = $fqcn;
+            $this->logger->debug("Resolved model FQCN", [
+                'model' => $className,
+                'fqcn' => $fqcn
+            ]);
+        }
+        unset($data);
+
+        return $models;
     }
 
     /**
@@ -607,7 +658,6 @@ class MetadataEngine implements MetadataEngineInterface {
     private function getStaticProperty(\ReflectionClass $reflection, string $propertyName, $fallback) {
         if ($reflection->hasProperty($propertyName) && $reflection->getProperty($propertyName)->isStatic()) {
             $property = $reflection->getProperty($propertyName);
-            $property->setAccessible(true);
             return $property->getValue();
         }
         return $fallback;
@@ -715,7 +765,6 @@ class MetadataEngine implements MetadataEngineInterface {
         try {
             if ($reflection->hasProperty('operators')) {
                 $property = $reflection->getProperty('operators');
-                $property->setAccessible(true);
                 
                 // Create temporary instance to get operators
                 $instance = $reflection->newInstanceWithoutConstructor();
@@ -738,7 +787,6 @@ class MetadataEngine implements MetadataEngineInterface {
             // Introspect the field instance's actual validation rules
             $reflection = new \ReflectionClass($fieldInstance);
             $validationRulesProperty = $reflection->getProperty('validationRules');
-            $validationRulesProperty->setAccessible(true);
             $validationRules = $validationRulesProperty->getValue($fieldInstance);
             
             foreach ($validationRules as $ruleInstance) {
