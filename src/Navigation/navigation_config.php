@@ -24,6 +24,27 @@ return [
             'url' => '/dnd-chat',
             'icon' => '⚔️',
             'roles' => ['admin', 'user']
+        ],
+        [
+            'key' => 'events',
+            'title' => 'Events',
+            'url' => '/events',
+            'icon' => '📅',
+            'roles' => ['*'] // All roles can see Events
+        ],
+        [
+            'key' => 'events_create',
+            'title' => 'Create Event',
+            'url' => '/events?action=create',
+            'icon' => '➕',
+            'roles' => ['admin'] // Admin only
+        ],
+        [
+            'key' => 'events_list',
+            'title' => 'List Events',
+            'url' => '/events',
+            'icon' => '📋',
+            'roles' => ['*'] // All roles
         ]
     ],
 

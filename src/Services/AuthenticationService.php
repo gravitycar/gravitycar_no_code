@@ -726,7 +726,8 @@ class AuthenticationService
             'auth_provider' => $user->get('auth_provider'),
             'last_login_method' => $user->get('last_login_method'),
             'profile_picture_url' => $user->get('profile_picture_url'),
-            'is_active' => $user->get('is_active')
+            'is_active' => $user->get('is_active'),
+            'user_timezone' => $user->get('user_timezone'),
         ];
     }
     

@@ -8,9 +8,11 @@ import Dashboard from './pages/Dashboard';
 import MetadataTestPage from './pages/MetadataTestPage';
 import TestRelatedRecord from './pages/TestRelatedRecord';
 import DynamicModelRoute from './components/routing/DynamicModelRoute';
+import GenericCrudPage from './components/crud/GenericCrudPage';
 import MoviesQuotesRelationshipDemo from './pages/MoviesQuotesRelationshipDemo';
 import TriviaPage from './pages/TriviaPage';
 import DnDChatPage from './pages/DnDChatPage';
+import ChartOfGoodness from './pages/ChartOfGoodness';
 import './App.css';
 
 // Protected Route Component
@@ -126,9 +128,31 @@ const AppRoutes = () => {
         }
       />
       
+      {/* Events Routes - accessible without ProtectedRoute for guest read-only */}
+      <Route
+        path="/events"
+        element={
+          <Layout>
+            <GenericCrudPage
+              modelName="Events"
+              title="Events"
+              description="Manage events in your system"
+            />
+          </Layout>
+        }
+      />
+      <Route
+        path="/events/:eventId/chart"
+        element={
+          <Layout>
+            <ChartOfGoodness />
+          </Layout>
+        }
+      />
+
       {/* Default route */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      
+
       {/* Dynamic Model Routes - handles any model using GenericCrudPage */}
       {/* This must be placed AFTER all specific routes but BEFORE the 404 route */}
       <Route

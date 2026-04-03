@@ -7,8 +7,11 @@ import { apiService } from '../../services/api';
 import { ErrorBoundary } from '../error/ErrorBoundary';
 import { DataWrapper } from '../error/DataWrapper';
 import ModelForm from '../forms/ModelForm';
+import RelatedItemsSection from '../relationships/RelatedItemsSection';
 import Modal from '../ui/Modal';
 import { getErrorMessage } from '../../utils/errors';
+import { useAuth } from '../../hooks/useAuth';
+import { getUserTimezone, formatDateTimeInTimezone } from '../../utils/timezone';
 import type { PaginatedResponse, ModelMetadata, FieldMetadata, ModelRecord } from '../../types';
 
 interface GenericCrudPageProps {
@@ -51,6 +54,8 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
   defaultDisplayMode = 'table'
 }) => {
   const notify = useNotify();
+  const { user } = useAuth();
+  const userTimezone = getUserTimezone(user?.user_timezone);
   const { metadata, loading: metadataLoading, error: metadataError } = useModelMetadata(modelName);
   const [searchParams, setSearchParams] = useSearchParams();
   
@@ -271,8 +276,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
 
       case 'DateTime':
         try {
-          const date = new Date(value);
-          return <span className="text-gray-700">{date.toLocaleDateString()}</span>;
+          return <span className="text-gray-700">{formatDateTimeInTimezone(String(value), userTimezone)}</span>;
         } catch {
           return <span className="text-gray-400">{String(value)}</span>;
         }
@@ -665,6 +669,27 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
                 onSuccess={handleFormSuccess}
                 onCancel={handleFormCancel}
               />
+
+              {/* Related Items Sections from metadata */}
+              {metadata.ui?.relatedItemsSections && Object.entries(metadata.ui.relatedItemsSections).map(
+                ([key, section]: [string, any]) => (
+                  <div key={key} className="mt-6 border-t pt-4">
+                    <RelatedItemsSection
+                      title={section.title}
+                      parentModel={modelName}
+                      parentId={state.selectedItem.id}
+                      relationship={section.relationship}
+                      relatedModel={section.relatedModel}
+                      displayColumns={section.displayColumns}
+                      actions={section.actions}
+                      createFields={section.createFields}
+                      editFields={section.editFields}
+                      allowInlineCreate={section.allowInlineCreate}
+                      allowInlineEdit={section.allowInlineEdit}
+                    />
+                  </div>
+                )
+              )}
             </Modal>
           )}
         </div>

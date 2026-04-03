@@ -28,20 +28,20 @@ class TriviaGameAPIController extends ApiControllerBase
     /**
      * Pure dependency injection constructor - all dependencies explicitly provided
      * 
-     * @param Logger $logger = null
-     * @param ModelFactory $modelFactory = null
-     * @param DatabaseConnectorInterface $databaseConnector = null
-     * @param MetadataEngineInterface $metadataEngine = null
-     * @param Config $config = null
-     * @param CurrentUserProviderInterface $currentUserProvider = null
+     * @param Logger|null $logger
+     * @param ModelFactory|null $modelFactory
+     * @param DatabaseConnectorInterface|null $databaseConnector
+     * @param MetadataEngineInterface|null $metadataEngine
+     * @param Config|null $config
+     * @param CurrentUserProviderInterface|null $currentUserProvider
      */
     public function __construct(
-        Logger $logger = null,
-        ModelFactory $modelFactory = null,
-        DatabaseConnectorInterface $databaseConnector = null,
-        MetadataEngineInterface $metadataEngine = null,
-        Config $config = null,
-        CurrentUserProviderInterface $currentUserProvider = null
+        ?Logger $logger = null,
+        ?ModelFactory $modelFactory = null,
+        ?DatabaseConnectorInterface $databaseConnector = null,
+        ?MetadataEngineInterface $metadataEngine = null,
+        ?Config $config = null,
+        ?CurrentUserProviderInterface $currentUserProvider = null
     ) {
         // All dependencies explicitly injected - no ServiceLocator fallbacks
         parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config, $currentUserProvider);

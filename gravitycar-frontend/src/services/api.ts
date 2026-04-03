@@ -1,15 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios from 'axios';
 import type { AxiosInstance, AxiosResponse } from 'axios';
-import type { 
-  ApiResponse, 
-  PaginatedResponse, 
-  AuthResponse, 
+import type {
+  ApiResponse,
+  PaginatedResponse,
+  AuthResponse,
   LoginCredentials,
   User,
   Movie,
   MovieQuote
 } from '../types';
+import type { NavigationItem } from '../types/navigation';
 import { ApiError, isBackendErrorResponse } from '../utils/errors';
 
 class ApiService {
@@ -251,13 +252,24 @@ class ApiService {
   }
 
   // Generic CRUD methods for Gravitycar models
-  async getList<T>(model: string, page: number = 1, limit: number = 10, filters?: Record<string, any>): Promise<PaginatedResponse<T>> {
+
+  async getRecord<T = any>(model: string, id: string): Promise<ApiResponse<T>> {
+    try {
+      const response: AxiosResponse<ApiResponse<T>> = await this.api.get(`/${model}/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Failed to get ${model}/${id}:`, error);
+      return { success: false, data: null as any, message: `Failed to get record` };
+    }
+  }
+  async getList<T>(model: string, page: number = 1, limit: number = 10, filters?: Record<string, any>, search?: string): Promise<PaginatedResponse<T>> {
     try {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
         ...filters
       });
+      if (search) params.append('search', search);
       
       const response: AxiosResponse<any> = await this.api.get(`/${model}?${params}`);
       const responseData = response.data;
@@ -365,7 +377,7 @@ class ApiService {
       if (options?.search) params.append('search', options.search);
       
       const response: AxiosResponse<any> = await this.api.get(
-        `/${model}/${id}/relationships/${relationship}?${params}`
+        `/${model}/${id}/link/${relationship}?${params}`
       );
       
       const responseData = response.data;
@@ -403,47 +415,44 @@ class ApiService {
     }
   }
   
-  async assignRelationship(
+  async linkRecord(
     model: string,
     id: string,
     relationship: string,
-    targetIds: string[],
-    additionalData?: Record<string, any>
+    idToLink: string
   ): Promise<ApiResponse<any>> {
     try {
-      const response: AxiosResponse<ApiResponse<any>> = await this.api.post(
-        `/${model}/${id}/relationships/${relationship}/assign`,
-        { target_ids: targetIds, additional_data: additionalData }
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.put(
+        `/${model}/${id}/link/${relationship}/${idToLink}`
       );
       return response.data;
     } catch (error) {
-      console.error(`Failed to assign ${relationship} relationship for ${model}:`, error);
+      console.error(`Failed to link ${relationship} for ${model}:`, error);
       return {
         success: false,
         data: null,
-        message: `Failed to assign ${relationship} relationship`
+        message: `Failed to link record`
       };
     }
   }
   
-  async removeRelationship(
+  async unlinkRecord(
     model: string,
     id: string,
     relationship: string,
-    targetIds: string[]
+    idToUnlink: string
   ): Promise<ApiResponse<any>> {
     try {
-      const response: AxiosResponse<ApiResponse<any>> = await this.api.post(
-        `/${model}/${id}/relationships/${relationship}/remove`,
-        { target_ids: targetIds }
+      const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(
+        `/${model}/${id}/link/${relationship}/${idToUnlink}`
       );
       return response.data;
     } catch (error) {
-      console.error(`Failed to remove ${relationship} relationship for ${model}:`, error);
+      console.error(`Failed to unlink ${relationship} for ${model}:`, error);
       return {
         success: false,
         data: null,
-        message: `Failed to remove ${relationship} relationship`
+        message: `Failed to unlink record`
       };
     }
   }
@@ -624,6 +633,111 @@ class ApiService {
         message: 'Failed to enrich book with Google Books data'
       };
     }
+  }
+
+  // Model linking methods
+
+  /**
+   * Get list of available model names from the navigation endpoint.
+   * Returns model names that the current user has access to.
+   */
+  async getAvailableModels(): Promise<Array<{ name: string; title: string }>> {
+    try {
+      const response = await this.api.get('/navigation');
+      const navData = response.data;
+      if (navData.success && navData.data?.models) {
+        return navData.data.models.map((m: NavigationItem) => ({
+          name: m.name,
+          title: m.title,
+        }));
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Fetch a record by model name and ID, plus the model's metadata
+   * to determine if it has an Image field.
+   */
+  async getRecordWithImageInfo(
+    modelName: string,
+    recordId: string
+  ): Promise<{ record: Record<string, any>; imageFieldName: string | null }> {
+    const [recordResponse, metadataResponse] = await Promise.all([
+      this.api.get(`/${modelName}/${recordId}`),
+      this.api.get(`/metadata/models/${modelName}`),
+    ]);
+
+    const record = recordResponse.data?.data ?? recordResponse.data ?? {};
+    const metadata = metadataResponse.data?.data ?? metadataResponse.data ?? {};
+
+    let imageFieldName: string | null = null;
+    if (metadata.fields) {
+      for (const [fieldName, fieldDef] of Object.entries(metadata.fields)) {
+        if ((fieldDef as any).type === 'Image') {
+          imageFieldName = fieldName;
+          break;
+        }
+      }
+    }
+
+    return { record, imageFieldName };
+  }
+
+  // Event Chart of Goodness API methods
+  async getEventChart(eventId: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(
+      `/api/events/${eventId}/chart`
+    );
+    return response.data;
+  }
+
+  async upsertCommitments(
+    eventId: string,
+    commitments: Array<{ proposed_date_id: string; is_available: boolean }>
+  ): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(
+      `/api/events/${eventId}/commitments`,
+      { commitments }
+    );
+    return response.data;
+  }
+
+  async acceptAllDates(eventId: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post(
+      `/api/events/${eventId}/accept-all`
+    );
+    return response.data;
+  }
+
+  async getMostPopularDate(eventId: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.get(
+      `/api/events/${eventId}/most-popular-date`
+    );
+    return response.data;
+  }
+
+  async setAcceptedDate(eventId: string, proposedDateId: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.put(
+      `/api/events/${eventId}/accepted-date`,
+      { proposed_date_id: proposedDateId }
+    );
+    return response.data;
+  }
+
+  async downloadIcs(eventId: string): Promise<void> {
+    const response = await this.api.get(`/api/events/${eventId}/ics`, {
+      responseType: 'blob',
+    });
+    const blob = new Blob([response.data], { type: 'text/calendar' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'event.ics';
+    link.click();
+    window.URL.revokeObjectURL(url);
   }
 }
 

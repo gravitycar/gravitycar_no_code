@@ -344,3 +344,48 @@ export interface RelatedRecordSelectProps extends FieldComponentProps {
   searchable?: boolean;
   createNew?: boolean;
 }
+
+// Chart of Goodness types
+export interface ChartEvent {
+  id: string;
+  name: string;
+  description: string | null;
+  location: string | null;
+  duration_hours: number;
+  accepted_date: string | null;
+  linked_model_name: string | null;
+  linked_record_id: string | null;
+  created_by: string;
+}
+
+export interface ProposedDate {
+  id: string;
+  proposed_date: string;
+}
+
+export interface ChartUser {
+  id: string;
+  [key: string]: string;
+}
+
+export interface ChartData {
+  event: ChartEvent;
+  proposed_dates: ProposedDate[];
+  users: ChartUser[];
+  user_display_columns: string[];
+  commitments: Record<string, boolean>;
+  current_user_id: string | null;
+  is_admin: boolean;
+}
+
+export interface MostPopularDateEntry {
+  proposed_date_id: string;
+  proposed_date: string;
+  vote_count: number;
+}
+
+export interface MostPopularDateData {
+  event_id: string;
+  most_popular_dates: MostPopularDateEntry[];
+  tied: boolean;
+}

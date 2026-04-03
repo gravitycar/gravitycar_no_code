@@ -830,15 +830,15 @@ class ContainerConfig {
         $builder = new ContainerBuilder();
         $di = $builder->newInstance();
 
-        // Configure test services or use defaults
-        foreach ($testServices as $serviceName => $testInstance) {
-            $di->set($serviceName, $testInstance);
-        }
-
-        // Fill in any missing services with defaults
+        // Register default services first
         self::configureCoreServices($di);
         self::configureFactories($di);
         self::configureApplicationServices($di);
+
+        // Override with test services so mocks take precedence
+        foreach ($testServices as $serviceName => $testInstance) {
+            $di->set($serviceName, $testInstance);
+        }
 
         self::$container = $di;
         return $di;

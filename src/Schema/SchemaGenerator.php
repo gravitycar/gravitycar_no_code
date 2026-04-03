@@ -206,6 +206,12 @@ class SchemaGenerator {
         if (isset($fields['id'])) {
             $table->setPrimaryKey(['id']);
         }
+
+        // Add composite unique constraints from metadata
+        $uniqueConstraints = $modelMeta['uniqueConstraints'] ?? [];
+        foreach ($uniqueConstraints as $constraintName => $columns) {
+            $table->addUniqueIndex($columns, $constraintName);
+        }
     }
 
     /**
@@ -462,6 +468,14 @@ class SchemaGenerator {
                 $this->addColumnFromFieldMeta($table, $fieldName, $fieldMeta);
             } else {
                 $this->updateColumnFromFieldMeta($table, $fieldName, $fieldMeta);
+            }
+        }
+
+        // Add composite unique constraints from metadata (if not already present)
+        $uniqueConstraints = $modelMeta['uniqueConstraints'] ?? [];
+        foreach ($uniqueConstraints as $constraintName => $columns) {
+            if (!$table->hasIndex($constraintName)) {
+                $table->addUniqueIndex($columns, $constraintName);
             }
         }
 

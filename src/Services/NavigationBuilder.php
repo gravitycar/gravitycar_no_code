@@ -96,7 +96,7 @@ class NavigationBuilder
                 $modelItem = [
                     'name' => $modelName,
                     'title' => $this->generateModelTitle($modelName),
-                    'url' => '/' . strtolower($modelName),
+                    'url' => '/' . $modelName,
                     'icon' => $this->getModelIcon($modelName),
                     'actions' => [],
                     'permissions' => [
@@ -199,7 +199,8 @@ class NavigationBuilder
             'Movie_Quotes' => '💬',
             'Roles' => '🔑',
             'Permissions' => '🛡️',
-            'Books' => '📚'
+            'Books' => '📚',
+            'Events' => '📅'
         ];
 
         return $iconMap[$modelName] ?? '📋';

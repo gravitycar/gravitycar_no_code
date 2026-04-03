@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { navigationService } from '../../services/navigationService';
 import { NavigationData, NavigationAction } from '../../types/navigation';
+import { groupCustomPages } from '../../utils/navigationUtils';
 import { useAuth } from '../../hooks/useAuth';
 
 interface NavigationSidebarProps {
@@ -11,8 +12,10 @@ interface NavigationSidebarProps {
 const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ className = '' }) => {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [navigationData, setNavigationData] = useState<NavigationData | null>(null);
   const [expandedModel, setExpandedModel] = useState<string | null>(null);
+  const [expandedCustomPage, setExpandedCustomPage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,6 +41,16 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ className = '' })
 
   const handleModelClick = (modelKey: string) => {
     setExpandedModel(expandedModel === modelKey ? null : modelKey);
+  };
+
+  const handleCustomPageToggle = (key: string) => {
+    setExpandedCustomPage(expandedCustomPage === key ? null : key);
+  };
+
+  const handleEventsSmartClick = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const targetUrl = await navigationService.resolveEventsSmartRoute();
+    navigate(targetUrl);
   };
 
   const handleActionClick = (action: NavigationAction, modelName: string) => {
@@ -112,15 +125,63 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ className = '' })
               Navigation
             </h3>
             <ul className="space-y-1">
-              {navigationData.custom_pages.map((page) => (
+              {groupCustomPages(navigationData.custom_pages).map((page) => (
                 <li key={page.key}>
-                  <a
-                    href={page.url}
-                    className="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
-                  >
-                    <span className="mr-2">{page.icon}</span>
-                    {page.title}
-                  </a>
+                  {page.children && page.children.length > 0 ? (
+                    <div>
+                      <div className="flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors">
+                        <a
+                          href={page.url}
+                          onClick={page.key === 'events' ? handleEventsSmartClick : undefined}
+                          className="flex items-center flex-1"
+                        >
+                          <span className="mr-2">{page.icon}</span>
+                          {page.title}
+                        </a>
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleCustomPageToggle(page.key);
+                          }}
+                          className="ml-2 p-1 hover:bg-gray-200 rounded"
+                        >
+                          <svg
+                            className={`w-4 h-4 transition-transform ${
+                              expandedCustomPage === page.key ? 'rotate-180' : ''
+                            }`}
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      </div>
+                      {expandedCustomPage === page.key && (
+                        <ul className="mt-1 ml-6 space-y-1">
+                          {page.children.map((child) => (
+                            <li key={child.key}>
+                              <a
+                                href={child.url}
+                                className="flex items-center px-3 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                              >
+                                <span className="mr-2">{child.icon}</span>
+                                {child.title}
+                              </a>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ) : (
+                    <a
+                      href={page.url}
+                      className="flex items-center px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors"
+                    >
+                      <span className="mr-2">{page.icon}</span>
+                      {page.title}
+                    </a>
+                  )}
                 </li>
               ))}
             </ul>

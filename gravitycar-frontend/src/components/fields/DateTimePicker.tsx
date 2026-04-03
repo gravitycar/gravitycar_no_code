@@ -1,9 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from 'react';
 import type { FieldComponentProps } from '../../types';
+import { useAuth } from '../../hooks/useAuth';
+import {
+  getUserTimezone,
+  localDateTimeToUTC,
+  formatDateTimeForInput,
+  formatDateTimeInTimezone,
+} from '../../utils/timezone';
 
 /**
- * Date-time picker component for DateTimeField
+ * Date-time picker component for DateTimeField.
+ *
+ * Displays UTC values converted to the authenticated user's timezone and
+ * converts user-local input back to UTC before calling onChange.
  */
 const DateTimePicker: React.FC<FieldComponentProps> = ({
   value,
@@ -15,61 +25,60 @@ const DateTimePicker: React.FC<FieldComponentProps> = ({
   fieldMetadata,
   label
 }) => {
+  const { user } = useAuth();
+  const userTimezone = getUserTimezone(user?.user_timezone);
   const displayLabel = label || fieldMetadata?.label || fieldMetadata?.name;
 
-  // Convert value to YYYY-MM-DDTHH:mm format for input[type="datetime-local"]
-  const formatDateTimeForInput = (dateTimeValue: any): string => {
+  /**
+   * Convert value to YYYY-MM-DDTHH:mm format for input[type="datetime-local"],
+   * interpreting the stored value as UTC and converting to the user's timezone.
+   */
+  const formatForInput = (dateTimeValue: any): string => {
     if (!dateTimeValue) return '';
-    
-    // If it's already a string in the correct format, use it
-    if (typeof dateTimeValue === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(dateTimeValue)) {
-      return dateTimeValue.slice(0, 16); // Keep only YYYY-MM-DDTHH:mm
-    }
-    
-    // Try to parse it as a Date
+
     try {
-      const date = new Date(dateTimeValue);
-      if (!isNaN(date.getTime())) {
-        // Convert to local datetime string format
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const hours = String(date.getHours()).padStart(2, '0');
-        const minutes = String(date.getMinutes()).padStart(2, '0');
-        return `${year}-${month}-${day}T${hours}:${minutes}`;
-      }
+      return formatDateTimeForInput(String(dateTimeValue), userTimezone);
     } catch {
-      // Ignore parsing errors
+      return '';
     }
-    
-    return '';
   };
 
+  /**
+   * Handle datetime-local input changes.  The input value represents the user's
+   * local time in their configured timezone -- convert it to UTC before passing
+   * it upstream.
+   */
   const handleDateTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const dateTimeValue = e.target.value;
     if (dateTimeValue === '') {
       onChange(null);
-    } else {
-      // Convert to ISO string for backend compatibility
-      const date = new Date(dateTimeValue);
-      onChange(date.toISOString());
+      return;
+    }
+
+    try {
+      const utcDate = localDateTimeToUTC(dateTimeValue, userTimezone);
+      // Format as Y-m-d H:i:s to match backend DateTimeValidation expectation
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const formatted = `${utcDate.getUTCFullYear()}-${pad(utcDate.getUTCMonth() + 1)}-${pad(utcDate.getUTCDate())} ${pad(utcDate.getUTCHours())}:${pad(utcDate.getUTCMinutes())}:${pad(utcDate.getUTCSeconds())}`;
+      onChange(formatted);
+    } catch {
+      // If conversion fails, pass the raw value so the caller can decide
+      onChange(dateTimeValue);
     }
   };
 
-  // Format display value for read-only mode
+  /**
+   * Format display value for read-only mode, rendering the UTC date in the
+   * user's configured timezone.
+   */
   const formatDisplayValue = (dateTimeValue: any): string => {
     if (!dateTimeValue) return '-';
-    
+
     try {
-      const date = new Date(dateTimeValue);
-      if (!isNaN(date.getTime())) {
-        return date.toLocaleString();
-      }
+      return formatDateTimeInTimezone(String(dateTimeValue), userTimezone);
     } catch {
-      // Ignore parsing errors
+      return String(dateTimeValue);
     }
-    
-    return String(dateTimeValue);
   };
 
   // If readOnly, render as a styled read-only display
@@ -82,18 +91,18 @@ const DateTimePicker: React.FC<FieldComponentProps> = ({
             {required && <span className="text-red-500 ml-1">*</span>}
           </label>
         )}
-        
+
         <div className={`
           w-full px-3 py-2 border rounded-md shadow-sm bg-gray-50 text-gray-700
           ${error ? 'border-red-500' : 'border-gray-300'}
         `}>
           {formatDisplayValue(value)}
         </div>
-        
+
         {error && (
           <p className="mt-1 text-sm text-red-600">{error}</p>
         )}
-        
+
         {fieldMetadata?.help_text && !error && (
           <p className="mt-1 text-sm text-gray-500">{fieldMetadata.help_text}</p>
         )}
@@ -109,10 +118,10 @@ const DateTimePicker: React.FC<FieldComponentProps> = ({
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
-      
+
       <input
         type="datetime-local"
-        value={formatDateTimeForInput(value)}
+        value={formatForInput(value)}
         onChange={handleDateTimeChange}
         disabled={disabled}
         required={required}
@@ -122,11 +131,11 @@ const DateTimePicker: React.FC<FieldComponentProps> = ({
           ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}
         `}
       />
-      
+
       {error && (
         <p className="mt-1 text-sm text-red-600">{error}</p>
       )}
-      
+
       {fieldMetadata?.help_text && !error && (
         <p className="mt-1 text-sm text-gray-500">{fieldMetadata.help_text}</p>
       )}

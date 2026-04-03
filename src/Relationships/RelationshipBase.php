@@ -434,19 +434,21 @@ abstract class RelationshipBase extends ModelBase {
         // Ensure the field name is set in the metadata
         $fieldMetadata['name'] = $fieldName;
 
-        // Add the field to the relationship's field collection
+        // Add the field to the relationship's metadata
         $this->metadata['fields'][$fieldName] = $fieldMetadata;
 
-        // Also initialize in the inherited ModelBase metadata structure
-        if (!isset($this->metadata['fields'])) {
-            $this->metadata['fields'] = [];
+        // Also create a FieldBase instance so hasField(), get(), and set() work
+        // for additionalFields, not just core fields.
+        $field = $this->createSingleField($fieldName, $fieldMetadata, $this->fieldFactory);
+        if ($field) {
+            $this->fields[$fieldName] = $field;
         }
-        $this->metadata['fields'][$fieldName] = $fieldMetadata;
 
-        $this->logger->debug('Field added to relationship metadata', [
+        $this->logger->debug('Field added to relationship', [
             'relationship_name' => $this->getName(),
             'field_name' => $fieldName,
-            'field_type' => $fieldMetadata['type'] ?? 'unknown'
+            'field_type' => $fieldMetadata['type'] ?? 'unknown',
+            'field_instance_created' => $field !== null,
         ]);
     }
 
@@ -557,6 +559,18 @@ abstract class RelationshipBase extends ModelBase {
         // Use DatabaseConnector->find() for consistent data access (performance optimized)
         $dbConnector = $this->getDatabaseConnector();
         $records = $dbConnector->find($this, $criteria, [], $parameters);
+
+        $otherModel = $this->getOtherModel($model);
+        $otherModelName = $otherModel->getName();
+        $otherModelIdField = $this->getModelIdField($otherModel);
+        foreach ($records as $index => $record) {
+            $relatedModel = $this->modelFactory->retrieve($otherModelName, $record[$otherModelIdField]);
+            $displayValues = [];
+            foreach ($otherModel->getDisplayColumns() as $displayField) {
+                $displayValues[] = $relatedModel->get($displayField);
+            };
+            $records[$index]['display_value'] = implode(' ', $displayValues);
+        }
 
         $this->logger->debug('{type} getRelatedRecords completed', [
             'relationship_type' => $this->getType(),

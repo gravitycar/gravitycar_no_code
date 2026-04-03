@@ -1,0 +1,47 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gravitycar-app
+    ports:
+      - "8081:80"
+    volumes:
+      - .:/var/www/html
+      - ./logs:/var/www/html/logs
+    environment:
+      DB_DRIVER: pdo_mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: gravitycar_nc
+      DB_USER: gravitycar
+      DB_PASSWORD: gravitycar_secret
+      DB_CHARSET: utf8mb4
+      BACKEND_URL: http://localhost:8081
+      FRONTEND_URL: http://localhost:3000
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: mysql:8.0
+    container_name: gravitycar-db
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root_secret
+      MYSQL_DATABASE: gravitycar_nc
+      MYSQL_USER: gravitycar
+      MYSQL_PASSWORD: gravitycar_secret
+    volumes:
+      - gravitycar_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_secret"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  gravitycar_db_data:

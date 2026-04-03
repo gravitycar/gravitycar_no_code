@@ -84,6 +84,28 @@ class NavigationService {
   }
 
   /**
+   * Resolve smart routing for the Events nav item.
+   * - If user has exactly 1 upcoming event invitation -> return chart URL for that event
+   * - Otherwise -> return events list URL
+   */
+  async resolveEventsSmartRoute(): Promise<string> {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const response = await (apiService as any).api.get('/events/smart-route');
+      const data = response.data;
+
+      if (data.success && data.data.redirect_to) {
+        return data.data.redirect_to;
+      }
+
+      return '/events';
+    } catch (error) {
+      console.error('Failed to resolve events smart route:', error);
+      return '/events';
+    }
+  }
+
+  /**
    * Clear navigation cache
    */
   clearCache(): void {

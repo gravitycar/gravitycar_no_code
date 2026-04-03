@@ -51,32 +51,15 @@ const DynamicModelRoute: React.FC = () => {
  * - 'jwtrefreshtokens' -> 'JwtRefreshTokens'
  */
 function formatModelName(urlParam: string): string {
-  // Handle different URL formats
-  const normalized = urlParam
-    .replace(/-/g, '_') // Convert hyphens to underscores
-    .toLowerCase();
-  
-  // Known model name mappings for special cases
-  const modelNameMappings: { [key: string]: string } = {
-    'googleoauthtokens': 'GoogleOauthTokens',
-    'jwtrefreshtokens': 'JwtRefreshTokens',
-    'movie_quotes': 'Movie_Quotes',
-    'movie_quote_trivia_games': 'Movie_Quote_Trivia_Games',
-    'movie_quote_trivia_questions': 'Movie_Quote_Trivia_Questions',
-    // Add more mappings as needed
-  };
-  
-  // Check for exact mapping first
-  if (modelNameMappings[normalized]) {
-    return modelNameMappings[normalized];
+  // If the param already contains mixed case (PascalCase or has underscores
+  // with capitals), it's already a proper model name — use it directly.
+  // Examples: "EventProposedDates", "Movie_Quote_Trivia_Games"
+  if (/[A-Z]/.test(urlParam.slice(1)) || urlParam.includes('_')) {
+    return urlParam;
   }
-  
-  // Fall back to simple capitalization
-  const parts = normalized.split('_').map(part => 
-    part.charAt(0).toUpperCase() + part.slice(1)
-  );
-  
-  return parts.join('_');
+
+  // Handle legacy lowercase URL formats (e.g., "users" -> "Users")
+  return urlParam.charAt(0).toUpperCase() + urlParam.slice(1);
 }
 
 /**

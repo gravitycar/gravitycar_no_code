@@ -3,10 +3,10 @@ return [
     'database' => [
         'driver' => $_ENV['DB_DRIVER'] ?? 'pdo_mysql',
         'host' => $_ENV['DB_HOST'] ?? 'localhost',
-        'port' => (int)($_ENV['DB_PORT'] ?? 3306),
+        'port' => (int)($_ENV['DB_PORT'] ?? 3307),
         'dbname' => $_ENV['DB_NAME'] ?? 'gravitycar_nc',
-        'user' => $_ENV['DB_USER'] ?? 'mike',
-        'password' => $_ENV['DB_PASSWORD'] ?? 'mike',
+        'user' => $_ENV['DB_USER'] ?? 'gravitycar',
+        'password' => $_ENV['DB_PASSWORD'] ?? 'gravitycar_secret',
         'charset' => $_ENV['DB_CHARSET'] ?? 'utf8mb4',
     ],
     'installed' => false,

@@ -1,0 +1,73 @@
+<?php
+// EventReminders model metadata for Gravitycar framework
+return [
+    'name' => 'EventReminders',
+    'table' => 'event_reminders',
+    'displayColumns' => ['reminder_type', 'status'],
+    'fields' => [
+        'event_id' => [
+            'name' => 'event_id',
+            'type' => 'RelatedRecord',
+            'label' => 'Event',
+            'required' => true,
+            'relatedModel' => 'Events',
+            'validationRules' => ['Required'],
+        ],
+        'reminder_type' => [
+            'name' => 'reminder_type',
+            'type' => 'Enum',
+            'label' => 'Reminder Type',
+            'required' => true,
+            'options' => [
+                '2_weeks' => '2 Weeks Before',
+                '1_week' => '1 Week Before',
+                '1_day' => '1 Day Before',
+                'custom' => 'Custom Date/Time',
+            ],
+            'validationRules' => ['Required', 'Options'],
+        ],
+        'remind_at' => [
+            'name' => 'remind_at',
+            'type' => 'DateTime',
+            'label' => 'Remind At',
+            'required' => false,
+            'nullable' => true,
+            'description' => 'Auto-calculated for preset types; manually set for custom',
+            'validationRules' => ['DateTime'],
+        ],
+        'sent_at' => [
+            'name' => 'sent_at',
+            'type' => 'DateTime',
+            'label' => 'Sent At',
+            'required' => false,
+            'nullable' => true,
+            'readOnly' => true,
+            'validationRules' => ['DateTime'],
+        ],
+        'status' => [
+            'name' => 'status',
+            'type' => 'Enum',
+            'label' => 'Status',
+            'required' => true,
+            'defaultValue' => 'pending',
+            'options' => [
+                'pending' => 'Pending',
+                'sent' => 'Sent',
+                'failed' => 'Failed',
+            ],
+            'validationRules' => ['Required', 'Options'],
+        ],
+    ],
+    'rolesAndActions' => [
+        'admin' => ['*'],
+        'user' => ['list', 'read'],
+        'guest' => [],
+    ],
+    'validationRules' => [],
+    'relationships' => ['events_event_reminders'],
+    'ui' => [
+        'listFields' => ['event_id', 'reminder_type', 'remind_at', 'status', 'sent_at'],
+        'createFields' => ['event_id', 'reminder_type', 'remind_at'],
+        'editFields' => ['event_id', 'reminder_type', 'remind_at', 'status'],
+    ],
+];

@@ -25,8 +25,8 @@ class APIRouteRegistry
     private function __construct()
     {
         $this->logger = ServiceLocator::getLogger();
-        $this->apiControllersDirPath = 'src/models';
-        $this->modelsDirPath = 'src/models';
+        $this->apiControllersDirPath = 'src/Api';
+        $this->modelsDirPath = 'src/Models';
         $this->cacheFilePath = 'cache/api_routes.php';
         
         if (is_null(self::$instance)) {
@@ -132,20 +132,30 @@ class APIRouteRegistry
         
         // Also discover model-specific API controllers from directory structure
         if (is_dir($this->modelsDirPath)) {
+            print_r("Scanning models directory for API controllers: {$this->modelsDirPath}\n");
             $dirs = scandir($this->modelsDirPath);
             foreach ($dirs as $dir) {
                 if ($dir === '.' || $dir === '..') continue;
 
                 $controllerDir = $this->modelsDirPath . DIRECTORY_SEPARATOR . $dir . DIRECTORY_SEPARATOR . 'api';
+                print("Checking for API controllers in: {$controllerDir}\n");
                 if (!is_dir($controllerDir)) continue;
 
                 $files = scandir($controllerDir);
                 foreach ($files as $file) {
+                    if ($file === '.' || $file === '..') continue;
+                    print("Found file in API controller directory: {$file}\n");
                     if (preg_match('/^(.*)APIController\.php$/', $file, $matches)) {
                         $className = "Gravitycar\\Models\\{$dir}\\api\\{$matches[1]}APIController";
+                        print("Checking class: {$className}\n");
                         if (class_exists($className) && $this->extendsApiControllerBase($className)) {
                             $this->registerControllerWithFactory($factory, $className);
+                            print("Registered model API controller: {$className}\n");
+                        } else {
+                            print("Class does not exist or does not extend ApiControllerBase: {$className}\n");
                         }
+                    } else {
+                        print("File does not match API controller pattern: {$file}\n");
                     }
                 }
             }
@@ -450,6 +460,7 @@ class APIRouteRegistry
                 'dependencies' => $route['controllerDependencies']
             ]);
         } catch (GCException $e) {
+            print("Failed to register route: " . $e->getMessage() . "\n");
             $this->logger->error("Failed to register route: " . $e->getMessage(), ['route' => $route]);
         }
     }
@@ -499,7 +510,7 @@ class APIRouteRegistry
                 return !empty($name);
             });
 
-            if (count($namedParameters) !== count($dynamicComponents)) {
+            if (count($namedParameters) < count($dynamicComponents)) {
                 throw new GCException("Parameter names count must match dynamic path components count", [
                     'parameterNames' => $route['parameterNames'],
                     'namedParameters' => $namedParameters,

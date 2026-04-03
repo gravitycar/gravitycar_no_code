@@ -1,0 +1,5 @@
+gravitycar-frontend/node_modules
+gravitycar-frontend/dist
+.git
+*.md
+docs
