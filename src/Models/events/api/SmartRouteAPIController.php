@@ -59,7 +59,7 @@ class SmartRouteAPIController extends ApiControllerBase
         return [
             [
                 'method' => 'GET',
-                'path' => '/events/smart-route',
+                'path' => '/Events/smart-route',
                 'apiClass' => self::class,
                 'apiMethod' => 'getSmartRoute',
                 'parameterNames' => [],

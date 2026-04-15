@@ -91,7 +91,7 @@ class NavigationService {
   async resolveEventsSmartRoute(): Promise<string> {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const response = await (apiService as any).api.get('/events/smart-route');
+      const response = await (apiService as any).api.get('/Events/smart-route');
       const data = response.data;
 
       if (data.success && data.data.redirect_to) {

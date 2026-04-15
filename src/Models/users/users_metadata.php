@@ -158,7 +158,7 @@ return [
     ],
     
     'validationRules' => [],
-    'relationships' => ['users_roles', 'users_permissions', 'users_jwt_refresh_tokens', 'users_google_oauth_tokens'],
+    'relationships' => ['users_roles', 'users_permissions', 'users_jwt_refresh_tokens', 'users_google_oauth_tokens', 'events_users_invitations'],
     'apiRoutes' => [
     ],
     'ui' => [

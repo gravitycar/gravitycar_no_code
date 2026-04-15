@@ -132,35 +132,27 @@ class APIRouteRegistry
         
         // Also discover model-specific API controllers from directory structure
         if (is_dir($this->modelsDirPath)) {
-            print_r("Scanning models directory for API controllers: {$this->modelsDirPath}\n");
             $dirs = scandir($this->modelsDirPath);
             foreach ($dirs as $dir) {
                 if ($dir === '.' || $dir === '..') continue;
 
                 $controllerDir = $this->modelsDirPath . DIRECTORY_SEPARATOR . $dir . DIRECTORY_SEPARATOR . 'api';
-                print("Checking for API controllers in: {$controllerDir}\n");
                 if (!is_dir($controllerDir)) continue;
 
                 $files = scandir($controllerDir);
                 foreach ($files as $file) {
                     if ($file === '.' || $file === '..') continue;
-                    print("Found file in API controller directory: {$file}\n");
                     if (preg_match('/^(.*)APIController\.php$/', $file, $matches)) {
                         $className = "Gravitycar\\Models\\{$dir}\\api\\{$matches[1]}APIController";
-                        print("Checking class: {$className}\n");
                         if (class_exists($className) && $this->extendsApiControllerBase($className)) {
                             $this->registerControllerWithFactory($factory, $className);
-                            print("Registered model API controller: {$className}\n");
-                        } else {
-                            print("Class does not exist or does not extend ApiControllerBase: {$className}\n");
                         }
-                    } else {
-                        print("File does not match API controller pattern: {$file}\n");
                     }
                 }
             }
         }
     }
+     
 
     /**
      * Register a controller using the APIControllerFactory with proper dependency injection

@@ -62,7 +62,7 @@ class ChartAPIController extends ApiControllerBase
         return [
             [
                 'method' => 'GET',
-                'path' => '/events/{event_id}/chart',
+                'path' => '/Events/{event_id}/chart',
                 'apiClass' => self::class,
                 'apiMethod' => 'getChart',
                 'parameterNames' => ['event_id'],

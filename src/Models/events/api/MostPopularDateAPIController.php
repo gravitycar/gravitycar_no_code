@@ -63,7 +63,7 @@ class MostPopularDateAPIController extends ApiControllerBase
         return [
             [
                 'method' => 'GET',
-                'path' => '/events/{event_id}/most-popular-date',
+                'path' => '/Events/{event_id}/most-popular-date',
                 'apiClass' => self::class,
                 'apiMethod' => 'getMostPopularDate',
                 'parameterNames' => ['event_id'],

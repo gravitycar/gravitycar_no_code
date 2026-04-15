@@ -689,7 +689,7 @@ class ApiService {
   // Event Chart of Goodness API methods
   async getEventChart(eventId: string): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.get(
-      `/api/events/${eventId}/chart`
+      `/Events/${eventId}/chart`
     );
     return response.data;
   }
@@ -699,7 +699,7 @@ class ApiService {
     commitments: Array<{ proposed_date_id: string; is_available: boolean }>
   ): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.put(
-      `/api/events/${eventId}/commitments`,
+      `/Events/${eventId}/commitments`,
       { commitments }
     );
     return response.data;
@@ -707,28 +707,28 @@ class ApiService {
 
   async acceptAllDates(eventId: string): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.post(
-      `/api/events/${eventId}/accept-all`
+      `/Events/${eventId}/accept-all`
     );
     return response.data;
   }
 
   async getMostPopularDate(eventId: string): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.get(
-      `/api/events/${eventId}/most-popular-date`
+      `/Events/${eventId}/most-popular-date`
     );
     return response.data;
   }
 
   async setAcceptedDate(eventId: string, proposedDateId: string): Promise<ApiResponse<any>> {
     const response: AxiosResponse<ApiResponse<any>> = await this.api.put(
-      `/api/events/${eventId}/accepted-date`,
+      `/Events/${eventId}/accepted-date`,
       { proposed_date_id: proposedDateId }
     );
     return response.data;
   }
 
   async downloadIcs(eventId: string): Promise<void> {
-    const response = await this.api.get(`/api/events/${eventId}/ics`, {
+    const response = await this.api.get(`/Events/${eventId}/ics`, {
       responseType: 'blob',
     });
     const blob = new Blob([response.data], { type: 'text/calendar' });

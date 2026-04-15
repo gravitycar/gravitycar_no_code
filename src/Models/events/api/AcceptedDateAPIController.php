@@ -72,7 +72,7 @@ class AcceptedDateAPIController extends ApiControllerBase
         return [
             [
                 'method' => 'PUT',
-                'path' => '/events/{event_id}/accepted-date',
+                'path' => '/Events/{event_id}/accepted-date',
                 'apiClass' => self::class,
                 'apiMethod' => 'setAcceptedDate',
                 'parameterNames' => ['event_id'],

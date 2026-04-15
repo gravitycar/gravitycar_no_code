@@ -126,7 +126,11 @@ const ChartOfGoodness: React.FC = () => {
   };
 
   const formatProposedDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    // Normalize bare "Y-m-d H:i:s" UTC strings to ISO 8601 so Date parses as UTC
+    const normalized = dateStr.includes('T') || dateStr.endsWith('Z')
+      ? dateStr
+      : dateStr.replace(' ', 'T') + 'Z';
+    const date = new Date(normalized);
     const dayOfWeek = new Intl.DateTimeFormat('en-US', {
       weekday: 'short',
       timeZone: userTimezone,

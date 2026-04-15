@@ -68,7 +68,7 @@ class CommitmentsAPIController extends ApiControllerBase
         return [
             [
                 'method' => 'PUT',
-                'path' => '/events/{event_id}/commitments',
+                'path' => '/Events/{event_id}/commitments',
                 'apiClass' => self::class,
                 'apiMethod' => 'upsertCommitments',
                 'parameterNames' => ['event_id'],
@@ -76,7 +76,7 @@ class CommitmentsAPIController extends ApiControllerBase
             ],
             [
                 'method' => 'POST',
-                'path' => '/events/{event_id}/accept-all',
+                'path' => '/Events/{event_id}/accept-all',
                 'apiClass' => self::class,
                 'apiMethod' => 'acceptAll',
                 'parameterNames' => ['event_id'],

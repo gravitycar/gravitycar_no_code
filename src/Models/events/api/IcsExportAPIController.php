@@ -76,7 +76,7 @@ class IcsExportAPIController extends ApiControllerBase
         return [
             [
                 'method' => 'GET',
-                'path' => '/events/{event_id}/ics',
+                'path' => '/Events/{event_id}/ics',
                 'apiClass' => self::class,
                 'apiMethod' => 'getIcs',
                 'parameterNames' => ['event_id'],
