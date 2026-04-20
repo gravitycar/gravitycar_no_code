@@ -3,7 +3,7 @@
 return [
     'name' => 'Users',
     'table' => 'users',
-    'displayColumns' => ['first_name', 'last_name', 'username'],
+    'displayColumns' => ['first_name', 'last_name'],
     'fields' => [
         'username' => [
             'name' => 'username',

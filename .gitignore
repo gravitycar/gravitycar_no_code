@@ -40,3 +40,6 @@ build-metadata.json
 
 # MAPS database (docs are tracked)
 .maps/maps.db
+
+# Docker first-run marker
+.docker-setup-complete

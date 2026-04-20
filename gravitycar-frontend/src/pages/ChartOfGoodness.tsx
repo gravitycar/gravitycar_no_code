@@ -211,7 +211,7 @@ const ChartOfGoodness: React.FC = () => {
         canEdit={canEdit}
       />
 
-      {is_admin && eventId && <AdminControls eventId={eventId} />}
+      {is_admin && eventId && <AdminControls eventId={eventId} onDataChanged={fetchData} />}
     </div>
   );
 };

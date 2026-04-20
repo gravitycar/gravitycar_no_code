@@ -94,7 +94,7 @@ class ChartAPIController extends ApiControllerBase
 
         $usersMetadata = $this->metadataEngine->getModelMetadata('Users');
         $displayColumns = $usersMetadata['displayColumns'] ?? ['username'];
-        $invitedUsers = $this->fetchInvitedUsers($eventId, $displayColumns);
+        $invitedUsers = $this->fetchInvitedUsers($eventId, $displayColumns, $accessInfo['currentUserId']);
 
         $commitments = $this->fetchCommitments($eventId);
 
@@ -217,12 +217,14 @@ class ChartAPIController extends ApiControllerBase
 
     /**
      * Fetch invited users with display column values.
+     * The current user is always sorted first, followed by the rest sorted by ID.
      *
      * @param string $eventId The event ID
      * @param array $displayColumns Column names from Users metadata
+     * @param string|null $currentUserId The authenticated user's ID (null for guests)
      * @return array User data arrays with id and display column values
      */
-    protected function fetchInvitedUsers(string $eventId, array $displayColumns): array
+    protected function fetchInvitedUsers(string $eventId, array $displayColumns, ?string $currentUserId): array
     {
         $eventsModel = $this->modelFactory->new('Events');
         $eventsModel->findById($eventId);
@@ -237,7 +239,15 @@ class ChartAPIController extends ApiControllerBase
             $result[] = $userData;
         }
 
-        usort($result, fn($a, $b) => strcmp($a['id'], $b['id']));
+        usort($result, function ($a, $b) use ($currentUserId) {
+            if ($a['id'] === $currentUserId) {
+                return -1;
+            }
+            if ($b['id'] === $currentUserId) {
+                return 1;
+            }
+            return strcmp($a['id'], $b['id']);
+        });
 
         return $result;
     }

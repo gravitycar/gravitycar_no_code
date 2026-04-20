@@ -1,7 +1,7 @@
 {
     // Gravitycar Framework API URLs
     "gravitycar.backendUrl": "http://localhost:8081",
-    "gravitycar.frontendUrl": "http://localhost:3000",
+    "gravitycar.frontendUrl": "http://localhost:3100",
     
     // PHP configuration
     "php.executablePath": "/usr/bin/php",

@@ -33,7 +33,7 @@ RewriteCond %{HTTP:Authorization} ^(.*)
 RewriteRule .* - [e=HTTP_AUTHORIZATION:%1]
 
 # CORS headers for API access
-Header always set Access-Control-Allow-Origin "http://localhost:3000"
+Header always set Access-Control-Allow-Origin "http://localhost:3100"
 Header always set Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
 Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
 Header always set Access-Control-Allow-Credentials "true"

@@ -21,7 +21,7 @@ return [
         'version' => '1.0.0',
         'debug' => true,
         'backend_url' => 'http://localhost:8081',
-        'frontend_url' => 'http://localhost:3000',
+        'frontend_url' => 'http://localhost:3100',
     ],
     'logging' => [
         'level' => 'error', // Reduce logging noise during tests
@@ -75,7 +75,7 @@ return [
         'require_https' => false, // Allow HTTP for testing
         'csrf_protection' => false, // Disable CSRF for API testing
         'cors_enabled' => true,
-        'cors_origins' => ['http://localhost:3000', 'http://localhost:8081'],
+        'cors_origins' => ['http://localhost:3100', 'http://localhost:8081'],
         'cors_methods' => ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
         'cors_headers' => ['Content-Type', 'Authorization', 'X-Requested-With'],
     ],
@@ -84,7 +84,7 @@ return [
     'google_oauth' => [
         'client_id' => 'test_google_oauth_client_id.apps.googleusercontent.com',
         'client_secret' => 'test_google_oauth_client_secret',
-        'redirect_uri' => 'http://localhost:3000/auth/google/callback',
+        'redirect_uri' => 'http://localhost:3100/auth/google/callback',
     ],
     
     // Testing specific settings

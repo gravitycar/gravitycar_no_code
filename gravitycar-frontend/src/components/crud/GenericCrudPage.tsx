@@ -686,6 +686,7 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
                       editFields={section.editFields}
                       allowInlineCreate={section.allowInlineCreate}
                       allowInlineEdit={section.allowInlineEdit}
+                      addNewUrl={section.addNewUrl}
                     />
                   </div>
                 )

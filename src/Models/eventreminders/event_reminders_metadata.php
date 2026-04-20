@@ -11,6 +11,9 @@ return [
             'label' => 'Event',
             'required' => true,
             'relatedModel' => 'Events',
+            'relatedFieldName' => 'id',
+            'displayFieldName' => 'name',
+            'description' => 'The event this reminder belongs to',
             'validationRules' => ['Required'],
         ],
         'reminder_type' => [

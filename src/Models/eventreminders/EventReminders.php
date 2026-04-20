@@ -181,14 +181,14 @@ class EventReminders extends ModelBase
         }
 
         $eventsModel = $this->modelFactory->new('Events');
-        $eventData = $eventsModel->read($eventId);
+        $result = $eventsModel->findById($eventId);
 
-        if (empty($eventData)) {
+        if ($result === null) {
             $this->logger->warning('Event not found for reminder', ['event_id' => $eventId]);
             return null;
         }
 
-        return $eventData['accepted_date'] ?? null;
+        return $result->get('accepted_date');
     }
 
     /**
@@ -222,14 +222,9 @@ class EventReminders extends ModelBase
      */
     private function loadRecord(string $id): void
     {
-        $data = $this->read($id);
-        if (empty($data)) {
+        $result = $this->findById($id);
+        if ($result === null) {
             throw new GCException("Reminder not found: {$id}");
-        }
-        foreach ($data as $fieldName => $value) {
-            if ($this->hasField($fieldName)) {
-                $this->set($fieldName, $value);
-            }
         }
     }
 }

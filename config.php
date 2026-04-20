@@ -15,7 +15,7 @@ return [
         'version' => '1.0.0',
         'debug' => true,
         'backend_url' => $_ENV['BACKEND_URL'] ?? 'http://localhost:8081',
-        'frontend_url' => $_ENV['FRONTEND_URL'] ?? 'http://localhost:3000',
+        'frontend_url' => $_ENV['FRONTEND_URL'] ?? 'http://localhost:3100',
     ],
     'logging' => [
         'level' => 'info',

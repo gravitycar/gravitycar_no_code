@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/exhaustive-deps */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { apiService } from '../../services/api';
 import { useModelMetadata } from '../../hooks/useModelMetadata';
 
@@ -17,6 +18,8 @@ interface RelatedItemsSectionProps {
   allowInlineEdit?: boolean;
   /** 'link' for ManyToMany (pick existing records), 'children' for OneToMany (create new) */
   mode?: 'children_management' | 'link';
+  /** URL pattern for an external "Add New" page. {parentId} is replaced at runtime. */
+  addNewUrl?: string;
   permissions?: {
     canCreate: boolean;
     canEdit: boolean;
@@ -34,8 +37,10 @@ const RelatedItemsSection: React.FC<RelatedItemsSectionProps> = ({
   displayColumns,
   actions = ['create', 'delete'],
   mode = 'children_management',
+  addNewUrl,
   permissions = { canCreate: true, canEdit: true, canDelete: true, canReorder: false }
 }) => {
+  const navigate = useNavigate();
   const [relatedItems, setRelatedItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +60,7 @@ const RelatedItemsSection: React.FC<RelatedItemsSectionProps> = ({
         const linkResponse = await apiService.getRelatedRecords(parentModel, parentId, relationship);
         setRelatedItems(linkResponse.data || []);
       } else {
-        const parentField = `${parentModel.toLowerCase()}_id`;
+        const parentField = findForeignKeyField(metadata, parentModel);
         const response = await apiService.getList(relatedModel, 1, 100, {
           [parentField]: parentId
         });
@@ -66,7 +71,7 @@ const RelatedItemsSection: React.FC<RelatedItemsSectionProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [parentModel, parentId, relationship, relatedModel, isManyToMany]);
+  }, [parentModel, parentId, relationship, relatedModel, isManyToMany, metadata]);
 
   useEffect(() => {
     loadRelatedItems();
@@ -114,7 +119,13 @@ const RelatedItemsSection: React.FC<RelatedItemsSectionProps> = ({
         </h3>
         {permissions.canCreate && (
           <button
-            onClick={() => setShowPicker(true)}
+            onClick={() => {
+              if (addNewUrl) {
+                navigate(addNewUrl.replace('{parentId}', parentId));
+              } else {
+                setShowPicker(true);
+              }
+            }}
             className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
           >
             {isManyToMany ? `Add ${relatedModel}` : `Add New`}
@@ -289,5 +300,23 @@ const RecordPicker: React.FC<{
     </div>
   );
 };
+
+/**
+ * Find the foreign key field name in the related model's metadata that
+ * references the parent model. Falls back to a lowercase guess if
+ * metadata hasn't loaded yet.
+ */
+function findForeignKeyField(metadata: any, parentModel: string): string {
+  if (metadata?.fields) {
+    for (const [fieldName, field] of Object.entries<any>(metadata.fields)) {
+      if (field.type === 'RelatedRecord' && field.relatedModel === parentModel) {
+        return fieldName;
+      }
+    }
+  }
+  // Fallback: strip trailing 's' and append '_id'
+  const singular = parentModel.replace(/s$/i, '').toLowerCase();
+  return `${singular}_id`;
+}
 
 export default RelatedItemsSection;

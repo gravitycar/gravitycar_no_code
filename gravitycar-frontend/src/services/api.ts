@@ -727,6 +727,24 @@ class ApiService {
     return response.data;
   }
 
+  async revokeAcceptedDate(eventId: string): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.delete(
+      `/Events/${eventId}/accepted-date`
+    );
+    return response.data;
+  }
+
+  async batchCreateProposedDates(
+    eventId: string,
+    dates: string[]
+  ): Promise<ApiResponse<any>> {
+    const response: AxiosResponse<ApiResponse<any>> = await this.api.post(
+      `/Events/${eventId}/proposed-dates/batch`,
+      { dates }
+    );
+    return response.data;
+  }
+
   async downloadIcs(eventId: string): Promise<void> {
     const response = await this.api.get(`/Events/${eventId}/ics`, {
       responseType: 'blob',

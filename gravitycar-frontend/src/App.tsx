@@ -13,6 +13,7 @@ import MoviesQuotesRelationshipDemo from './pages/MoviesQuotesRelationshipDemo';
 import TriviaPage from './pages/TriviaPage';
 import DnDChatPage from './pages/DnDChatPage';
 import ChartOfGoodness from './pages/ChartOfGoodness';
+import BatchProposeDates from './pages/BatchProposeDates';
 import './App.css';
 
 // Protected Route Component
@@ -147,6 +148,16 @@ const AppRoutes = () => {
           <Layout>
             <ChartOfGoodness />
           </Layout>
+        }
+      />
+      <Route
+        path="/events/:eventId/propose-dates"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <BatchProposeDates />
+            </Layout>
+          </ProtectedRoute>
         }
       />
 

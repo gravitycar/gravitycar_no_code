@@ -22,7 +22,7 @@ export class GravitycarServerTool implements vscode.LanguageModelTool<ServerCont
      */
     private getFrontendUrl(): string {
         const config = vscode.workspace.getConfiguration('gravitycar');
-        return config.get<string>('frontendUrl') || process.env.GRAVITYCAR_FRONTEND_URL || 'http://localhost:3000';
+        return config.get<string>('frontendUrl') || process.env.GRAVITYCAR_FRONTEND_URL || 'http://localhost:3100';
     }
 
     /**

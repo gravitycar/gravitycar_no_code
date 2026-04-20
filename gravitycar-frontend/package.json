@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "validate": "npm run lint && npm run build",
     "preview": "vite preview",
-    "kill-port": "./scripts/kill-port-3000.sh",
+    "kill-port": "./scripts/kill-port-3100.sh",
     "restart": "./scripts/restart-dev-server.sh"
   },
   "dependencies": {

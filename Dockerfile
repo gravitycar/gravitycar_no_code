@@ -5,6 +5,8 @@ RUN apt-get update && apt-get install -y \
     libzip-dev \
     unzip \
     git \
+    curl \
+    default-mysql-client \
     && docker-php-ext-install pdo pdo_mysql zip \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -20,5 +22,15 @@ COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 # Set working directory
 WORKDIR /var/www/html
 
-# Expose port 80
+# Create required directories with proper permissions
+RUN mkdir -p /var/www/html/logs /var/www/html/cache \
+    && chown -R www-data:www-data /var/www/html/logs /var/www/html/cache
+
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
 EXPOSE 80
+
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["apache2-foreground"]

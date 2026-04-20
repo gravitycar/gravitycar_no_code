@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import NavigationSidebar from '../navigation/NavigationSidebar';
 
@@ -8,9 +9,11 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const { user, logout, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
   const handleLogout = async () => {
     await logout();
+    navigate('/login', { replace: true });
   };
 
   // Helper function to get display name for user

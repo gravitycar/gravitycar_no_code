@@ -3,8 +3,8 @@
     "maps": {
       "command": "node",
       "args": [
-        "/Users/mike/projects/mike_agentic_programming_system/dist/index.js",
-        "/Users/mike/projects/gravitycar_no_code"
+        "/home/mike/projects/mike_agentic_programming_system/dist/index.js",
+        "/home/mike/projects/gravitycar_no_code"
       ]
     }
   }

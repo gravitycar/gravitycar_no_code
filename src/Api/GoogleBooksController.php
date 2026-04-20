@@ -73,6 +73,20 @@ class GoogleBooksController extends ApiControllerBase
                 'apiClass' => self::class,
                 'apiMethod' => 'searchBooks',
                 'parameterNames' => []
+            ],
+            [
+                'method' => 'GET',
+                'path' => '/google-books/enrich/?',
+                'apiClass' => self::class,
+                'apiMethod' => 'enrichBookDataGet',
+                'parameterNames' => ['googleBooksId']
+            ],
+            [
+                'method' => 'POST',
+                'path' => '/google-books/enrich',
+                'apiClass' => self::class,
+                'apiMethod' => 'enrichBookData',
+                'parameterNames' => []
             ]
         ];
     }
@@ -128,6 +142,91 @@ class GoogleBooksController extends ApiControllerBase
             ]);
             
             throw new GCException('An unexpected error occurred during book search');
+        }
+    }
+     /**
+     * Enrich book data from Google Books (GET method with ID in path)
+     * 
+     * @param Request $request HTTP request object
+     * @return array API response
+     */
+    public function enrichBookDataGet(Request $request): array
+    {
+        try {
+            $googleBooksId = $request->get('googleBooksId');
+            
+            if (empty($googleBooksId)) {
+                throw new GCException('Google Books ID is required');
+            }
+            
+            $enrichedData = $this->integrationService->enrichBookData($googleBooksId);
+            
+            return [
+                'success' => true,
+                'data' => [
+                    'enriched_data' => $enrichedData,
+                    'google_books_id' => $googleBooksId
+                ]
+            ];
+            
+        } catch (GCException $e) {
+            $this->logger->error('Google Books data enrichment failed (GET)', [
+                'google_books_id' => $request->get('googleBooksId'),
+                'error' => $e->getMessage()
+            ]);
+            
+            throw $e;
+            
+        } catch (\Exception $e) {
+            $this->logger->error('Unexpected error during Google Books data enrichment (GET)', [
+                'google_books_id' => $request->get('googleBooksId'),
+                'error' => $e->getMessage()
+            ]);
+            
+            throw new GCException('An unexpected error occurred during book data enrichment');
+        }
+    }
+
+    /**
+     * Enrich book data from Google Books
+     * 
+     * @param Request $request HTTP request object
+     * @return array API response
+     */
+    public function enrichBookData(Request $request): array
+    {
+        try {
+            $googleBooksId = $request->get('google_books_id');
+            
+            if (empty($googleBooksId)) {
+                throw new GCException('Google Books ID is required');
+            }
+            
+            $enrichedData = $this->integrationService->enrichBookData($googleBooksId);
+            
+            return [
+                'success' => true,
+                'data' => [
+                    'enriched_data' => $enrichedData,
+                    'google_books_id' => $googleBooksId
+                ]
+            ];
+            
+        } catch (GCException $e) {
+            $this->logger->error('Google Books data enrichment failed', [
+                'google_books_id' => $request->get('google_books_id'),
+                'error' => $e->getMessage()
+            ]);
+            
+            throw $e;
+            
+        } catch (\Exception $e) {
+            $this->logger->error('Unexpected error during Google Books data enrichment', [
+                'google_books_id' => $request->get('google_books_id'),
+                'error' => $e->getMessage()
+            ]);
+            
+            throw new GCException('An unexpected error occurred during book data enrichment');
         }
     }
 }

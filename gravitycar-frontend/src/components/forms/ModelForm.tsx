@@ -89,9 +89,11 @@ const ModelForm: React.FC<ModelFormProps> = ({
       const defaultData: Record<string, any> = {};
       
       // First, apply default values from metadata
+      // Backend sends 'defaultValue' (camelCase), type definition also has 'default_value' (snake_case)
       Object.entries(metadata.fields).forEach(([fieldName, field]) => {
-        if (field.default_value !== undefined && field.default_value !== null) {
-          defaultData[fieldName] = field.default_value;
+        const defaultVal = field.default_value ?? field.defaultValue;
+        if (defaultVal !== undefined && defaultVal !== null) {
+          defaultData[fieldName] = defaultVal;
         }
       });
       
@@ -458,15 +460,24 @@ const ModelForm: React.FC<ModelFormProps> = ({
     if (!metadata) return false;
 
     const errors: Record<string, string> = {};
-    
-    Object.entries(metadata.fields).forEach(([fieldName, field]) => {
+
+    // Only validate fields visible in the current form, not all metadata fields
+    const isEditMode = !!recordId;
+    const visibleFields = isEditMode
+      ? metadata.ui?.editFields || metadata.ui?.createFields || Object.keys(metadata.fields)
+      : metadata.ui?.createFields || Object.keys(metadata.fields);
+
+    visibleFields.forEach((fieldName) => {
+      const field = metadata.fields[fieldName];
+      if (!field) return;
+
       const value = formData[fieldName];
-      
+
       // Skip validation for readOnly fields when creating new records (they'll be auto-generated)
       if (!recordId && field.readOnly) {
         return;
       }
-      
+
       // Required field validation
       if (field.required && (!value || (typeof value === 'string' && value.trim() === ''))) {
         errors[fieldName] = `${field.label || fieldName} is required`;

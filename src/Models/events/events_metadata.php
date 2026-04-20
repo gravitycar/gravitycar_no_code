@@ -81,10 +81,11 @@ return [
                 'relatedModel' => 'EventProposedDates',
                 'displayColumns' => ['proposed_date'],
                 'actions' => ['create', 'delete'],
-                'allowInlineCreate' => true,
+                'allowInlineCreate' => false,
                 'allowInlineEdit' => false,
                 'createFields' => ['proposed_date'],
                 'editFields' => [],
+                'addNewUrl' => '/events/{parentId}/propose-dates',
             ],
             'invitations' => [
                 'title' => 'Invited Users',

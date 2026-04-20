@@ -31,7 +31,7 @@ class AcceptedDateAPIController extends ApiControllerBase
      * Only admins can set the accepted date.
      */
     protected array $rolesAndActions = [
-        'admin' => ['update'],
+        'admin' => ['*'],
         'user' => [],
         'guest' => [],
     ];
@@ -78,6 +78,14 @@ class AcceptedDateAPIController extends ApiControllerBase
                 'parameterNames' => ['event_id'],
                 'rbacAction' => 'update',
             ],
+            [
+                'method' => 'DELETE',
+                'path' => '/Events/{event_id}/accepted-date',
+                'apiClass' => self::class,
+                'apiMethod' => 'revokeAcceptedDate',
+                'parameterNames' => ['event_id'],
+                'rbacAction' => 'update',
+            ],
         ];
     }
 
@@ -112,12 +120,14 @@ class AcceptedDateAPIController extends ApiControllerBase
         $this->updateEventAcceptedDate($eventId, $acceptedDate);
 
         $remindersUpdated = $this->safeRecalculateReminders($eventId, $acceptedDate);
+        $remindersCreated = $this->createAutoReminders($eventId, $acceptedDate);
 
         $this->logger->info('Accepted date set for event', [
             'event_id' => $eventId,
             'proposed_date_id' => $proposedDateId,
             'accepted_date' => $acceptedDate,
             'reminders_recalculated' => $remindersUpdated,
+            'reminders_created' => $remindersCreated,
         ]);
 
         return [
@@ -127,9 +137,125 @@ class AcceptedDateAPIController extends ApiControllerBase
                 'event_id' => $eventId,
                 'accepted_date' => $acceptedDate,
                 'reminders_recalculated' => $remindersUpdated,
+                'reminders_created' => $remindersCreated,
             ],
             'timestamp' => date('c'),
         ];
+    }
+
+    /**
+     * Revoke the accepted date for an event and soft-delete its reminders.
+     *
+     * Clears the event's accepted_date field and soft-deletes all
+     * EventReminders linked to the event.
+     *
+     * @param Request $request The incoming API request
+     * @return array Response payload with revocation details
+     * @throws BadRequestException If event_id is missing
+     * @throws NotFoundException If the event does not exist
+     * @throws UnauthorizedException If user is not authenticated
+     * @throws ForbiddenException If user is not an admin
+     */
+    public function revokeAcceptedDate(Request $request): array
+    {
+        $eventId = $request->get('event_id');
+        if (empty($eventId)) {
+            throw new BadRequestException('Event ID is required');
+        }
+
+        $this->requireAdmin();
+        $this->validateEventExists($eventId);
+
+        $this->updateEventAcceptedDate($eventId, null);
+
+        $remindersDeleted = $this->softDeleteRemindersForEvent($eventId);
+
+        $this->logger->info('Accepted date revoked for event', [
+            'event_id' => $eventId,
+            'reminders_deleted' => $remindersDeleted,
+        ]);
+
+        return [
+            'success' => true,
+            'status' => 200,
+            'data' => [
+                'event_id' => $eventId,
+                'reminders_deleted' => $remindersDeleted,
+            ],
+            'timestamp' => date('c'),
+        ];
+    }
+
+    /**
+     * Soft-delete all EventReminders for a given event.
+     *
+     * @param string $eventId The event ID
+     * @return int Number of reminders soft-deleted
+     */
+    protected function softDeleteRemindersForEvent(string $eventId): int
+    {
+        $remindersModel = $this->modelFactory->new('EventReminders');
+        $reminders = $remindersModel->findRaw(
+            ['event_id' => $eventId],
+            ['id']
+        );
+
+        $deletedCount = 0;
+        foreach ($reminders as $row) {
+            $reminder = $this->modelFactory->retrieve('EventReminders', $row['id']);
+            if ($reminder !== null) {
+                $reminder->delete();
+                $deletedCount++;
+            }
+        }
+
+        return $deletedCount;
+    }
+
+    /**
+     * Automatically create reminders when an accepted date is set.
+     *
+     * Always creates a 1-day-before reminder. If the accepted date is
+     * more than 7 days in the future, also creates a 1-week-before reminder.
+     *
+     * @param string $eventId The event ID
+     * @param string $acceptedDate The accepted date in UTC (Y-m-d H:i:s)
+     * @return int Number of reminders created
+     */
+    protected function createAutoReminders(string $eventId, string $acceptedDate): int
+    {
+        $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+        $eventDate = new \DateTimeImmutable($acceptedDate, new \DateTimeZone('UTC'));
+        $daysUntilEvent = (int) $now->diff($eventDate)->days;
+        // diff->days is always positive; check if event is in the future
+        if ($eventDate <= $now) {
+            $daysUntilEvent = 0;
+        }
+
+        $typesToCreate = ['1_day'];
+        if ($daysUntilEvent > 7) {
+            $typesToCreate[] = '1_week';
+        }
+
+        $created = 0;
+        foreach ($typesToCreate as $type) {
+            try {
+                $reminder = $this->modelFactory->new('EventReminders');
+                $reminder->set('event_id', $eventId);
+                $reminder->set('reminder_type', $type);
+                $reminder->set('status', 'pending');
+                $reminder->create();
+                $created++;
+            } catch (\Exception $e) {
+                $this->logger->error('Failed to create auto-reminder', [
+                    'event_id' => $eventId,
+                    'reminder_type' => $type,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $created;
     }
 
     /**
@@ -229,11 +355,11 @@ class AcceptedDateAPIController extends ApiControllerBase
      * Update the event's accepted_date field.
      *
      * @param string $eventId The event ID to update
-     * @param string $acceptedDate The datetime value to set
+     * @param string|null $acceptedDate The datetime value to set, or null to clear
      */
     protected function updateEventAcceptedDate(
         string $eventId,
-        string $acceptedDate
+        ?string $acceptedDate
     ): void {
         $eventsModel = $this->modelFactory->retrieve('Events', $eventId);
         $eventsModel->set('accepted_date', $acceptedDate);

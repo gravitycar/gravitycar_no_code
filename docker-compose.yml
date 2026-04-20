@@ -5,43 +5,88 @@ services:
       dockerfile: Dockerfile
     container_name: gravitycar-app
     ports:
-      - "8081:80"
+      - "${APP_PORT:-8081}:80"
     volumes:
       - .:/var/www/html
+      - vendor_cache:/var/www/html/vendor
       - ./logs:/var/www/html/logs
+      - ./cache:/var/www/html/cache
+    env_file:
+      - .env
     environment:
       DB_DRIVER: pdo_mysql
       DB_HOST: db
-      DB_PORT: 3306
-      DB_NAME: gravitycar_nc
-      DB_USER: gravitycar
-      DB_PASSWORD: gravitycar_secret
+      DB_PORT: "3306"
+      DB_NAME: ${DB_NAME:-gravitycar_nc}
+      DB_USER: ${DB_USER:-gravitycar}
+      DB_PASSWORD: ${DB_PASSWORD:-gravitycar_secret}
       DB_CHARSET: utf8mb4
-      BACKEND_URL: http://localhost:8081
-      FRONTEND_URL: http://localhost:3000
+      BACKEND_URL: ${BACKEND_URL:-http://localhost:8081}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3100}
+      GRAVITYCAR_ENV: development
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - gravitycar-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./gravitycar-frontend
+      dockerfile: Dockerfile
+    container_name: gravitycar-frontend
+    ports:
+      - "${FRONTEND_PORT:-3100}:3100"
+    volumes:
+      - ./gravitycar-frontend:/app
+      - frontend_node_modules:/app/node_modules
+    environment:
+      VITE_API_BASE_URL: ${BACKEND_URL:-http://localhost:8081}
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - gravitycar-net
     restart: unless-stopped
 
   db:
     image: mysql:8.0
     container_name: gravitycar-db
     ports:
-      - "3307:3306"
+      - "${DB_EXTERNAL_PORT:-3307}:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: root_secret
-      MYSQL_DATABASE: gravitycar_nc
-      MYSQL_USER: gravitycar
-      MYSQL_PASSWORD: gravitycar_secret
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_secret}
+      MYSQL_DATABASE: ${DB_NAME:-gravitycar_nc}
+      MYSQL_USER: ${DB_USER:-gravitycar}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-gravitycar_secret}
     volumes:
       - gravitycar_db_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_secret"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_secret}"]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 15s
+    networks:
+      - gravitycar-net
     restart: unless-stopped
 
 volumes:
   gravitycar_db_data:
+    name: gravitycar_db_data
+  vendor_cache:
+    name: gravitycar_vendor_cache
+  frontend_node_modules:
+    name: gravitycar_frontend_node_modules
+
+networks:
+  gravitycar-net:
+    name: gravitycar-net
+    driver: bridge

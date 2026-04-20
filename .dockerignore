@@ -1,5 +1,39 @@
+# Dependencies (installed at runtime via entrypoint)
+vendor/
 gravitycar-frontend/node_modules
 gravitycar-frontend/dist
+
+# Version control
 .git
+.gitignore
+
+# Documentation (not needed in container)
 *.md
-docs
+docs/
+
+# Logs and cache (created at runtime)
+logs/
+cache/
+
+# IDE and editor files
+.idea/
+.vscode/
+
+# Environment files (passed via docker environment block)
+.env
+.env.*
+
+# Test artifacts
+coverage/
+.phpunit.cache/
+.phpunit.result.cache
+
+# Build and deployment artifacts
+packages/
+build-metadata.json
+*.tar
+*.tar.gz
+*.zip
+
+# MAPS working directory
+.maps/
