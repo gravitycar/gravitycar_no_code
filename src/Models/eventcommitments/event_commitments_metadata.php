@@ -77,7 +77,7 @@ return [
     ],
     'rolesAndActions' => [
         'admin' => ['*'],
-        'user' => ['create', 'read', 'update', 'list'],
+        'user' => [],
         'guest' => [],
     ],
     'validationRules' => [],

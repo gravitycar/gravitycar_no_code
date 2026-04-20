@@ -172,12 +172,14 @@ export interface ModelMetadata {
   react_form_schema: FormSchema;
   api_endpoints: ApiEndpoint[];
   ui?: UIMetadata; // Optional - some models may not have UI metadata
+  rolesAndActions?: Record<string, string[]>; // Maps role names to allowed actions (e.g., { admin: ['*'], user: ['list', 'read'] })
 }
 
 export interface UIMetadata {
   listFields: string[]; // Fields to display in list/table view, in order
   createFields: string[]; // Fields to show in create/edit forms, in order
   editFields?: string[]; // Fields to show in edit forms (optional, defaults to createFields)
+  viewUrl?: string; // URL template for "View" button in list view (e.g., '/events/{id}/chart')
   // NEW: Relationship field configurations
   relationshipFields?: Record<string, RelationshipFieldMetadata>;
   // NEW: Related items sections for detail/edit views

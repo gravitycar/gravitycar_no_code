@@ -70,7 +70,8 @@ return [
     ],
     'apiRoutes' => [],
     'ui' => [
-        'listFields' => ['name', 'location', 'accepted_date', 'duration_hours'],
+        'listFields' => ['name'],
+        'viewUrl' => '/events/{id}/chart',
         'createFields' => ['name', 'description', 'location', 'duration_hours', 'linked_model_name', 'linked_record_id'],
         'editFields' => ['name', 'description', 'location', 'duration_hours', 'accepted_date', 'linked_model_name', 'linked_record_id'],
         'relatedItemsSections' => [

@@ -28,7 +28,7 @@ class CommitmentsAPIController extends ApiControllerBase
      */
     protected array $rolesAndActions = [
         'admin' => ['update', 'create'],
-        'user' => ['update', 'create'],
+        'user' => ['update'],
         'guest' => [],
     ];
 

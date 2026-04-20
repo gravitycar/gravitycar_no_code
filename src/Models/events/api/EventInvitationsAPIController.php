@@ -17,6 +17,12 @@ use Gravitycar\Models\api\Api\ModelBaseAPIController;
  */
 class EventInvitationsAPIController extends ModelBaseAPIController
 {
+    protected array $rolesAndActions = [
+        'admin' => ['update', 'create'],
+        'user' => ['update'],
+        'guest' => [],
+    ];
+    
     /**
      * @return array<int, array<string, mixed>>
      */

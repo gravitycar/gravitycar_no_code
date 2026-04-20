@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useNotify } from '../../contexts/NotificationContext';
 import { useModelMetadata } from '../../hooks/useModelMetadata';
 import { apiService } from '../../services/api';
@@ -54,10 +54,18 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
   defaultDisplayMode = 'table'
 }) => {
   const notify = useNotify();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const userTimezone = getUserTimezone(user?.user_timezone);
   const { metadata, loading: metadataLoading, error: metadataError } = useModelMetadata(modelName);
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const canPerformAction = (action: string): boolean => {
+    if (!metadata?.rolesAndActions) return true;
+    const role = user?.user_type ?? 'guest';
+    const allowed = metadata.rolesAndActions[role] ?? [];
+    return allowed.includes('*') || allowed.includes(action);
+  };
   
   const [state, setState] = useState<PageState>({
     items: [],
@@ -418,6 +426,14 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
                     })}
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
+                        {metadata.ui?.viewUrl && (
+                          <button
+                            onClick={() => navigate(metadata.ui!.viewUrl!.replace('{id}', String(item.id)))}
+                            className="text-indigo-600 hover:text-indigo-700"
+                          >
+                            View
+                          </button>
+                        )}
                         <button
                           onClick={() => handleEdit(item)}
                           className="text-blue-600 hover:text-blue-700"
@@ -569,12 +585,14 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
                 {description && <p className="text-gray-600 mt-2">{description}</p>}
               </div>
               <div className="flex items-center space-x-4">
-                <button
-                  onClick={handleCreate}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  Add New {modelName.slice(0, -1)}
-                </button>
+                {canPerformAction('create') && (
+                  <button
+                    onClick={handleCreate}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    Add New {modelName.slice(0, -1)}
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -622,12 +640,14 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
                 <p className="text-gray-500 mb-4">
                   {state.searchTerm ? 'Try adjusting your search terms.' : `Get started by adding your first ${modelName.slice(0, -1).toLowerCase()}.`}
                 </p>
-                <button
-                  onClick={handleCreate}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  Add First {modelName.slice(0, -1)}
-                </button>
+                {canPerformAction('create') && (
+                  <button
+                    onClick={handleCreate}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    Add First {modelName.slice(0, -1)}
+                  </button>
+                )}
               </div>
             }
           >

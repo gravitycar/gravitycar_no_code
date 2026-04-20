@@ -36,8 +36,8 @@ return [
     ],
     'rolesAndActions' => [
         'admin' => ['*'],
-        'user' => ['list', 'read'],
-        'guest' => ['list', 'read'],
+        'user' => [],
+        'guest' => [],
     ],
     'validationRules' => [],
     'relationships' => [],
