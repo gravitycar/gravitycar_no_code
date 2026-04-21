@@ -112,26 +112,6 @@ const ModelLinker: React.FC<ModelLinkerProps> = ({
       .catch(() => setSelectedRecordLabel(`Record #${recordId}`));
   }, [modelName, recordId, displayColumns]);
 
-  // Debounced record search
-  useEffect(() => {
-    if (!modelName || displayColumns.length === 0) return;
-    const timeout = setTimeout(() => {
-      fetchRecords(searchTerm);
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [searchTerm, modelName, displayColumns, fetchRecords]);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsRecordDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const fetchRecords = useCallback(async (search: string) => {
     if (!modelName) return;
     setLoadingRecords(true);
@@ -152,6 +132,26 @@ const ModelLinker: React.FC<ModelLinkerProps> = ({
       setLoadingRecords(false);
     }
   }, [modelName, displayColumns]);
+
+  // Debounced record search
+  useEffect(() => {
+    if (!modelName || displayColumns.length === 0) return;
+    const timeout = setTimeout(() => {
+      fetchRecords(searchTerm);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchTerm, modelName, displayColumns, fetchRecords]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsRecordDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleModelChange = (newModelName: string | null) => {
     onModelChange(newModelName);
