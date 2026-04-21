@@ -415,6 +415,52 @@ class ApiService {
     }
   }
   
+  async assignRelationship(
+    model: string,
+    id: string,
+    relationship: string,
+    targetIds: string[],
+    additionalData?: Record<string, any>
+  ): Promise<ApiResponse<any>> {
+    try {
+      for (const targetId of targetIds) {
+        const response = await this.api.put(
+          `/${model}/${id}/link/${relationship}/${targetId}`,
+          additionalData ?? {}
+        );
+        if (!response.data?.success) {
+          return response.data ?? { success: false, data: null, message: 'Failed to assign relationship' };
+        }
+      }
+      return { success: true, data: null, message: 'Relationships assigned successfully' };
+    } catch (error) {
+      console.error(`Failed to assign ${relationship} for ${model}:`, error);
+      return { success: false, data: null, message: 'Failed to assign relationship' };
+    }
+  }
+
+  async removeRelationship(
+    model: string,
+    id: string,
+    relationship: string,
+    targetIds: string[]
+  ): Promise<ApiResponse<any>> {
+    try {
+      for (const targetId of targetIds) {
+        const response = await this.api.delete(
+          `/${model}/${id}/link/${relationship}/${targetId}`
+        );
+        if (!response.data?.success) {
+          return response.data ?? { success: false, data: null, message: 'Failed to remove relationship' };
+        }
+      }
+      return { success: true, data: null, message: 'Relationships removed successfully' };
+    } catch (error) {
+      console.error(`Failed to remove ${relationship} for ${model}:`, error);
+      return { success: false, data: null, message: 'Failed to remove relationship' };
+    }
+  }
+
   async linkRecord(
     model: string,
     id: string,

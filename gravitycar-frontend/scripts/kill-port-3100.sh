@@ -1,35 +1,41 @@
 #!/bin/bash
 
-# Script to kill any process running on port 3100
-# This is useful when restarting the React development server
+# Script to kill the Vite dev server running on port 3100
 
-echo "🔍 Checking for processes on port 3100..."
+PORT=3100
 
-# Find processes using port 3100
-PIDS=$(lsof -ti :3100 2>/dev/null)
+echo "🔍 Checking for processes on port $PORT..."
 
-if [ -z "$PIDS" ]; then
-    echo "✅ Port 3100 is free - no processes to kill"
-else
-    echo "🔥 Found processes on port 3100: $PIDS"
-    echo "🔥 Killing processes..."
-    
-    # Kill the processes
-    echo "$PIDS" | xargs kill -9 2>/dev/null
-    
-    # Wait a moment for processes to die
-    sleep 1
-    
-    # Check if any are still running
-    REMAINING=$(lsof -ti :3100 2>/dev/null)
-    if [ -z "$REMAINING" ]; then
-        echo "✅ All processes on port 3100 have been killed"
-    else
-        echo "⚠️  Some processes may still be running on port 3100: $REMAINING"
-        echo "🔥 Trying force kill..."
-        echo "$REMAINING" | xargs kill -KILL 2>/dev/null
-        sleep 1
-    fi
+port_in_use() {
+    ss -tlnp "sport = :$PORT" 2>/dev/null | grep -q ":$PORT"
+}
+
+if ! port_in_use; then
+    echo "✅ Port $PORT is free - no processes to kill"
+    exit 0
 fi
 
-echo "🎯 Port 3100 should now be available"
+echo "🔥 Port $PORT is in use - killing processes..."
+
+# Kill by port directly (most reliable in WSL2)
+fuser -k "${PORT}/tcp" 2>/dev/null
+
+# Also kill any lingering vite/node processes by name
+pkill -f "vite" 2>/dev/null
+pkill -f "node.*vite" 2>/dev/null
+
+sleep 1
+
+if port_in_use; then
+    echo "⚠️  Port $PORT still in use - trying with elevated signal..."
+    fuser -k -KILL "${PORT}/tcp" 2>/dev/null
+    sleep 1
+fi
+
+if port_in_use; then
+    echo "❌ Could not free port $PORT - it may be reserved by Windows/Hyper-V"
+    echo "   Try running in PowerShell: netsh interface ipv4 show excludedportrange protocol=tcp"
+    exit 1
+fi
+
+echo "✅ Port $PORT is now free"
