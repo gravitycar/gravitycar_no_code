@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { apiService } from '../../services/api';
 import { fetchWithDebug } from '../../utils/apiUtils';
 
@@ -119,7 +119,7 @@ const ModelLinker: React.FC<ModelLinkerProps> = ({
       fetchRecords(searchTerm);
     }, 300);
     return () => clearTimeout(timeout);
-  }, [searchTerm, modelName, displayColumns]);
+  }, [searchTerm, modelName, displayColumns, fetchRecords]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -132,7 +132,7 @@ const ModelLinker: React.FC<ModelLinkerProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const fetchRecords = async (search: string) => {
+  const fetchRecords = useCallback(async (search: string) => {
     if (!modelName) return;
     setLoadingRecords(true);
     try {
@@ -151,7 +151,7 @@ const ModelLinker: React.FC<ModelLinkerProps> = ({
     } finally {
       setLoadingRecords(false);
     }
-  };
+  }, [modelName, displayColumns]);
 
   const handleModelChange = (newModelName: string | null) => {
     onModelChange(newModelName);

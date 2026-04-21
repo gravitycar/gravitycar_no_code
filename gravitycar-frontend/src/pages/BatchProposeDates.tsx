@@ -8,11 +8,8 @@ import {
   localDateTimeToUTC,
 } from '../utils/timezone';
 import CalendarGrid from '../components/events/CalendarGrid';
-import TimePicker, {
-  formatTimeValue,
-  to24Hour,
-  type TimeValue,
-} from '../components/events/TimePicker';
+import TimePicker from '../components/events/TimePicker';
+import { formatTimeValue, type TimeValue } from '../components/events/timeUtils';
 import PendingProposalsList, {
   type PendingEntry,
 } from '../components/events/PendingProposalsList';

@@ -1,10 +1,5 @@
 import React from 'react';
-
-export interface TimeValue {
-  hour: number;   // 1-12
-  minute: number;  // 0-55 in steps of 5
-  ampm: 'AM' | 'PM';
-}
+import type { TimeValue } from './timeUtils';
 
 interface TimePickerProps {
   value: TimeValue;
@@ -13,24 +8,6 @@ interface TimePickerProps {
 
 const HOURS = Array.from({ length: 12 }, (_, i) => i + 1);
 const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5);
-
-/**
- * Format a TimeValue as a human-readable string like "6:00 PM".
- */
-export const formatTimeValue = (t: TimeValue): string => {
-  const mm = String(t.minute).padStart(2, '0');
-  return `${t.hour}:${mm} ${t.ampm}`;
-};
-
-/**
- * Convert a TimeValue to 24-hour format values.
- */
-export const to24Hour = (t: TimeValue): { hours: number; minutes: number } => {
-  let hours = t.hour;
-  if (t.ampm === 'AM' && hours === 12) hours = 0;
-  if (t.ampm === 'PM' && hours !== 12) hours += 12;
-  return { hours, minutes: t.minute };
-};
 
 const TimePicker: React.FC<TimePickerProps> = ({ value, onChange }) => {
   const selectClass =
