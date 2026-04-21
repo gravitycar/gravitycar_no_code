@@ -129,7 +129,7 @@ class EventCommitmentsTest extends UnitTestCase
     {
         $metadata = require __DIR__ . '/../../../src/Models/eventcommitments/event_commitments_metadata.php';
         $this->assertSame(['*'], $metadata['rolesAndActions']['admin']);
-        $this->assertSame(['create', 'read', 'update', 'list'], $metadata['rolesAndActions']['user']);
+        $this->assertSame([], $metadata['rolesAndActions']['user']);
         $this->assertSame([], $metadata['rolesAndActions']['guest']);
     }
 

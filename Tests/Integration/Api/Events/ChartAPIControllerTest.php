@@ -34,7 +34,7 @@ class ChartAPIControllerTest extends EventApiTestCase
         $routes = $this->controller->registerRoutes();
         $this->assertCount(1, $routes);
         $this->assertEquals('GET', $routes[0]['method']);
-        $this->assertEquals('/events/{event_id}/chart', $routes[0]['path']);
+        $this->assertEquals('/Events/{event_id}/chart', $routes[0]['path']);
         $this->assertEquals('read', $routes[0]['rbacAction']);
     }
 

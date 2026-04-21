@@ -88,8 +88,8 @@ class EventProposedDatesTest extends UnitTestCase
     {
         $metadata = require __DIR__ . '/../../../src/Models/eventproposeddates/event_proposed_dates_metadata.php';
         $this->assertSame(['*'], $metadata['rolesAndActions']['admin']);
-        $this->assertSame(['list', 'read'], $metadata['rolesAndActions']['user']);
-        $this->assertSame(['list', 'read'], $metadata['rolesAndActions']['guest']);
+        $this->assertSame([], $metadata['rolesAndActions']['user']);
+        $this->assertSame([], $metadata['rolesAndActions']['guest']);
     }
 
     public function testMetadataDisplayColumns(): void

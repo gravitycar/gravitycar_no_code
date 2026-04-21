@@ -439,9 +439,13 @@ abstract class RelationshipBase extends ModelBase {
 
         // Also create a FieldBase instance so hasField(), get(), and set() work
         // for additionalFields, not just core fields.
-        $field = $this->createSingleField($fieldName, $fieldMetadata, $this->fieldFactory);
-        if ($field) {
-            $this->fields[$fieldName] = $field;
+        // Guard against uninitialized fieldFactory (e.g. in test mocks that skip parent constructor).
+        $field = null;
+        if (isset($this->fieldFactory)) {
+            $field = $this->createSingleField($fieldName, $fieldMetadata, $this->fieldFactory);
+            if ($field) {
+                $this->fields[$fieldName] = $field;
+            }
         }
 
         $this->logger->debug('Field added to relationship', [

@@ -202,7 +202,7 @@ class EventRemindersTest extends UnitTestCase
     {
         $metadata = require __DIR__ . '/../../../src/Models/eventreminders/event_reminders_metadata.php';
         $this->assertSame(['*'], $metadata['rolesAndActions']['admin']);
-        $this->assertSame(['list', 'read'], $metadata['rolesAndActions']['user']);
+        $this->assertSame([], $metadata['rolesAndActions']['user']);
         $this->assertSame([], $metadata['rolesAndActions']['guest']);
     }
 

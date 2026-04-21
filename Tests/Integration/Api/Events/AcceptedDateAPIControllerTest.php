@@ -32,10 +32,13 @@ class AcceptedDateAPIControllerTest extends EventApiTestCase
     public function testRouteRegistration(): void
     {
         $routes = $this->controller->registerRoutes();
-        $this->assertCount(1, $routes);
+        $this->assertCount(2, $routes);
         $this->assertEquals('PUT', $routes[0]['method']);
         $this->assertStringContainsString('accepted-date', $routes[0]['path']);
         $this->assertEquals('update', $routes[0]['rbacAction']);
+        $this->assertEquals('DELETE', $routes[1]['method']);
+        $this->assertStringContainsString('accepted-date', $routes[1]['path']);
+        $this->assertEquals('update', $routes[1]['rbacAction']);
     }
 
     public function testSetAcceptedDateAsAdmin(): void

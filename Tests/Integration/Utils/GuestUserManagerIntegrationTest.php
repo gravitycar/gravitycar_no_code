@@ -239,12 +239,15 @@ class GuestUserManagerIntegrationTest extends IntegrationTestCase
     private function cleanupGuestUser(): void
     {
         try {
-            $userModel = $this->modelFactory->new('Users');
-            $existingGuestUsers = $userModel->find(['email' => 'guest@gravitycar.com']);
-            
-            foreach ($existingGuestUsers as $guestUser) {
-                $guestUser->delete();
-            }
+            // Use raw SQL to hard-delete (model's delete() is soft-delete and
+            // find() skips soft-deleted records, leaving stale rows behind)
+            $container = \Gravitycar\Core\ContainerConfig::getContainer();
+            $db = $container->get('database_connector');
+            $conn = $db->getConnection();
+            $conn->executeStatement(
+                "DELETE FROM users WHERE email = :email",
+                ['email' => 'guest@gravitycar.com']
+            );
         } catch (\Exception $e) {
             // Ignore cleanup errors
         }

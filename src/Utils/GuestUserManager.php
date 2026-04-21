@@ -156,35 +156,14 @@ class GuestUserManager
         try {
             $guestUser = $this->getModelFactory()->new('Users');
             $this->createRawGuestUserRecord($guestUser);
-        
-            // Set guest user fields
-            $guestUser->set('username', self::GUEST_USERNAME);
-            $guestUser->set('email', self::GUEST_EMAIL);
-            $guestUser->set('password', $this->generateSecureGuestPassword());
-            $guestUser->set('first_name', 'Guest');
-            $guestUser->set('last_name', 'User');
-            $guestUser->set('auth_provider', 'system');
-            $guestUser->set('is_active', true);
-            $guestUser->set('last_login_method', 'guest');
-            
-            // Mark as system-created user
-            if ($guestUser->hasField('is_system_user')) {
-                $guestUser->set('is_system_user', true);
-            }
-            
-            // Set email as verified for system user
-            if ($guestUser->hasField('email_verified_at')) {
-                $guestUser->set('email_verified_at', date('Y-m-d H:i:s'));
-            }
-            
-            // Create the user record
-            $created = $guestUser->create();
-            
-            if (!$created) {
+
+            // Reload from DB so the model instance has all fields
+            $reloaded = $this->findExistingGuestUser();
+            if ($reloaded === null) {
                 throw new GCException('Failed to create guest user record in database');
             }
-            
-            return $guestUser;
+
+            return $reloaded;
             
         } catch (\Exception $e) {
             $this->logger->error('Failed to create guest user', [
@@ -206,10 +185,20 @@ class GuestUserManager
     {
 
         $guestID = 'e32da63d-a37a-4a50-8a2a-01c7899698e7';
+
+        // Remove any stale/soft-deleted record with this ID before inserting
+        $db = ContainerConfig::getContainer()->get('database_connector');
+        $conn = $db->getConnection();
+        $conn->executeStatement(
+            'DELETE FROM ' . $guestUser->getTableName() . ' WHERE id = :id',
+            ['id' => $guestID]
+        );
+
         $guestData = [
             'id' => $guestID,
             'username' => 'guest@gravitycar.com',
             'email' => 'guest@gravitycar.com',
+            'password' => $this->generateSecureGuestPassword(),
             'first_name' => 'Guest',
             'last_name' => 'User',
             'last_login' => NULL,
@@ -217,21 +206,19 @@ class GuestUserManager
             'user_timezone' => 'UTC',
             'created_at' => date('Y-m-d H:i:s'),
             'updated_at' => date('Y-m-d H:i:s'),
-            'deleted_at' => date('Y-m-d H:i:s'),
+            'deleted_at' => NULL,
             'created_by' => $guestID,
             'updated_by' => $guestID,
             'deleted_by' => NULL,
             'google_id' => NULL,
             'auth_provider' => 'system',
             'last_login_method' => 'guest',
-            'email_verified_at' => NULL,
+            'email_verified_at' => date('Y-m-d H:i:s'),
             'profile_picture_url' => NULL,
             'last_google_sync' => NULL,
             'is_active' => 1,
         ];
 
-        $db = ContainerConfig::getContainer()->get('database_connector');        
-        $conn = $db->getConnection();
         $queryBuilder = $conn->createQueryBuilder();
         $queryBuilder->insert($guestUser->getTableName());
         
