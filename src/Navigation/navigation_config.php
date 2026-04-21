@@ -19,7 +19,7 @@ return [
             'roles' => ['admin', 'user']
         ],
         [
-            'key' => 'dnd_chat',
+            'key' => 'dndchat',
             'title' => 'D&D Chat',
             'url' => '/dnd-chat',
             'icon' => '⚔️',
