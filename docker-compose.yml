@@ -68,6 +68,7 @@ services:
       MYSQL_PASSWORD: ${DB_PASSWORD:-gravitycar_secret}
     volumes:
       - gravitycar_db_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root_secret}"]
       interval: 5s
