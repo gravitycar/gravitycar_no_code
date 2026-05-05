@@ -209,7 +209,7 @@ class ChartAPIController extends ApiControllerBase
     {
         $proposedDatesModel = $this->modelFactory->new('EventProposedDates');
         return $proposedDatesModel->findRaw(
-            ['event_id' => $eventId],
+            ['event_id' => $eventId, 'deleted_by' => null],
             ['id', 'proposed_date'],
             ['orderBy' => ['proposed_date' => 'ASC']]
         );
