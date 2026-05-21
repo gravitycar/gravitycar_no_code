@@ -11,6 +11,7 @@ import DynamicModelRoute from './components/routing/DynamicModelRoute';
 import GenericCrudPage from './components/crud/GenericCrudPage';
 import MoviesQuotesRelationshipDemo from './pages/MoviesQuotesRelationshipDemo';
 import TriviaPage from './pages/TriviaPage';
+import ProjectsPage from './pages/ProjectsPage';
 import DnDChatPage from './pages/DnDChatPage';
 import ChartOfGoodness from './pages/ChartOfGoodness';
 import BatchProposeDates from './pages/BatchProposeDates';
@@ -117,6 +118,16 @@ const AppRoutes = () => {
         }
       />
       
+      {/* Projects Showcase Route - public, no ProtectedRoute */}
+      <Route
+        path="/projects_showcase"
+        element={
+          <Layout>
+            <ProjectsPage />
+          </Layout>
+        }
+      />
+
       {/* D&D RAG Chat Route */}
       <Route
         path="/dnd-chat"

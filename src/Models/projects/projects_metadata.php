@@ -1,0 +1,65 @@
+<?php
+// Projects model metadata for Gravitycar framework
+return [
+    'name' => 'Projects',
+    'table' => 'projects',
+    'displayColumns' => ['title'],
+    'fields' => [
+        'title' => [
+            'name' => 'title',
+            'type' => 'Text',
+            'label' => 'Title',
+            'required' => true,
+            'maxLength' => 256,
+            'validationRules' => ['Required'],
+        ],
+        'tag_line' => [
+            'name' => 'tag_line',
+            'type' => 'Text',
+            'label' => 'Tag Line',
+            'required' => true,
+            'maxLength' => 1024,
+            'validationRules' => ['Required'],
+        ],
+        'description' => [
+            'name' => 'description',
+            'type' => 'BigText',
+            'label' => 'Description',
+            'required' => true,
+            'maxLength' => 16000,
+            'validationRules' => ['Required'],
+        ],
+        'screenshot' => [
+            'name' => 'screenshot',
+            'type' => 'Image',
+            'label' => 'Screenshot',
+            'required' => true,
+            'maxLength' => 500,
+            'allowRemote' => true,
+            'allowLocal' => false,
+            'altText' => 'Project screenshot',
+            'validationRules' => ['Required'],
+        ],
+        'link' => [
+            'name' => 'link',
+            'type' => 'Link',
+            'label' => 'Link',
+            'required' => false,
+            'nullable' => true,
+            'maxLength' => 256,
+            'validationRules' => [],
+        ],
+    ],
+    'rolesAndActions' => [
+        'admin' => ['*'],
+        'user'  => ['list', 'read'],
+        'guest' => ['list', 'read'],
+    ],
+    'validationRules' => [],
+    'relationships' => [],
+    'ui' => [
+        'listFields'   => ['title', 'tag_line', 'screenshot', 'link'],
+        'createFields' => ['title', 'tag_line', 'description', 'screenshot', 'link'],
+        'editFields'   => ['title', 'tag_line', 'description', 'screenshot', 'link'],
+    ],
+];

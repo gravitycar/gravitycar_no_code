@@ -332,6 +332,18 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
           </a>
         );
 
+      case 'Link':
+        return (
+          <a
+            href={stringValue}
+            target={fieldMeta.target ?? '_blank'}
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 break-all underline"
+          >
+            {stringValue}
+          </a>
+        );
+
       default:
         // For other field types, handle long strings gracefully
         if (stringValue.length > 50) {

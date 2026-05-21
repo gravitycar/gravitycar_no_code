@@ -45,6 +45,13 @@ return [
             'url' => '/events',
             'icon' => '📋',
             'roles' => ['*'] // All roles
+        ],
+        [
+            'key' => 'projects',
+            'title' => 'Projects',
+            'url' => '/projects_showcase',
+            'icon' => '🗂️',
+            'roles' => ['*']
         ]
     ],
 
