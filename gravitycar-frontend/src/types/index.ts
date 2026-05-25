@@ -269,6 +269,8 @@ export interface FieldMetadata {
   // Video field specific properties
   showControls?: boolean;
   autoplay?: boolean;
+  // Link field specific properties
+  target?: string;
   // Component props from backend
   component_props?: any;
   react_validation?: any;

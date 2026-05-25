@@ -162,10 +162,12 @@ abstract class FieldBase {
                     
                     $instantiatedRules[$index] = $ruleObject;
                     
-                    $this->logger->debug("Validation rule '{$rule}' instantiated successfully for field '{$this->name}'");
+                    $fieldName = isset($this->name) ? $this->name : 'unknown';
+                    $this->logger->debug("Validation rule '{$rule}' instantiated successfully for field '{$fieldName}'");
                 } catch (\Exception $e) {
-                    $this->logger->error("Failed to instantiate validation rule '{$rule}' for field '{$this->name}': " . $e->getMessage(), [
-                        'field_name' => $this->name,
+                    $fieldName = isset($this->name) ? $this->name : 'unknown';
+                    $this->logger->error("Failed to instantiate validation rule '{$rule}' for field '{$fieldName}': " . $e->getMessage(), [
+                        'field_name' => $fieldName,
                         'rule_name' => $rule,
                         'error' => $e->getMessage()
                     ]);

@@ -17,6 +17,7 @@ import RelatedRecordSelect from './RelatedRecordSelect';
 import { ImageUpload } from './ImageUpload';
 import MultiSelect from './MultiSelect';
 import RadioGroup from './RadioGroup';
+import LinkInput from './LinkInput';
 
 // Component mapping from FieldBase reactComponent names to React components
 const componentMap: Record<string, React.ComponentType<BaseFieldComponentProps>> = {
@@ -34,6 +35,7 @@ const componentMap: Record<string, React.ComponentType<BaseFieldComponentProps>>
   'ImageUpload': ImageUpload,
   'MultiSelect': MultiSelect,
   'RadioGroup': RadioGroup,
+  'LinkInput': LinkInput,
 };
 
 interface FieldComponentRenderProps {
