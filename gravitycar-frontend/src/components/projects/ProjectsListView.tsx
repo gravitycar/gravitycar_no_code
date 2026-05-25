@@ -11,6 +11,12 @@ interface ProjectTileProps {
   tileRef: (el: HTMLDivElement | null) => void;
 }
 
+const STATUS_STYLES: Record<string, string> = {
+  'Planned': 'bg-gray-700/80 text-gray-100',
+  'In Progress': 'bg-amber-600/90 text-white',
+  'Complete': 'bg-green-600/90 text-white',
+};
+
 function getInitials(title: string): string {
   return title
     .split(' ')
@@ -54,9 +60,16 @@ function ProjectTile({ project, imgError, onImgError, onClick, tileRef }: Projec
 
       <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/70 pointer-events-none" />
 
-      <p className="absolute top-0 left-0 right-0 p-3 text-white text-xl font-bold drop-shadow-md line-clamp-2 pointer-events-none">
-        {project.title}
-      </p>
+      <div className="absolute top-0 left-0 right-0 p-3 pointer-events-none">
+        <p className="text-white text-xl font-bold drop-shadow-md line-clamp-2">
+          {project.title}
+        </p>
+        {project.status && (
+          <span className={`inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full ${STATUS_STYLES[project.status] ?? 'bg-gray-600/80 text-white'}`}>
+            {project.status}
+          </span>
+        )}
+      </div>
 
       <p className="absolute bottom-0 left-0 right-0 p-3 text-white text-sm drop-shadow-md line-clamp-2 pointer-events-none">
         {project.tag_line}
@@ -79,7 +92,10 @@ export function ProjectsListView(): React.ReactElement {
     try {
       const response = await apiService.getList<Project>('Projects', 1, 1000);
       if (response.success) {
-        setProjects(response.data ?? []);
+        const sorted = [...(response.data ?? [])].sort(
+          (a, b) => (a.display_order ?? Infinity) - (b.display_order ?? Infinity)
+        );
+        setProjects(sorted);
       } else {
         setError(response.message ?? 'Failed to load projects.');
       }

@@ -6,6 +6,18 @@
         "/home/mike/projects/mike_agentic_programming_system/dist/index.js",
         "/home/mike/projects/gravitycar_no_code"
       ]
+    },
+    
+    "wiki": {
+      "command": "uv",
+      "args": [
+        "run", 
+        "--project", 
+        "/home/mike/projects/codebase_wikibuilder", 
+        "wiki-mcp", 
+        "--vault", 
+        "/mnt/e/obsidian_vaults/GravitycarWiki/"
+      ]
     }
   }
 }

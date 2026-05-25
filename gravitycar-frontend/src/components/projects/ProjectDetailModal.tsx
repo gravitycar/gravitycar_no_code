@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Project } from './types';
 
+const STATUS_STYLES: Record<string, string> = {
+  'Planned': 'bg-gray-200 text-gray-700',
+  'In Progress': 'bg-amber-100 text-amber-800',
+  'Complete': 'bg-green-100 text-green-800',
+};
+
 interface ProjectDetailModalProps {
   project: Project | null;
   onClose: () => void;
@@ -129,6 +135,15 @@ export default function ProjectDetailModal({
           {project.title}
         </h2>
 
+        {/* Status badge */}
+        {project.status && (
+          <div className="flex justify-center mb-2">
+            <span className={`text-xs font-semibold px-3 py-1 rounded-full ${STATUS_STYLES[project.status] ?? 'bg-gray-200 text-gray-700'}`}>
+              {project.status}
+            </span>
+          </div>
+        )}
+
         {/* Tag line */}
         <p className="text-center text-gray-500 text-sm mb-4">
           {project.tag_line}
@@ -151,7 +166,7 @@ export default function ProjectDetailModal({
         )}
 
         {/* Description */}
-        <p className="text-gray-700 text-sm leading-relaxed text-right mb-4 whitespace-pre-wrap">
+        <p className="text-gray-700 text-sm leading-relaxed text-left mb-4 whitespace-pre-wrap">
           {project.description}
         </p>
 

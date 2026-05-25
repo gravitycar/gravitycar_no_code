@@ -15,6 +15,9 @@ I am building full-stack web application framework, called "The Gravitycar Frame
 - **Database Abstraction**: Doctrine DBAL
 - **Other Tools**: Node.js, npm/yarn
 
+  ## Codebase Research
+  When you need to understand how something in this codebase works, **always query the   `gravitycar_code_wiki` MCP tool first** before reading source files directly. It has pre-summarized all server-side files and can orient you in one call rather than many file reads. Use the wiki to find which files are relevant, then read those files directly only if you need implementation detail the summary doesn't cover.
+
 ## IMPORTANT: Intended nature of the Gravitycar Framework:
 The Gravitycar Framework is intended to be a highly extensible, metadata-driven web application 
 framework that allows developers to define data models, fields, and relationships purely through 

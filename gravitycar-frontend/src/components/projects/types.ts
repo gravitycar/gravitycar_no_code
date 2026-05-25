@@ -5,4 +5,6 @@ export interface Project {
   description: string;
   screenshot: string;
   link?: string;
+  status?: string;
+  display_order?: number;
 }

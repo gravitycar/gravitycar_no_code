@@ -1,5 +1,5 @@
 import React from 'react';
-import ProjectsListView from '../components/projects/ProjectsListView';
+import { ProjectsListView } from '../components/projects/ProjectsListView';
 
 /**
  * Projects Page Component

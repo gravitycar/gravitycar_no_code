@@ -49,6 +49,25 @@ return [
             'maxLength' => 256,
             'validationRules' => [],
         ],
+        'status' => [
+            'name' => 'status',
+            'type' => 'Enum',
+            'label' => 'Status',
+            'required' => true,
+            'options' => ['Planned' => 'Planned', 'In Progress' => 'In Progress', 'Complete' => 'Complete'],
+            'defaultValue' => 'Planned',
+            'validationRules' => ['Required'],
+        ],
+        'display_order' => [
+            'name' => 'display_order',
+            'type' => 'Integer',
+            'label' => 'Display Order',
+            'required' => true,
+            'defaultValue' => 0,
+            'minValue' => 0,
+            'allowNegative' => false,
+            'validationRules' => ['Required'],
+        ],
     ],
     'rolesAndActions' => [
         'admin' => ['*'],
@@ -58,8 +77,8 @@ return [
     'validationRules' => [],
     'relationships' => [],
     'ui' => [
-        'listFields'   => ['title', 'tag_line', 'screenshot', 'link'],
-        'createFields' => ['title', 'tag_line', 'description', 'screenshot', 'link'],
-        'editFields'   => ['title', 'tag_line', 'description', 'screenshot', 'link'],
+        'listFields'   => ['title', 'status', 'tag_line', 'screenshot', 'link'],
+        'createFields' => ['title', 'status', 'display_order', 'tag_line', 'description', 'screenshot', 'link'],
+        'editFields'   => ['title', 'status', 'display_order', 'tag_line', 'description', 'screenshot', 'link'],
     ],
 ];
