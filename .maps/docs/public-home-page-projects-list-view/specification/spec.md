@@ -290,7 +290,6 @@ Both `/` and `/projects_showcase` will render `ProjectsPage`. This is intentiona
 - Do NOT redirect on 403 to `/` silently — the user needs to know access was denied.
 - Do NOT clear `localStorage` on a 403 response.
 - Do NOT create a new `ProtectedRoute`-like component to replace the removed one.
-- Do NOT implement a "return to original URL after login" flow — that is out of scope.
 - Do NOT change the `/projects_showcase` alias — keep it working alongside `/`.
 - Do NOT modify backend files as part of this change.
 - Do NOT add any new npm dependencies.
