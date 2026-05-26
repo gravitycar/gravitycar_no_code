@@ -12,6 +12,7 @@ import type {
 } from '../types';
 import type { NavigationItem } from '../types/navigation';
 import { ApiError, isBackendErrorResponse } from '../utils/errors';
+import { imperativeNavigate } from '../utils/navigate';
 
 class ApiService {
   private api: AxiosInstance;
@@ -35,11 +36,13 @@ class ApiService {
         config.headers.Authorization = `Bearer ${token}`;
       }
 
-      // Add XDEBUG_TRIGGER to all requests for debugging
-      if (!config.params) {
-        config.params = {};
+      // Add XDEBUG_TRIGGER only in development builds
+      if (import.meta.env.DEV) {
+        if (!config.params) {
+          config.params = {};
+        }
+        config.params.XDEBUG_TRIGGER = 'mike';
       }
-      config.params.XDEBUG_TRIGGER = 'mike';
       
       return config;
     });
@@ -73,7 +76,24 @@ class ApiService {
             localStorage.removeItem('auth_token');
             localStorage.removeItem('user');
             // Redirect to login page
-            window.location.href = '/login';
+            window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+            return Promise.reject(backendError);
+          }
+
+          // Handle forbidden errors — navigate to /unauthorized (no localStorage clear)
+          if (backendError.status === 403) {
+            if (window.location.pathname !== '/unauthorized') {
+              const redirect = encodeURIComponent(window.location.pathname + window.location.search);
+              imperativeNavigate(`/unauthorized?redirect=${redirect}`, { replace: true });
+            }
+            return Promise.reject(backendError);
+          }
+
+          // Handle not-found errors — navigate to /not-found (no localStorage clear)
+          if (backendError.status === 404) {
+            if (window.location.pathname !== '/not-found') {
+              imperativeNavigate('/not-found', { replace: true });
+            }
             return Promise.reject(backendError);
           }
 
@@ -103,15 +123,21 @@ class ApiService {
             
             localStorage.removeItem('auth_token');
             localStorage.removeItem('user');
-            window.location.href = '/login';
+            window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
             break;
           }
-          case 403:
-            message = 'Access denied. You don\'t have permission for this action.';
-            break;
+          case 403: {
+            if (window.location.pathname !== '/unauthorized') {
+              const redirect = encodeURIComponent(window.location.pathname + window.location.search);
+              imperativeNavigate(`/unauthorized?redirect=${redirect}`, { replace: true });
+            }
+            return Promise.reject(new Error('Access denied. You don\'t have permission for this action.'));
+          }
           case 404:
-            message = 'Resource not found.';
-            break;
+            if (window.location.pathname !== '/not-found') {
+              imperativeNavigate('/not-found', { replace: true });
+            }
+            return Promise.reject(new Error('Resource not found.'));
           case 500:
             message = 'Server error. Please try again later.';
             break;

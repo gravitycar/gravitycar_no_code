@@ -1,41 +1,27 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useSearchParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { ErrorBoundary } from './components/error/ErrorBoundary';
 import Layout from './components/layout/Layout';
 import Login from './components/auth/Login';
-import Dashboard from './pages/Dashboard';
-import MetadataTestPage from './pages/MetadataTestPage';
-import TestRelatedRecord from './pages/TestRelatedRecord';
 import DynamicModelRoute from './components/routing/DynamicModelRoute';
 import GenericCrudPage from './components/crud/GenericCrudPage';
-import MoviesQuotesRelationshipDemo from './pages/MoviesQuotesRelationshipDemo';
 import TriviaPage from './pages/TriviaPage';
 import ProjectsPage from './pages/ProjectsPage';
 import DnDChatPage from './pages/DnDChatPage';
 import ChartOfGoodness from './pages/ChartOfGoodness';
 import BatchProposeDates from './pages/BatchProposeDates';
+import UnauthorizedPage from './pages/UnauthorizedPage';
+import NotFoundPage from './pages/NotFoundPage';
+import { NavigatorSetter } from './utils/navigate';
+import { getRedirectPath } from './utils/redirectPath';
 import './App.css';
-
-// Protected Route Component
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { isAuthenticated, isLoading } = useAuth();
-  
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg text-gray-600">Loading...</div>
-      </div>
-    );
-  }
-  
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
-};
 
 // Public Route Component (only accessible when NOT authenticated)
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, isLoading } = useAuth();
-  
+  const [searchParams] = useSearchParams();
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -43,82 +29,35 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
       </div>
     );
   }
-  
-  return !isAuthenticated ? <>{children}</> : <Navigate to="/dashboard" replace />;
+
+  return !isAuthenticated ? <>{children}</> : <Navigate to={getRedirectPath(searchParams)} replace />;
 };
 
 // App Routes Component
 const AppRoutes = () => {
   return (
     <Routes>
-      {/* Public Routes */}
-      <Route 
-        path="/login" 
+      {/* Login — public only (redirect authenticated users away) */}
+      <Route
+        path="/login"
         element={
           <PublicRoute>
             <Login />
           </PublicRoute>
-        } 
-      />
-      
-      {/* Protected Routes */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <Dashboard />
-            </Layout>
-          </ProtectedRoute>
         }
       />
-      
+
+      {/* Root — public home page (no auth requirement) */}
       <Route
-        path="/metadata-test"
+        path="/"
         element={
-          <ProtectedRoute>
-            <Layout>
-              <MetadataTestPage />
-            </Layout>
-          </ProtectedRoute>
+          <Layout>
+            <ProjectsPage />
+          </Layout>
         }
       />
-      
-      <Route
-        path="/test-related-record"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <TestRelatedRecord />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      
-      <Route
-        path="/movies-quotes-demo"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <MoviesQuotesRelationshipDemo />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* Movie Quote Trivia Game Route */}
-      <Route
-        path="/trivia"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <TriviaPage />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      
-      {/* Projects Showcase Route - public, no ProtectedRoute */}
+
+      {/* Projects Showcase alias — kept for backwards compatibility */}
       <Route
         path="/projects_showcase"
         element={
@@ -128,19 +67,47 @@ const AppRoutes = () => {
         }
       />
 
-      {/* D&D RAG Chat Route */}
+      {/* Unauthorized — public (403 interceptor navigates here) */}
+      <Route
+        path="/unauthorized"
+        element={
+          <Layout>
+            <UnauthorizedPage />
+          </Layout>
+        }
+      />
+
+      {/* Not Found — public (404 interceptor navigates here) */}
+      <Route
+        path="/not-found"
+        element={
+          <Layout>
+            <NotFoundPage />
+          </Layout>
+        }
+      />
+
+      {/* Trivia Game */}
+      <Route
+        path="/trivia"
+        element={
+          <Layout>
+            <TriviaPage />
+          </Layout>
+        }
+      />
+
+      {/* D&D RAG Chat */}
       <Route
         path="/dnd-chat"
         element={
-          <ProtectedRoute>
-            <Layout>
-              <DnDChatPage />
-            </Layout>
-          </ProtectedRoute>
+          <Layout>
+            <DnDChatPage />
+          </Layout>
         }
       />
-      
-      {/* Events Routes - accessible without ProtectedRoute for guest read-only */}
+
+      {/* Events Routes */}
       <Route
         path="/events"
         element={
@@ -164,44 +131,31 @@ const AppRoutes = () => {
       <Route
         path="/events/:eventId/propose-dates"
         element={
-          <ProtectedRoute>
-            <Layout>
-              <BatchProposeDates />
-            </Layout>
-          </ProtectedRoute>
+          <Layout>
+            <BatchProposeDates />
+          </Layout>
         }
       />
 
-      {/* Default route */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
-      {/* Dynamic Model Routes - handles any model using GenericCrudPage */}
-      {/* This must be placed AFTER all specific routes but BEFORE the 404 route */}
+      {/* Dynamic Model Routes — catch-all for any model using GenericCrudPage */}
+      {/* Must be placed AFTER all specific routes but BEFORE the 404 route */}
       <Route
         path="/:modelName"
         element={
-          <ProtectedRoute>
-            <Layout>
-              <DynamicModelRoute />
-            </Layout>
-          </ProtectedRoute>
+          <Layout>
+            <DynamicModelRoute />
+          </Layout>
         }
       />
-      
-      {/* 404 route */}
-      <Route 
-        path="*" 
+
+      {/* 404 — catch-all for unknown frontend paths */}
+      <Route
+        path="*"
         element={
-          <div className="min-h-screen flex items-center justify-center">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">404</h1>
-              <p className="text-gray-600 mb-4">Page not found</p>
-              <a href="/dashboard" className="text-blue-600 hover:text-blue-800">
-                Go to Dashboard
-              </a>
-            </div>
-          </div>
-        } 
+          <Layout>
+            <NotFoundPage />
+          </Layout>
+        }
       />
     </Routes>
   );
@@ -213,6 +167,7 @@ function App() {
       <NotificationProvider>
         <AuthProvider>
           <Router>
+            <NavigatorSetter />
             <AppRoutes />
           </Router>
         </AuthProvider>

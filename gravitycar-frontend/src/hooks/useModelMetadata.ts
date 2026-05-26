@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import type { ModelMetadata } from '../types';
 import { metadataCache } from '../services/metadataCache';
 import { fetchWithDebug } from '../utils/apiUtils';
+import { imperativeNavigate } from '../utils/navigate';
 
 interface UseModelMetadataReturn {
   metadata: ModelMetadata | null;
@@ -44,6 +45,10 @@ export const useModelMetadata = (modelName: string): UseModelMetadataReturn => {
       });
 
       if (!response.ok) {
+        if (response.status === 404) {
+          imperativeNavigate('/not-found', { replace: true });
+          return;
+        }
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 

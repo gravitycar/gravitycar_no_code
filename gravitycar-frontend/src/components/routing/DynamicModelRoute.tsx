@@ -16,8 +16,8 @@ const DynamicModelRoute: React.FC = () => {
         <div className="text-center">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Invalid Model</h1>
           <p className="text-gray-600 mb-4">No model specified</p>
-          <a href="/dashboard" className="text-blue-600 hover:text-blue-800">
-            Go to Dashboard
+          <a href="/" className="text-blue-600 hover:text-blue-800">
+            Go to Home Page
           </a>
         </div>
       </div>
