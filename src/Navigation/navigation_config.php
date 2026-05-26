@@ -5,13 +5,6 @@ return [
     // NOTE: Navigation elements will be displayed in source-code order
     'custom_pages' => [
         [
-            'key' => 'dashboard',
-            'title' => 'Dashboard',
-            'url' => '/dashboard',
-            'icon' => '📊',
-            'roles' => ['*'] // All roles
-        ],
-        [
             'key' => 'trivia',
             'title' => 'Movie Quote Trivia Game',
             'url' => '/trivia',

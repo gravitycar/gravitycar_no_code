@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useGoogleOAuth, decodeGoogleJWT } from '../../hooks/useGoogleOAuth';
+import { getRedirectPath } from '../../utils/redirectPath';
 import type { CredentialResponse } from '../../types/google';
 
 const GoogleSignInButton = () => {
   const { loginWithGoogle } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const buttonRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
@@ -26,10 +30,12 @@ const GoogleSignInButton = () => {
 
       // Call your backend Google OAuth endpoint
       const result = await loginWithGoogle(credentialResponse.credential);
-      
+
       if (!result.success) {
         setError(result.message || 'Google login failed');
+        return;
       }
+      navigate(getRedirectPath(searchParams));
     } catch (error: unknown) {
       console.error('❌ Google login error:', error);
       const errorMessage = error instanceof Error ? error.message : 'An error occurred during Google login';
@@ -37,7 +43,7 @@ const GoogleSignInButton = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [loginWithGoogle]);
+  }, [loginWithGoogle, navigate, searchParams]);
 
   const handleGoogleError = useCallback((error: unknown) => {
     console.error('❌ Google OAuth error:', error);

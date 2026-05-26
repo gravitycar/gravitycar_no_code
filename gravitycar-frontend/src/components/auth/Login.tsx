@@ -1,6 +1,8 @@
 import { useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import GoogleSignInButton from './GoogleSignInButton';
+import { getRedirectPath } from '../../utils/redirectPath';
 import type { LoginCredentials } from '../../types';
 
 const Login = () => {
@@ -10,8 +12,10 @@ const Login = () => {
   });
   const [error, setError] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const { login } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,8 +26,9 @@ const Login = () => {
       const response = await login(credentials);
       if (!response.success) {
         setError(response.message || 'Login failed');
+        return;
       }
-      // If successful, the auth context will handle the redirect
+      navigate(getRedirectPath(searchParams));
     } catch {
       setError('An unexpected error occurred');
     } finally {

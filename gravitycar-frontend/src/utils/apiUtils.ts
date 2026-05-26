@@ -17,8 +17,10 @@ export const fetchWithDebug = async (url: string, options: RequestInit = {}): Pr
   // Parse existing URL parameters
   const urlObj = new URL(fullUrl);
   
-  // Add XDEBUG_TRIGGER parameter for debugging
-  urlObj.searchParams.set('XDEBUG_TRIGGER', 'mike');
+  // Add XDEBUG_TRIGGER parameter for debugging (development only)
+  if (import.meta.env.DEV) {
+    urlObj.searchParams.set('XDEBUG_TRIGGER', 'mike');
+  }
   
   // Set up headers with authentication
   const headers = new Headers(options.headers);
@@ -47,7 +49,7 @@ export const fetchWithDebug = async (url: string, options: RequestInit = {}): Pr
     if (response.status === 401) {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
       throw new Error('Authentication required. Please log in.');
     }
     
@@ -71,9 +73,12 @@ export const buildApiUrl = (endpoint: string): string => {
 };
 
 /**
- * Helper function to add XDEBUG_TRIGGER to existing URLs
+ * Helper function to add XDEBUG_TRIGGER to existing URLs (development only)
  */
 export const addDebugTrigger = (url: string): string => {
+  if (!import.meta.env.DEV) {
+    return url;
+  }
   const urlObj = new URL(url);
   urlObj.searchParams.set('XDEBUG_TRIGGER', 'mike');
   return urlObj.toString();

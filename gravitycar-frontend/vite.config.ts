@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 // @ts-expect-error - Module resolution issue with plugin-react in TypeScript 5.8.3
 import react from '@vitejs/plugin-react'
 
@@ -15,4 +15,10 @@ export default defineConfig({
     }
   },
   envPrefix: 'VITE_', // Ensure VITE_ prefixed env vars are exposed to client
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+  },
 })
