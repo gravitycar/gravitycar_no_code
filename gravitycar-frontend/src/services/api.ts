@@ -13,6 +13,7 @@ import type {
 import type { NavigationItem } from '../types/navigation';
 import { ApiError, isBackendErrorResponse } from '../utils/errors';
 import { imperativeNavigate } from '../utils/navigate';
+import { handleAuthError } from '../utils/authError';
 
 class ApiService {
   private api: AxiosInstance;
@@ -64,28 +65,14 @@ class ApiService {
           
           // Handle authentication errors
           if (backendError.status === 401) {
-            // Check if it's a session expiration
-            const sessionExpired = error.response.data.message?.includes('inactivity') || 
-                                   error.response.data.context?.code === 'SESSION_EXPIRED';
-            
-            if (sessionExpired) {
-              // Show notification for session timeout
-              alert('Your session has expired due to inactivity. Please log in again.');
-            }
-            
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
-            // Redirect to login page
-            window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+            // handleAuthError(401) shows the alert, clears localStorage, and hard-redirects.
+            handleAuthError(401);
             return Promise.reject(backendError);
           }
 
           // Handle forbidden errors — navigate to /unauthorized (no localStorage clear)
           if (backendError.status === 403) {
-            if (window.location.pathname !== '/unauthorized') {
-              const redirect = encodeURIComponent(window.location.pathname + window.location.search);
-              imperativeNavigate(`/unauthorized?redirect=${redirect}`, { replace: true });
-            }
+            handleAuthError(403);
             return Promise.reject(backendError);
           }
 
@@ -110,28 +97,13 @@ class ApiService {
             message = 'Bad request. Please check your input.';
             break;
           case 401: {
-            // Check if it's a session expiration
-            const sessionExpired = error.response.data?.message?.includes('inactivity') || 
-                                   error.response.data?.code === 'SESSION_EXPIRED';
-            
-            if (sessionExpired) {
-              message = 'Your session has expired due to inactivity. Please log in again.';
-              alert(message);
-            } else {
-              message = 'Authentication required. Please log in.';
-            }
-            
-            localStorage.removeItem('auth_token');
-            localStorage.removeItem('user');
-            window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+            // handleAuthError(401) shows the alert, clears localStorage, and hard-redirects.
+            handleAuthError(401);
             break;
           }
           case 403: {
-            if (window.location.pathname !== '/unauthorized') {
-              const redirect = encodeURIComponent(window.location.pathname + window.location.search);
-              imperativeNavigate(`/unauthorized?redirect=${redirect}`, { replace: true });
-            }
-            return Promise.reject(new Error('Access denied. You don\'t have permission for this action.'));
+            handleAuthError(403);
+            return Promise.reject(new Error("Access denied. You don't have permission for this action."));
           }
           case 404:
             if (window.location.pathname !== '/not-found') {

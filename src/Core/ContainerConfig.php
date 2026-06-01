@@ -12,6 +12,10 @@ use Gravitycar\Metadata\MetadataEngine;
 use Gravitycar\Schema\SchemaGenerator;
 use Gravitycar\Factories\ValidationRuleFactory;
 use Gravitycar\Factories\APIControllerFactory;
+use Gravitycar\Api\AdminAPIController;
+use Gravitycar\Services\Admin\AdminService;
+use Gravitycar\Services\Admin\CacheArchiver;
+use Gravitycar\Services\Admin\CacheRebuilder;
 use Gravitycar\Services\AuthenticationService;
 use Gravitycar\Services\AuthorizationService;
 use Gravitycar\Services\GoogleOAuthService;
@@ -579,6 +583,47 @@ class ContainerConfig {
         
         // Alias for OpenAPIGenerator service (APIControllerFactory expects underscore naming)
         $di->set('open_api_generator', $di->lazyGet('openapi_generator'));
+
+        // CacheArchiver — handles all tar archive operations for cache rebuild safety
+        $di->set('cache_archiver', $di->lazyNew(\Gravitycar\Services\Admin\CacheArchiver::class));
+        $di->params[\Gravitycar\Services\Admin\CacheArchiver::class] = [
+            'logger' => $di->lazyGet('logger'),
+            'config' => $di->lazyGet('config'),
+        ];
+
+        // CacheRebuilder — handles recursive clear, engine rebuild, and php -l validation
+        $di->set('cache_rebuilder', $di->lazyNew(\Gravitycar\Services\Admin\CacheRebuilder::class));
+        $di->params[\Gravitycar\Services\Admin\CacheRebuilder::class] = [
+            'logger'             => $di->lazyGet('logger'),
+            'config'             => $di->lazyGet('config'),
+            'metadataEngine'     => $di->lazyGet('metadata_engine'),
+            'apiRouteRegistry'   => $di->lazyGet('api_route_registry'),
+            'openAPIGenerator'   => $di->lazyGet('openapi_generator'),
+            'navigationBuilder'  => $di->lazyGet('navigation_builder'),
+            'schemaGenerator'    => $di->lazyGet('schema_generator'),
+            'permissionsBuilder' => $di->lazyGet('permissions_builder'),
+        ];
+
+        // AdminService — orchestrates cache rebuild lifecycle (singleton: stale scan runs once per request)
+        $di->set('admin_service', $di->lazyNew(\Gravitycar\Services\Admin\AdminService::class));
+        $di->params[\Gravitycar\Services\Admin\AdminService::class] = [
+            'logger'    => $di->lazyGet('logger'),
+            'config'    => $di->lazyGet('config'),
+            'archiver'  => $di->lazyGet('cache_archiver'),
+            'rebuilder' => $di->lazyGet('cache_rebuilder'),
+        ];
+
+        // AdminAPIController — admin-only cache rebuild SSE endpoint
+        $di->set('admin_api_controller', $di->lazyNew(\Gravitycar\Api\AdminAPIController::class));
+        $di->params[\Gravitycar\Api\AdminAPIController::class] = [
+            'logger'              => $di->lazyGet('logger'),
+            'modelFactory'        => $di->lazyGet('model_factory'),
+            'databaseConnector'   => $di->lazyGet('database_connector'),
+            'metadataEngine'      => $di->lazyGet('metadata_engine'),
+            'config'              => $di->lazyGet('config'),
+            'currentUserProvider' => $di->lazyGet('current_user_provider'),
+            'adminService'        => $di->lazyGet('admin_service'),
+        ];
     }
 
     /**

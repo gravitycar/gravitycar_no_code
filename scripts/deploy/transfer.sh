@@ -229,7 +229,7 @@ deploy_backend() {
         find /home/$PRODUCTION_USER/public_html/api.gravitycar.com -type d -exec chmod 755 {} \;
         
         # Make specific files executable
-        chmod +x /home/$PRODUCTION_USER/public_html/api.gravitycar.com/scripts/setup.php 2>/dev/null || true
+        chmod +x /home/$PRODUCTION_USER/public_html/api.gravitycar.com/scripts/application-update.php 2>/dev/null || true
         
         # Create/update production config
         if [ -f '$REMOTE_TEMP_DIR/config/production.conf' ]; then
@@ -243,7 +243,7 @@ deploy_backend() {
         
         # Run framework setup
         cd /home/$PRODUCTION_USER/public_html/api.gravitycar.com
-        php setup.php 2>/dev/null || echo 'Setup script had issues but continuing'
+        php scripts/application-update.php --all --schema --permissions 2>/dev/null || echo 'Setup script had issues but continuing'
         
         echo 'Backend deployment completed'
     "

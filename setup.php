@@ -1,5 +1,10 @@
 <?php
 /**
+ * @deprecated This script is deprecated. Use scripts/application-update.php instead.
+ *             This file will be removed in a future version. Do not use in new code.
+ */
+
+/**
  * Gravitycar Framework Setup Script
  * 
  * This script bootstraps the Gravitycar application, generates the database schema,
