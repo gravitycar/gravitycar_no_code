@@ -36,12 +36,13 @@ class AdminAPIController extends ApiControllerBase
      */
     protected array $rolesAndActions = ['admin' => ['*']];
 
-    private AdminService $adminService;
+    private ?AdminService $adminService;
 
     /**
      * 7-param constructor following the TMDBController / NavigationAPIController pattern.
      * All parameters are nullable with null defaults so Aura DI can wire them by name.
-     * AdminService falls back to the DI container if not explicitly injected.
+     * AdminService is resolved lazily on first use to avoid circular dependency during
+     * route discovery (APIRouteRegistry instantiates controllers to read their routes).
      */
     public function __construct(
         Logger $logger = null,
@@ -53,7 +54,15 @@ class AdminAPIController extends ApiControllerBase
         AdminService $adminService = null
     ) {
         parent::__construct($logger, $modelFactory, $databaseConnector, $metadataEngine, $config, $currentUserProvider);
-        $this->adminService = $adminService ?? ContainerConfig::getContainer()->get('admin_service');
+        $this->adminService = $adminService;
+    }
+
+    private function getAdminService(): AdminService
+    {
+        if ($this->adminService === null) {
+            $this->adminService = ContainerConfig::getContainer()->get('admin_service');
+        }
+        return $this->adminService;
     }
 
     /**
@@ -102,7 +111,7 @@ class AdminAPIController extends ApiControllerBase
         };
 
         try {
-            $result     = $this->adminService->performCacheRebuild($options, $onStep);
+            $result     = $this->getAdminService()->performCacheRebuild($options, $onStep);
             $finalEvent = array_merge($result->toArray(), ['done' => true]);
             $this->emitEvent($finalEvent);
         } catch (\Throwable $e) {

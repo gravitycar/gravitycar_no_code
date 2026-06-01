@@ -48,16 +48,38 @@ class CacheRebuilderTest extends TestCase
 
     private function makeRebuilder(): CacheRebuilder
     {
-        return new CacheRebuilder(
+        $mockMetadataEngine     = $this->mockMetadataEngine;
+        $mockApiRouteRegistry   = $this->mockApiRouteRegistry;
+        $mockOpenAPIGenerator   = $this->mockOpenAPIGenerator;
+        $mockNavigationBuilder  = $this->mockNavigationBuilder;
+        $mockSchemaGenerator    = $this->mockSchemaGenerator;
+        $mockPermissionsBuilder = $this->mockPermissionsBuilder;
+
+        // Anonymous subclass overrides the protected lazy-getters so tests can
+        // inject mocks without touching ContainerConfig.
+        return new class(
             $this->mockLogger,
             $this->mockConfig,
-            $this->mockMetadataEngine,
-            $this->mockApiRouteRegistry,
-            $this->mockOpenAPIGenerator,
-            $this->mockNavigationBuilder,
-            $this->mockSchemaGenerator,
-            $this->mockPermissionsBuilder
-        );
+            $mockMetadataEngine,
+            $mockApiRouteRegistry,
+            $mockOpenAPIGenerator,
+            $mockNavigationBuilder,
+            $mockSchemaGenerator,
+            $mockPermissionsBuilder
+        ) extends CacheRebuilder {
+            private $me; private $ar; private $og; private $nb; private $sg; private $pb;
+            public function __construct($l, $c, $me, $ar, $og, $nb, $sg, $pb) {
+                parent::__construct($l, $c);
+                $this->me = $me; $this->ar = $ar; $this->og = $og;
+                $this->nb = $nb; $this->sg = $sg; $this->pb = $pb;
+            }
+            protected function getMetadataEngine(): \Gravitycar\Metadata\MetadataEngine { return $this->me; }
+            protected function getApiRouteRegistry(): \Gravitycar\Api\APIRouteRegistry { return $this->ar; }
+            protected function getOpenAPIGenerator(): \Gravitycar\Services\OpenAPIGenerator { return $this->og; }
+            protected function getNavigationBuilder(): \Gravitycar\Services\NavigationBuilder { return $this->nb; }
+            protected function getSchemaGenerator(): \Gravitycar\Schema\SchemaGenerator { return $this->sg; }
+            protected function getPermissionsBuilder(): \Gravitycar\Services\PermissionsBuilder { return $this->pb; }
+        };
     }
 
     // -------------------------------------------------------------------------

@@ -591,17 +591,14 @@ class ContainerConfig {
             'config' => $di->lazyGet('config'),
         ];
 
-        // CacheRebuilder — handles recursive clear, engine rebuild, and php -l validation
+        // CacheRebuilder — handles recursive clear, engine rebuild, and php -l validation.
+        // Engine services are resolved lazily inside rebuild() via ContainerConfig::getContainer()
+        // to avoid Aura DI's reflection resolver cascading into ModelBaseAPIController (a
+        // pre-existing case-sensitivity issue on Linux file systems).
         $di->set('cache_rebuilder', $di->lazyNew(\Gravitycar\Services\Admin\CacheRebuilder::class));
         $di->params[\Gravitycar\Services\Admin\CacheRebuilder::class] = [
-            'logger'             => $di->lazyGet('logger'),
-            'config'             => $di->lazyGet('config'),
-            'metadataEngine'     => $di->lazyGet('metadata_engine'),
-            'apiRouteRegistry'   => $di->lazyGet('api_route_registry'),
-            'openAPIGenerator'   => $di->lazyGet('openapi_generator'),
-            'navigationBuilder'  => $di->lazyGet('navigation_builder'),
-            'schemaGenerator'    => $di->lazyGet('schema_generator'),
-            'permissionsBuilder' => $di->lazyGet('permissions_builder'),
+            'logger' => $di->lazyGet('logger'),
+            'config' => $di->lazyGet('config'),
         ];
 
         // AdminService — orchestrates cache rebuild lifecycle (singleton: stale scan runs once per request)

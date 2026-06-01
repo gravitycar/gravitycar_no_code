@@ -13,6 +13,9 @@ define('EXIT_SUCCESS', 0);
 define('EXIT_FAILURE', 1);
 define('EXIT_INVALID_ARGS', 2);
 
+// Ensure cwd is always the project root, regardless of where the script is invoked from.
+chdir(__DIR__ . '/..');
+
 require_once __DIR__ . '/../vendor/autoload.php';
 
 use Gravitycar\Core\Gravitycar;

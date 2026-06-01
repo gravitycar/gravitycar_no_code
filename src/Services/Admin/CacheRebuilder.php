@@ -4,14 +4,9 @@ declare(strict_types=1);
 
 namespace Gravitycar\Services\Admin;
 
-use Gravitycar\Api\APIRouteRegistry;
 use Gravitycar\Core\Config;
+use Gravitycar\Core\ContainerConfig;
 use Gravitycar\Exceptions\AdminServiceException;
-use Gravitycar\Metadata\MetadataEngine;
-use Gravitycar\Schema\SchemaGenerator;
-use Gravitycar\Services\NavigationBuilder;
-use Gravitycar\Services\OpenAPIGenerator;
-use Gravitycar\Services\PermissionsBuilder;
 use Monolog\Logger;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
@@ -47,31 +42,44 @@ class CacheRebuilder
 
     private Logger $logger;
     private Config $config;
-    private MetadataEngine $metadataEngine;
-    private APIRouteRegistry $apiRouteRegistry;
-    private OpenAPIGenerator $openAPIGenerator;
-    private NavigationBuilder $navigationBuilder;
-    private SchemaGenerator $schemaGenerator;
-    private PermissionsBuilder $permissionsBuilder;
 
-    public function __construct(
-        Logger $logger,
-        Config $config,
-        MetadataEngine $metadataEngine,
-        APIRouteRegistry $apiRouteRegistry,
-        OpenAPIGenerator $openAPIGenerator,
-        NavigationBuilder $navigationBuilder,
-        SchemaGenerator $schemaGenerator,
-        PermissionsBuilder $permissionsBuilder
-    ) {
-        $this->logger             = $logger;
-        $this->config             = $config;
-        $this->metadataEngine     = $metadataEngine;
-        $this->apiRouteRegistry   = $apiRouteRegistry;
-        $this->openAPIGenerator   = $openAPIGenerator;
-        $this->navigationBuilder  = $navigationBuilder;
-        $this->schemaGenerator    = $schemaGenerator;
-        $this->permissionsBuilder = $permissionsBuilder;
+    public function __construct(Logger $logger, Config $config)
+    {
+        $this->logger = $logger;
+        $this->config = $config;
+    }
+
+    // Engine services are resolved lazily to avoid triggering Aura DI's reflection
+    // resolver on services that have deep dependency chains containing case-sensitive
+    // class names (a pre-existing framework issue on Linux file systems).
+    protected function getMetadataEngine(): \Gravitycar\Metadata\MetadataEngine
+    {
+        return ContainerConfig::getContainer()->get('metadata_engine');
+    }
+
+    protected function getApiRouteRegistry(): \Gravitycar\Api\APIRouteRegistry
+    {
+        return ContainerConfig::getContainer()->get('api_route_registry');
+    }
+
+    protected function getOpenAPIGenerator(): \Gravitycar\Services\OpenAPIGenerator
+    {
+        return ContainerConfig::getContainer()->get('openapi_generator');
+    }
+
+    protected function getNavigationBuilder(): \Gravitycar\Services\NavigationBuilder
+    {
+        return ContainerConfig::getContainer()->get('navigation_builder');
+    }
+
+    protected function getSchemaGenerator(): \Gravitycar\Schema\SchemaGenerator
+    {
+        return ContainerConfig::getContainer()->get('schema_generator');
+    }
+
+    protected function getPermissionsBuilder(): \Gravitycar\Services\PermissionsBuilder
+    {
+        return ContainerConfig::getContainer()->get('permissions_builder');
     }
 
     /**
@@ -236,7 +244,7 @@ class CacheRebuilder
     private function rebuildComponent(string $component): ?array
     {
         return match ($component) {
-            CacheComponent::METADATA   => $this->metadataEngine->loadAllMetadata(),
+            CacheComponent::METADATA   => $this->getMetadataEngine()->loadAllMetadata(),
             CacheComponent::ROUTES     => $this->rebuildRoutes(),
             CacheComponent::DOCS       => $this->rebuildDocs(),
             CacheComponent::NAVIGATION => $this->rebuildNavigation(),
@@ -245,19 +253,19 @@ class CacheRebuilder
 
     private function rebuildRoutes(): null
     {
-        $this->apiRouteRegistry->rebuildCache();
+        $this->getApiRouteRegistry()->rebuildCache();
         return null;
     }
 
     private function rebuildDocs(): null
     {
-        $this->openAPIGenerator->generateSpecification();
+        $this->getOpenAPIGenerator()->generateSpecification();
         return null;
     }
 
     private function rebuildNavigation(): null
     {
-        $this->navigationBuilder->buildAllRoleNavigationCaches();
+        $this->getNavigationBuilder()->buildAllRoleNavigationCaches();
         return null;
     }
 
@@ -269,13 +277,13 @@ class CacheRebuilder
     ): void {
         if ($updateSchema && $metadata !== null) {
             $onStep(CacheStepResult::inProgress('schema_update', CacheComponent::METADATA));
-            $this->schemaGenerator->generateSchema($metadata);
+            $this->getSchemaGenerator()->generateSchema($metadata);
             $onStep(CacheStepResult::success('schema_update', CacheComponent::METADATA));
         }
 
         if ($updatePermissions) {
             $onStep(CacheStepResult::inProgress('permissions_update', CacheComponent::METADATA));
-            $this->permissionsBuilder->buildAllPermissions();
+            $this->getPermissionsBuilder()->buildAllPermissions();
             $onStep(CacheStepResult::success('permissions_update', CacheComponent::METADATA));
         }
     }
