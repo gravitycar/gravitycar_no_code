@@ -370,7 +370,8 @@ class APIRouteRegistry
                     'Gravitycar\\Api\\APIRouteRegistry' => 'api_route_registry',
                     'Gravitycar\\Services\\DocumentationCache' => 'documentation_cache',
                     'Gravitycar\\Services\\ReactComponentMapper' => 'react_component_mapper',
-                    'Gravitycar\\Services\\NavigationBuilder' => 'navigation_builder'
+                    'Gravitycar\\Services\\NavigationBuilder' => 'navigation_builder',
+                    'Gravitycar\\Services\\Admin\\AdminService' => 'admin_service',
                 ];
                 
                 if (!isset($serviceMap[$typeName])) {
