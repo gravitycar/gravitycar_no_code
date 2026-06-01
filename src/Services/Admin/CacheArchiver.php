@@ -33,17 +33,21 @@ class CacheArchiver
     private Logger $logger;
     private Config $config;
     private string $appRootDirPath;
+    private string $cacheDirAbsPath;
 
     public function __construct(Logger $logger, Config $config)
     {
         $this->logger = $logger;
         $this->config = $config;
 
-        $cacheDirPath         = $this->config->get('cache.directory', 'cache');
-        $resolvedPath         = realpath($cacheDirPath);
-        $this->appRootDirPath = $resolvedPath !== false
+        $cacheDirPath           = $this->config->get('cache.directory', 'cache');
+        $resolvedPath           = realpath($cacheDirPath);
+        $this->appRootDirPath   = $resolvedPath !== false
             ? dirname($resolvedPath)
             : dirname($cacheDirPath);
+        $this->cacheDirAbsPath  = $resolvedPath !== false
+            ? $resolvedPath
+            : $this->appRootDirPath . DIRECTORY_SEPARATOR . basename($cacheDirPath);
     }
 
     /**
@@ -57,15 +61,14 @@ class CacheArchiver
     {
         $archiveFilename = 'cache_' . date('Y_m_d_H_i_s') . '.tar';
         $archiveFilePath = $this->appRootDirPath . DIRECTORY_SEPARATOR . $archiveFilename;
-        $cacheDirPath    = $this->config->get('cache.directory', 'cache');
 
         $this->logger->info('Creating cache archive', [
-            'archiveFilePath' => $archiveFilePath,
-            'cacheDirPath'    => $cacheDirPath,
+            'archiveFilePath'  => $archiveFilePath,
+            'cacheDirAbsPath'  => $this->cacheDirAbsPath,
         ]);
 
         exec(
-            'tar -cf ' . escapeshellarg($archiveFilePath) . ' ' . escapeshellarg($cacheDirPath),
+            'tar -cf ' . escapeshellarg($archiveFilePath) . ' ' . escapeshellarg($this->cacheDirAbsPath),
             $output,
             $exitCode
         );
