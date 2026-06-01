@@ -196,7 +196,7 @@ const ConfirmRebuildModal: React.FC<ConfirmRebuildModalProps> = ({
       const token   = localStorage.getItem('auth_token');
       const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
 
-      const response = await fetch(`${baseUrl}/api/admin/cache/rebuild`, {
+      const response = await fetch(`${baseUrl}/admin/cache/rebuild`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
