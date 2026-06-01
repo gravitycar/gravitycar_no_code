@@ -728,6 +728,7 @@ class AuthenticationService
             'profile_picture_url' => $user->get('profile_picture_url'),
             'is_active' => $user->get('is_active'),
             'user_timezone' => $user->get('user_timezone'),
+            'user_type' => $user->get('user_type'),
         ];
     }
     
