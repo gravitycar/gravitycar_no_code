@@ -295,11 +295,29 @@ class CacheRebuilder
     private function collectFilesForComponent(string $component): array
     {
         return match ($component) {
-            CacheComponent::METADATA   => $this->filterExisting([self::COMPONENT_CACHE_PATHS[CacheComponent::METADATA]]),
-            CacheComponent::ROUTES     => $this->filterExisting([self::COMPONENT_CACHE_PATHS[CacheComponent::ROUTES]]),
+            CacheComponent::METADATA   => $this->requireSingleFile(self::COMPONENT_CACHE_PATHS[CacheComponent::METADATA], $component),
+            CacheComponent::ROUTES     => $this->requireSingleFile(self::COMPONENT_CACHE_PATHS[CacheComponent::ROUTES], $component),
             CacheComponent::DOCS       => $this->collectPhpFilesInDir(self::COMPONENT_CACHE_PATHS[CacheComponent::DOCS]),
             CacheComponent::NAVIGATION => $this->filterExisting(glob(self::NAVIGATION_CACHE_GLOB) ?: []),
         };
+    }
+
+    /**
+     * Returns a single-element array with the file path if the file exists,
+     * or throws AdminServiceException if it does not. Used for cache components
+     * that must produce exactly one output file (METADATA, ROUTES).
+     *
+     * @throws AdminServiceException if the expected file was not created by the rebuild.
+     */
+    private function requireSingleFile(string $filePath, string $component): array
+    {
+        if (!file_exists($filePath)) {
+            throw new AdminServiceException(
+                'Cache rebuild produced no output file — the source metadata may contain a syntax error',
+                ['filePath' => $filePath, 'component' => $component]
+            );
+        }
+        return [$filePath];
     }
 
     private function filterExisting(array $paths): array

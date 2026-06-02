@@ -317,10 +317,31 @@ class CacheRebuilderTest extends TestCase
 
     public function testValidateDoesNothingWhenFileDoesNotExist(): void
     {
-        // If the file doesn't exist, validate skips it (filterExisting returns empty)
-        // Use NAVIGATION component — uses glob pattern, will be empty in a clean test run
+        // NAVIGATION uses glob — empty result is acceptable (no required single file)
         $rebuilder = $this->makeRebuilder();
         $rebuilder->validate([CacheComponent::NAVIGATION]);
         $this->addToAssertionCount(1); // no exception = pass
+    }
+
+    public function testValidateThrowsWhenMetadataCacheFileMissing(): void
+    {
+        // METADATA and ROUTES require their output file to exist after rebuild.
+        // A missing file means the rebuild silently failed (e.g. syntax error in source).
+        $rebuilder = $this->makeRebuilder();
+
+        $this->expectException(\Gravitycar\Exceptions\AdminServiceException::class);
+        $this->expectExceptionMessageMatches('/no output file/');
+
+        $rebuilder->validate([CacheComponent::METADATA]);
+    }
+
+    public function testValidateThrowsWhenRoutesCacheFileMissing(): void
+    {
+        $rebuilder = $this->makeRebuilder();
+
+        $this->expectException(\Gravitycar\Exceptions\AdminServiceException::class);
+        $this->expectExceptionMessageMatches('/no output file/');
+
+        $rebuilder->validate([CacheComponent::ROUTES]);
     }
 }
