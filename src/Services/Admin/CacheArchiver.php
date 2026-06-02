@@ -68,7 +68,9 @@ class CacheArchiver
         ]);
 
         exec(
-            'tar -cf ' . escapeshellarg($archiveFilePath) . ' ' . escapeshellarg($this->cacheDirAbsPath),
+            'tar -cf ' . escapeshellarg($archiveFilePath)
+                . ' -C ' . escapeshellarg($this->appRootDirPath)
+                . ' ' . escapeshellarg(basename($this->cacheDirAbsPath)),
             $output,
             $exitCode
         );
