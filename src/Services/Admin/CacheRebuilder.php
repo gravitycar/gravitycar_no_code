@@ -244,11 +244,18 @@ class CacheRebuilder
     private function rebuildComponent(string $component): ?array
     {
         return match ($component) {
-            CacheComponent::METADATA   => $this->getMetadataEngine()->loadAllMetadata(),
+            CacheComponent::METADATA   => $this->rebuildMetadata(),
             CacheComponent::ROUTES     => $this->rebuildRoutes(),
             CacheComponent::DOCS       => $this->rebuildDocs(),
             CacheComponent::NAVIGATION => $this->rebuildNavigation(),
         };
+    }
+
+    private function rebuildMetadata(): array
+    {
+        $engine = $this->getMetadataEngine();
+        $engine->clearAllCaches();
+        return $engine->loadAllMetadata();
     }
 
     private function rebuildRoutes(): null
