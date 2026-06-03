@@ -13,6 +13,8 @@ import ChartOfGoodness from './pages/ChartOfGoodness';
 import BatchProposeDates from './pages/BatchProposeDates';
 import UnauthorizedPage from './pages/UnauthorizedPage';
 import NotFoundPage from './pages/NotFoundPage';
+import ProtectedRoute from './components/ProtectedRoute';
+import AdminPage from './pages/AdminPage';
 import { NavigatorSetter } from './utils/navigate';
 import { getRedirectPath } from './utils/redirectPath';
 import './App.css';
@@ -133,6 +135,18 @@ const AppRoutes = () => {
         element={
           <Layout>
             <BatchProposeDates />
+          </Layout>
+        }
+      />
+
+      {/* Admin Panel — admin role required */}
+      <Route
+        path="/admin"
+        element={
+          <Layout>
+            <ProtectedRoute requiredRole="admin">
+              <AdminPage />
+            </ProtectedRoute>
           </Layout>
         }
       />

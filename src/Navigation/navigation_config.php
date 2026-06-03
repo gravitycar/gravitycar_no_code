@@ -45,6 +45,13 @@ return [
             'url' => '/projects_showcase',
             'icon' => '🗂️',
             'roles' => ['*']
+        ],
+        [
+            'key' => 'admin',
+            'title' => 'Admin Panel',
+            'url' => '/admin',
+            'icon' => '⚙️',
+            'roles' => ['admin']
         ]
     ],
 

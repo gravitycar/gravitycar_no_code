@@ -316,14 +316,14 @@ EOF
 rebuild_cache() {
     log "INFO" "Rebuilding framework cache..."
     
-    if [[ -f "setup.php" ]]; then
-        if php setup.php; then
+    if [[ -f "scripts/application-update.php" ]]; then
+        if php scripts/application-update.php --all --schema --permissions; then
             log "SUCCESS" "Framework cache rebuilt successfully"
         else
             log "WARN" "Cache rebuild failed, but continuing build"
         fi
     else
-        log "DEBUG" "setup.php not found, skipping cache rebuild"
+        log "DEBUG" "scripts/application-update.php not found, skipping cache rebuild"
     fi
 }
 
