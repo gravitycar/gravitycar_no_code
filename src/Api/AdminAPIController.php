@@ -34,7 +34,7 @@ class AdminAPIController extends ApiControllerBase
     /**
      * Admin-only access — overrides the base class open-access default.
      */
-    protected array $rolesAndActions = ['admin' => ['rebuild']];
+    protected array $rolesAndActions = ['admin' => ['*']];
 
     private ?AdminService $adminService;
 
