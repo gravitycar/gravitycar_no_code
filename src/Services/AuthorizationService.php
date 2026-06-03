@@ -476,13 +476,13 @@ class AuthorizationService
      */
     protected function determineAction(array $route, Request $request): string
     {
-        // First check if route has explicit RBACAction
-        if (isset($route['RBACAction'])) {
-            $this->logger->debug('Using explicit RBACAction from route', [
-                'RBACAction' => $route['RBACAction'],
+        // First check if route has explicit rbacAction
+        if (isset($route['rbacAction'])) {
+            $this->logger->debug('Using explicit rbacAction from route', [
+                'rbacAction' => $route['rbacAction'],
                 'route_path' => $route['path'] ?? 'unknown'
             ]);
-            return $route['RBACAction'];
+            return $route['rbacAction'];
         }
         
         // Map HTTP methods to CRUD actions
