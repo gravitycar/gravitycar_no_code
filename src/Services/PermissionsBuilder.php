@@ -248,15 +248,29 @@ class PermissionsBuilder {
             
             // Get all unique actions for this controller
             $allActions = [];
+            $hasWildcard = false;
             foreach ($rolesAndActions as $role => $actions) {
                 if (in_array('*', $actions)) {
-                    // For controllers, we'll include a generic 'execute' action for wildcard
-                    $allActions = ['list', 'read', 'create', 'update', 'delete', 'execute'];
+                    $hasWildcard = true;
                     break;
                 } else {
                     $allActions = array_merge($allActions, $actions);
                 }
             }
+
+            if ($hasWildcard) {
+                // Seed the standard CRUD set, then add any custom rbacAction values
+                // declared on the controller's routes so wildcards cover them too.
+                $allActions = ['list', 'read', 'create', 'update', 'delete', 'execute'];
+                if (method_exists($controller, 'registerRoutes')) {
+                    foreach ($controller->registerRoutes() as $route) {
+                        if (!empty($route['rbacAction'])) {
+                            $allActions[] = $route['rbacAction'];
+                        }
+                    }
+                }
+            }
+
             $allActions = array_unique($allActions);
             
             // Create permissions for each role-action combination
