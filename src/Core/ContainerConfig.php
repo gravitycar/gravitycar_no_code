@@ -727,7 +727,7 @@ class ContainerConfig {
      * Returns an associative array of model name => FQCN.
      */
     private static function discoverModelFQCNsFromCache(): array {
-        $cacheFile = 'cache/metadata_cache.php';
+        $cacheFile = $_ENV['METADATA_CACHE_FILE'] ?? 'cache/metadata_cache.php';
 
         if (!file_exists($cacheFile)) {
             throw new ContainerException(

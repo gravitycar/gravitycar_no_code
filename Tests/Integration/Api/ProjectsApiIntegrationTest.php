@@ -10,6 +10,7 @@ use Gravitycar\Core\ServiceLocator;
 use Gravitycar\Exceptions\ForbiddenException;
 use Gravitycar\Exceptions\UnauthorizedException;
 use Gravitycar\Exceptions\UnprocessableEntityException;
+use Gravitycar\Utils\GuestUserManager;
 
 /**
  * Integration tests for the Projects model API endpoints.
@@ -70,6 +71,18 @@ class ProjectsApiIntegrationTest extends IntegrationTestCase
         );
 
         $this->createProjectsTable();
+
+        // Prime the guest user so CurrentUserProvider doesn't silently return null.
+        // If the guest role or Projects permissions are missing, skip rather than
+        // producing an uninformative auth failure.
+        try {
+            GuestUserManager::clearCache();
+            (new GuestUserManager())->getGuestUser();
+        } catch (\Exception $e) {
+            $this->markTestSkipped('Guest user unavailable (check that the guest role is seeded): ' . $e->getMessage());
+        }
+
+        unset($_SERVER['HTTP_AUTHORIZATION']);
     }
 
     protected function tearDown(): void

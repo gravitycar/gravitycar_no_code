@@ -130,6 +130,7 @@ class CacheRebuilder
         $this->logger->info('Rebuilding cache components', ['components' => $components]);
 
         $metadata = null;
+        $metadataWasRebuilt = false;
 
         foreach (CacheComponent::all() as $component) {
             if (!in_array($component, $components, strict: true)) {
@@ -137,12 +138,22 @@ class CacheRebuilder
             }
 
             $onStep(CacheStepResult::inProgress('rebuild', $component));
-            $metadata = $this->rebuildComponent($component);
+            $rebuildResult = $this->rebuildComponent($component);
             $onStep(CacheStepResult::success('rebuild', $component));
 
             if ($component === CacheComponent::METADATA) {
-                $this->runSchemaAndPermissions($metadata, $updateSchema, $updatePermissions, $onStep);
+                $metadata = $rebuildResult;
+                $metadataWasRebuilt = true;
             }
+        }
+
+        // Schema and permissions run after all components are rebuilt so that
+        // APIRouteRegistry has been refreshed by the ROUTES rebuild step before
+        // PermissionsBuilder queries it. Running them inside the loop (immediately
+        // after METADATA) caused permissions to be built from the stale in-memory
+        // route list that was loaded at container startup.
+        if ($metadataWasRebuilt) {
+            $this->runSchemaAndPermissions($metadata, $updateSchema, $updatePermissions, $onStep);
         }
 
         $this->logger->info('Cache rebuild complete', ['components' => $components]);
