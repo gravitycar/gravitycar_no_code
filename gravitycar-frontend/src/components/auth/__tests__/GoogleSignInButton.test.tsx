@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, waitFor } from '@testing-library/react';
+import { render, waitFor, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { CredentialResponse } from '../../../types/google';
 import type { AuthResponse } from '../../../types';
@@ -76,7 +76,7 @@ describe('GoogleSignInButton — handleGoogleSuccess', () => {
       renderButton('/login?redirect=%2Fevents');
 
       // Act — trigger the callback that the Google SDK would call
-      await capturedOnSuccess!(fakeCredentialResponse());
+      await act(async () => { await capturedOnSuccess!(fakeCredentialResponse()); });
 
       // Assert
       await waitFor(() => {
@@ -90,7 +90,7 @@ describe('GoogleSignInButton — handleGoogleSuccess', () => {
       renderButton('/login');
 
       // Act
-      await capturedOnSuccess!(fakeCredentialResponse());
+      await act(async () => { await capturedOnSuccess!(fakeCredentialResponse()); });
 
       // Assert
       await waitFor(() => {
@@ -106,7 +106,7 @@ describe('GoogleSignInButton — handleGoogleSuccess', () => {
       renderButton('/login');
 
       // Act
-      await capturedOnSuccess!(fakeCredentialResponse());
+      await act(async () => { await capturedOnSuccess!(fakeCredentialResponse()); });
 
       // Assert — navigate must NOT be called
       await waitFor(() => {
@@ -120,7 +120,7 @@ describe('GoogleSignInButton — handleGoogleSuccess', () => {
       renderButton('/login');
 
       // Act
-      await capturedOnSuccess!({ credential: undefined });
+      await act(async () => { await capturedOnSuccess!({ credential: undefined }); });
 
       // Assert
       await waitFor(() => {
@@ -134,7 +134,7 @@ describe('GoogleSignInButton — handleGoogleSuccess', () => {
       renderButton('/login');
 
       // Act
-      await capturedOnSuccess!(fakeCredentialResponse());
+      await act(async () => { await capturedOnSuccess!(fakeCredentialResponse()); });
 
       // Assert
       await waitFor(() => {

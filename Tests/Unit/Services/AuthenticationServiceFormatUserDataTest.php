@@ -133,7 +133,7 @@ class AuthenticationServiceFormatUserDataTest extends UnitTestCase
         $expectedKeys = [
             'id', 'email', 'username', 'first_name', 'last_name',
             'auth_provider', 'last_login_method', 'profile_picture_url',
-            'is_active', 'user_timezone',
+            'is_active', 'user_timezone', 'user_type',
         ];
 
         foreach ($expectedKeys as $key) {
@@ -158,6 +158,6 @@ class AuthenticationServiceFormatUserDataTest extends UnitTestCase
 
         $result = $this->invokeFormatUserData($mockUser);
 
-        $this->assertCount(10, $result);
+        $this->assertCount(11, $result);
     }
 }

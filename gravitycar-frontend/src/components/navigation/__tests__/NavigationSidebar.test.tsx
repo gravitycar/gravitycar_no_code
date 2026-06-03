@@ -1,16 +1,18 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
+import { vi } from 'vitest';
 import NavigationSidebar from '../NavigationSidebar';
 import { navigationService } from '../../../services/navigationService';
 import { useAuth } from '../../../hooks/useAuth';
 
 // Mock dependencies
-jest.mock('../../../services/navigationService');
-jest.mock('../../../hooks/useAuth');
+vi.mock('../../../services/navigationService');
+vi.mock('../../../hooks/useAuth');
 
-const mockNavigationService = navigationService as jest.Mocked<typeof navigationService>;
-const mockUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
+const mockNavigationService = navigationService as vi.Mocked<typeof navigationService>;
+const mockUseAuth = useAuth as vi.MockedFunction<typeof useAuth>;
 
 const mockNavigationData = {
   role: 'admin',
@@ -72,6 +74,15 @@ const mockNavigationData = {
   generated_at: '2025-01-01T00:00:00Z'
 };
 
+const renderWithRouter = (ui: React.ReactElement) => {
+  const result = render(<MemoryRouter>{ui}</MemoryRouter>);
+  return {
+    ...result,
+    rerender: (newUi: React.ReactElement) =>
+      result.rerender(<MemoryRouter>{newUi}</MemoryRouter>),
+  };
+};
+
 const mockNavigationResponse = {
   success: true,
   status: 200,
@@ -86,26 +97,29 @@ describe('NavigationSidebar', () => {
       user: { id: '1', username: 'testuser', user_type: 'admin' },
       isAuthenticated: true,
       isLoading: false,
-      login: jest.fn(),
-      logout: jest.fn()
+      login: vi.fn(),
+      logout: vi.fn()
     });
 
     mockNavigationService.getCurrentUserNavigation.mockResolvedValue(mockNavigationResponse);
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
-  it('renders loading state initially', () => {
-    render(<NavigationSidebar />);
-    
+  it('renders loading state initially', async () => {
+    renderWithRouter(<NavigationSidebar />);
+
     // Check for loading skeleton
     expect(document.querySelector('.animate-pulse')).toBeInTheDocument();
+
+    // Drain the pending async navigation fetch so it doesn't update state after the test exits
+    await act(async () => {});
   });
 
   it('renders navigation items after loading', async () => {
-    render(<NavigationSidebar />);
+    renderWithRouter(<NavigationSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText('Dashboard')).toBeInTheDocument();
@@ -121,7 +135,7 @@ describe('NavigationSidebar', () => {
 
   it('expands and collapses model actions', async () => {
     const user = userEvent.setup();
-    render(<NavigationSidebar />);
+    renderWithRouter(<NavigationSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText('Users')).toBeInTheDocument();
@@ -157,7 +171,7 @@ describe('NavigationSidebar', () => {
   });
 
   it('does not show expand button for models without actions', async () => {
-    render(<NavigationSidebar />);
+    renderWithRouter(<NavigationSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText('Movies')).toBeInTheDocument();
@@ -174,7 +188,7 @@ describe('NavigationSidebar', () => {
       new Error('Network error')
     );
 
-    render(<NavigationSidebar />);
+    renderWithRouter(<NavigationSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText('Failed to load navigation')).toBeInTheDocument();
@@ -184,13 +198,13 @@ describe('NavigationSidebar', () => {
 
   it('retries loading navigation on error', async () => {
     const user = userEvent.setup();
-    
+
     // First call fails
     mockNavigationService.getCurrentUserNavigation
       .mockRejectedValueOnce(new Error('Network error'))
       .mockResolvedValueOnce(mockNavigationResponse);
 
-    render(<NavigationSidebar />);
+    renderWithRouter(<NavigationSidebar />);
 
     // Should show error state
     await waitFor(() => {
@@ -213,7 +227,7 @@ describe('NavigationSidebar', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (import.meta.env as any).DEV = true;
 
-    render(<NavigationSidebar />);
+    renderWithRouter(<NavigationSidebar />);
 
     await waitFor(() => {
       expect(screen.getByText('Dashboard')).toBeInTheDocument();
@@ -245,7 +259,7 @@ describe('NavigationSidebar', () => {
       timestamp: '2025-01-01T00:00:00Z'
     });
 
-    render(<NavigationSidebar />);
+    renderWithRouter(<NavigationSidebar />);
 
     await waitFor(() => {
       // Should not show section headers when there's no content
@@ -254,17 +268,20 @@ describe('NavigationSidebar', () => {
     });
   });
 
-  it('applies custom className prop', () => {
-    render(<NavigationSidebar className="custom-class" />);
-    
+  it('applies custom className prop', async () => {
+    renderWithRouter(<NavigationSidebar className="custom-class" />);
+
     const nav = document.querySelector('nav');
     expect(nav).toHaveClass('custom-class');
     expect(nav).toHaveClass('bg-gray-50');
     expect(nav).toHaveClass('border-r');
+
+    // Drain the pending async navigation fetch so it doesn't update state after the test exits
+    await act(async () => {});
   });
 
   it('reloads navigation when user changes', async () => {
-    const { rerender } = render(<NavigationSidebar />);
+    const { rerender } = renderWithRouter(<NavigationSidebar />);
 
     // Wait for initial load
     await waitFor(() => {
@@ -276,8 +293,8 @@ describe('NavigationSidebar', () => {
       user: { id: '2', username: 'newuser', user_type: 'user' },
       isAuthenticated: true,
       isLoading: false,
-      login: jest.fn(),
-      logout: jest.fn()
+      login: vi.fn(),
+      logout: vi.fn()
     });
 
     rerender(<NavigationSidebar />);

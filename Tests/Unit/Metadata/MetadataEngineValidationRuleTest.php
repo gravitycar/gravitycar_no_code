@@ -38,7 +38,7 @@ class MetadataEngineValidationRuleTest extends UnitTestCase
                 'metadata.models_dir_path' => 'src/Models',
                 'metadata.relationships_dir_path' => 'src/Relationships',
                 'metadata.fields_dir_path' => 'src/Fields',
-                'metadata.cache_dir_path' => 'cache/',
+                'metadata.cache_dir_path' => sys_get_temp_dir() . '/gravitycar_test_cache/',
             ];
             return $configValues[$key] ?? $default;
         });
@@ -236,7 +236,7 @@ class MetadataEngineValidationRuleTest extends UnitTestCase
                 'metadata.models_dir_path' => 'src/Models',
                 'metadata.relationships_dir_path' => 'src/Relationships',
                 'metadata.fields_dir_path' => 'src/Fields',
-                'metadata.cache_dir_path' => 'cache/',
+                'metadata.cache_dir_path' => sys_get_temp_dir() . '/gravitycar_test_cache/',
             ];
             return $configValues[$key] ?? $default;
         });

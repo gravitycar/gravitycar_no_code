@@ -38,6 +38,10 @@ return [
     'tmdb_api_key' => 'test_tmdb_key',
     
     'default_page_size' => 20,
+
+    'metadata' => [
+        'cache_dir_path' => '/tmp/gravitycar_test_cache/',
+    ],
     
     // API Documentation System Configuration
     'documentation' => [

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { useGoogleOAuth, decodeGoogleJWT } from '../../hooks/useGoogleOAuth';
+import { useGoogleOAuth } from '../../hooks/useGoogleOAuth';
 import { getRedirectPath } from '../../utils/redirectPath';
 import type { CredentialResponse } from '../../types/google';
 
@@ -15,7 +15,6 @@ const GoogleSignInButton = () => {
   const [debugInfo, setDebugInfo] = useState<string>('Initializing...');
 
   const handleGoogleSuccess = useCallback(async (credentialResponse: CredentialResponse) => {
-    console.log('✅ Google sign-in successful:', credentialResponse);
     setIsLoading(true);
     setError('');
 
@@ -23,10 +22,6 @@ const GoogleSignInButton = () => {
       if (!credentialResponse.credential) {
         throw new Error('No credential received from Google');
       }
-
-      // Decode the JWT to see user info (for debugging)
-      const userInfo = decodeGoogleJWT(credentialResponse.credential);
-      console.log('👤 User info from Google:', userInfo);
 
       // Call your backend Google OAuth endpoint
       const result = await loginWithGoogle(credentialResponse.credential);
@@ -66,18 +61,12 @@ const GoogleSignInButton = () => {
     }
     
     if (isGoogleInitialized && buttonRef.current) {
-      console.log('🔄 Google initialized, attempting to render button...');
-      // Don't clear existing content if button is already rendered
       const existingButton = document.getElementById('google-signin-button');
       if (!existingButton?.hasChildNodes()) {
-        // Only clear if there's no button rendered yet
         if (buttonRef.current) {
           buttonRef.current.innerHTML = '';
         }
-        // Render the Google sign-in button
         renderButton('google-signin-button');
-      } else {
-        console.log('✅ Google button already rendered');
       }
     }
   }, [isGoogleLoaded, isGoogleInitialized, renderButton]);

@@ -60,10 +60,10 @@ const STEP_LABELS: Record<string, string> = {
 // React reconciliation issues from a new function reference on every render
 // ---------------------------------------------------------------------------
 
-function StepRow({ step }: { step: CacheStepResultData }): JSX.Element {
+function StepRow({ step }: { step: CacheStepResultData }): React.JSX.Element {
   const label = STEP_LABELS[step.stepName] ?? step.stepName;
 
-  const statusIcon = (): JSX.Element => {
+  const statusIcon = (): React.JSX.Element => {
     switch (step.status) {
       case 'in_progress':
         return (
@@ -259,7 +259,7 @@ const ConfirmRebuildModal: React.FC<ConfirmRebuildModalProps> = ({
   // View renderers
   // -------------------------------------------------------------------------
 
-  const renderConfirmView = (): JSX.Element => (
+  const renderConfirmView = (): React.JSX.Element => (
     <div>
       <p className="text-sm font-medium text-gray-700 mb-2">The following will be rebuilt:</p>
       <ul className="list-disc list-inside mb-4 text-sm text-gray-800 space-y-1">
@@ -305,7 +305,7 @@ const ConfirmRebuildModal: React.FC<ConfirmRebuildModalProps> = ({
     </div>
   );
 
-  const renderStreamingView = (): JSX.Element => (
+  const renderStreamingView = (): React.JSX.Element => (
     <div>
       <div className="flex justify-center mb-4">
         <svg
@@ -335,7 +335,7 @@ const ConfirmRebuildModal: React.FC<ConfirmRebuildModalProps> = ({
     </div>
   );
 
-  const renderResultView = (): JSX.Element => (
+  const renderResultView = (): React.JSX.Element => (
     <div>
       <div className="flex justify-center mb-4">
         {resultSuccess ? (

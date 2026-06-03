@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { AuthResponse } from '../../../types';
 
@@ -52,9 +52,11 @@ beforeEach(async () => {
 });
 
 async function submitForm(username = 'testuser', password = 'secret') {
-  fireEvent.change(screen.getByLabelText(/username/i), { target: { value: username, name: 'username' } });
-  fireEvent.change(screen.getByLabelText(/password/i), { target: { value: password, name: 'password' } });
-  fireEvent.submit(screen.getByRole('button', { name: /sign in/i }).closest('form')!);
+  await act(async () => {
+    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: username, name: 'username' } });
+    fireEvent.change(screen.getByLabelText(/password/i), { target: { value: password, name: 'password' } });
+    fireEvent.submit(screen.getByRole('button', { name: /sign in/i }).closest('form')!);
+  });
 }
 
 // ---- tests ----
