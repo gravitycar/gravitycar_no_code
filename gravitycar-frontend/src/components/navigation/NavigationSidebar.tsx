@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { navigationService } from '../../services/navigationService';
-import { NavigationData, NavigationAction } from '../../types/navigation';
+import { NavigationData, NavigationAction, NavigationItem } from '../../types/navigation';
 import { groupCustomPages } from '../../utils/navigationUtils';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -51,6 +51,14 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ className = '' })
     e.preventDefault();
     const targetUrl = await navigationService.resolveEventsSmartRoute();
     navigate(targetUrl);
+  };
+
+  const getVisibleActions = (model: NavigationItem): NavigationAction[] => {
+    if (!model.actions) return [];
+    return model.actions.filter((action) => {
+      if (action.action === 'create') return model.permissions?.create !== false;
+      return true;
+    });
   };
 
   const handleActionClick = (action: NavigationAction, modelName: string) => {
@@ -195,69 +203,72 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ className = '' })
               Data Management
             </h3>
             <ul className="space-y-1">
-              {navigationData.models.map((model) => (
-                <li key={model.name}>
-                  <div>
-                    {/* Model Name - Always clickable to list view */}
-                    <div className="flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors">
-                      <a
-                        href={model.url}
-                        className="flex items-center flex-1"
-                      >
-                        <span className="mr-2">{model.icon}</span>
-                        {model.title}
-                      </a>
-                      {model.actions && model.actions.length > 0 && (
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleModelClick(model.name);
-                          }}
-                          className="ml-2 p-1 hover:bg-gray-200 rounded"
+              {navigationData.models.map((model) => {
+                const visibleActions = getVisibleActions(model);
+                return (
+                  <li key={model.name}>
+                    <div>
+                      {/* Model Name - Always clickable to list view */}
+                      <div className="flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors">
+                        <a
+                          href={model.url}
+                          className="flex items-center flex-1"
                         >
-                          <svg 
-                            className={`w-4 h-4 transition-transform ${
-                              expandedModel === model.name ? 'rotate-180' : ''
-                            }`}
-                            fill="currentColor" 
-                            viewBox="0 0 20 20"
+                          <span className="mr-2">{model.icon}</span>
+                          {model.title}
+                        </a>
+                        {visibleActions.length > 0 && (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleModelClick(model.name);
+                            }}
+                            className="ml-2 p-1 hover:bg-gray-200 rounded"
                           >
-                            <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </button>
+                            <svg
+                              className={`w-4 h-4 transition-transform ${
+                                expandedModel === model.name ? 'rotate-180' : ''
+                              }`}
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Expandable Actions */}
+                      {expandedModel === model.name && visibleActions.length > 0 && (
+                        <ul className="mt-1 ml-6 space-y-1">
+                          {visibleActions.map((action) => (
+                            <li key={action.key}>
+                              {action.action ? (
+                                <button
+                                  onClick={() => handleActionClick(action, model.name)}
+                                  className="flex items-center px-3 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors w-full text-left"
+                                >
+                                  <span className="mr-2">{action.icon}</span>
+                                  {action.title}
+                                </button>
+                              ) : (
+                                <a
+                                  href={action.url}
+                                  className="flex items-center px-3 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+                                >
+                                  <span className="mr-2">{action.icon}</span>
+                                  {action.title}
+                                </a>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </div>
-
-                    {/* Expandable Actions */}
-                    {expandedModel === model.name && model.actions && model.actions.length > 0 && (
-                      <ul className="mt-1 ml-6 space-y-1">
-                        {model.actions.map((action) => (
-                          <li key={action.key}>
-                            {action.action ? (
-                              <button
-                                onClick={() => handleActionClick(action, model.name)}
-                                className="flex items-center px-3 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors w-full text-left"
-                              >
-                                <span className="mr-2">{action.icon}</span>
-                                {action.title}
-                              </button>
-                            ) : (
-                              <a
-                                href={action.url}
-                                className="flex items-center px-3 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                              >
-                                <span className="mr-2">{action.icon}</span>
-                                {action.title}
-                              </a>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}

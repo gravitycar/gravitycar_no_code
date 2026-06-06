@@ -8,7 +8,12 @@ RUN apt-get update && apt-get install -y \
     curl \
     default-mysql-client \
     && docker-php-ext-install pdo pdo_mysql zip \
+    && pecl install xdebug \
+    && docker-php-ext-enable xdebug \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Xdebug configuration (separate file so docker-php-ext-xdebug.ini keeps zend_extension=xdebug.so)
+COPY docker/php/xdebug.ini /usr/local/etc/php/conf.d/99-xdebug-config.ini
 
 # Enable Apache modules
 RUN a2enmod rewrite headers

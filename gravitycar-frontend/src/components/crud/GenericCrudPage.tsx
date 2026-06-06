@@ -446,18 +446,22 @@ const GenericCrudPage: React.FC<GenericCrudPageProps> = ({
                             View
                           </button>
                         )}
-                        <button
-                          onClick={() => handleEdit(item)}
-                          className="text-blue-600 hover:text-blue-700"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          Delete
-                        </button>
+                        {canPerformAction('update') && (
+                          <button
+                            onClick={() => handleEdit(item)}
+                            className="text-blue-600 hover:text-blue-700"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {canPerformAction('delete') && (
+                          <button
+                            onClick={() => handleDelete(item)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            Delete
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

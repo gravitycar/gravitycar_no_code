@@ -257,13 +257,18 @@ class GuestUserManagerEdgeCaseTest extends IntegrationTestCase
     {
         try {
             // Use raw SQL to hard-delete (model's delete() is soft-delete and
-            // find() skips soft-deleted records, leaving stale rows behind)
+            // find() skips soft-deleted records, leaving stale rows behind).
+            // Delete by both email and hardcoded UUID to catch any state left
+            // by concurrent processes (e.g. the running webserver).
             $container = ContainerConfig::getContainer();
             $db = $container->get('database_connector');
             $conn = $db->getConnection();
             $conn->executeStatement(
-                "DELETE FROM users WHERE email = :email",
-                ['email' => 'guest@gravitycar.com']
+                "DELETE FROM users WHERE email = :email OR id = :id",
+                [
+                    'email' => 'guest@gravitycar.com',
+                    'id'    => 'e32da63d-a37a-4a50-8a2a-01c7899698e7',
+                ]
             );
         } catch (\Exception $e) {
             // Ignore cleanup errors

@@ -164,7 +164,21 @@ class GuestUserManager
             }
 
             return $reloaded;
-            
+
+        } catch (\Doctrine\DBAL\Exception\UniqueConstraintViolationException $e) {
+            // Another process created the guest user between our check and insert — load it
+            $this->logger->warning('Guest user already exists (concurrent creation), loading existing', [
+                'email' => self::GUEST_EMAIL
+            ]);
+            $existing = $this->findExistingGuestUser();
+            if ($existing !== null) {
+                return $existing;
+            }
+            throw new GCException('Guest user creation failed: duplicate entry but user not found', [
+                'guest_email' => self::GUEST_EMAIL,
+                'original_error' => $e->getMessage()
+            ], 0, $e);
+
         } catch (\Exception $e) {
             $this->logger->error('Failed to create guest user', [
                 'error' => $e->getMessage(),

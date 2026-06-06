@@ -11,7 +11,7 @@
             "request": "launch",
             "port": 9003,
             "pathMappings": {
-                "/mnt/g/projects/gravitycar_no_code": "${workspaceFolder}"
+                "/var/www/html": "${workspaceFolder}"
             },
             "xdebugSettings": {
                 "max_children": 99, // Max number of array/object children

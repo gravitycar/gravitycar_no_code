@@ -67,6 +67,22 @@ chown -R www-data:www-data /var/www/html/logs /var/www/html/cache
 echo "=== Entrypoint complete. Starting Apache... ==="
 
 # -------------------------------------------------------
-# 6. Execute the CMD (apache2-foreground by default)
+# 6. Configure Xdebug client host dynamically.
+#    In WSL2, host.docker.internal points to the Windows
+#    host (not WSL2 itself), but VS Code's PHP Debug
+#    listener runs inside WSL2. We find the WSL2 host IP
+#    from the container's default route and write it into
+#    the Xdebug config at runtime so it survives reboots.
+# -------------------------------------------------------
+XDEBUG_CFG="/usr/local/etc/php/conf.d/99-xdebug-config.ini"
+if [ -n "$XDEBUG_CLIENT_HOST" ]; then
+    echo "[entrypoint] Setting xdebug.client_host = $XDEBUG_CLIENT_HOST"
+    sed -i "s/^xdebug.client_host.*/xdebug.client_host = $XDEBUG_CLIENT_HOST/" "$XDEBUG_CFG"
+else
+    echo "[entrypoint] XDEBUG_CLIENT_HOST not set; Xdebug will use host.docker.internal"
+fi
+
+# -------------------------------------------------------
+# 7. Execute the CMD (apache2-foreground by default)
 # -------------------------------------------------------
 exec "$@"

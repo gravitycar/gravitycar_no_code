@@ -307,6 +307,18 @@ class Users extends ModelBase {
     }
 
     /**
+     * Get the user's role name via the users_roles relationship
+     */
+    public function getRoleName(): string
+    {
+        $roles = $this->getRelatedModels('users_roles');
+        if (!empty($roles)) {
+            return $roles[0]->get('name') ?? 'guest';
+        }
+        return 'guest';
+    }
+
+    /**
      * Assign role to user based on user_type field value
      */
     public function assignRoleFromUserType(): void

@@ -72,7 +72,9 @@ class NavigationAPIController extends ApiControllerBase
                 throw new BadRequestException('No authenticated user found');
             }
 
-            $userRole = $currentUser->get('user_type') ?? 'guest';
+            $userRole = ($currentUser instanceof \Gravitycar\Models\users\Users)
+                ? $currentUser->getRoleName()
+                : 'guest';
             
             return $this->getNavigationByRoleInternal($userRole);
 

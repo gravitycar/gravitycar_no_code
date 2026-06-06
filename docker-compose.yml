@@ -24,6 +24,7 @@ services:
       BACKEND_URL: ${BACKEND_URL:-http://localhost:8081}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3100}
       GRAVITYCAR_ENV: development
+      XDEBUG_CLIENT_HOST: ${XDEBUG_CLIENT_HOST:-host.docker.internal}
     depends_on:
       db:
         condition: service_healthy
@@ -35,6 +36,8 @@ services:
       timeout: 5s
       retries: 5
       start_period: 60s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   frontend:
