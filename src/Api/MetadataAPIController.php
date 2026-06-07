@@ -262,7 +262,7 @@ class MetadataAPIController extends ApiControllerBase {
                     'fields' => $enhancedFields,
                     'relationships' => $modelData['relationships'] ?? [],
                     'ui' => $modelData['ui'] ?? null,
-                    'rolesAndActions' => $modelData['rolesAndActions'] ?? [],
+                    'rolesAndActions' => $modelData['rolesAndActions'] ?? null,
                     'api_endpoints' => $this->formatApiEndpoints($routes),
                     'react_form_schema' => $this->componentMapper->generateFormSchema($modelName)
                 ],

@@ -140,6 +140,12 @@ return [
     ],
     'validationRules' => [],
     'relationships' => [],
+    'rolesAndActions' => [
+        'admin' => ['*'],
+        'manager' => ['list', 'read', 'create', 'update', 'delete'],
+        'user' => ['list', 'read', 'create', 'update', 'delete'],
+        'guest' => ['list', 'read'],
+    ],
     'ui' => [
         'listFields' => ['cover_image_url', 'title', 'authors', 'publication_date'],
         'createFields' => ['title'],
