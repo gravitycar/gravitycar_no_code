@@ -2,6 +2,7 @@
 // EventProposedDates model metadata for Gravitycar framework
 return [
     'name' => 'EventProposedDates',
+    'navigation_bar' => 'Event Organizer',
     'table' => 'event_proposed_dates',
     'displayColumns' => ['proposed_date'],
     'fields' => [

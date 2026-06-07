@@ -2,6 +2,7 @@
 
 return [
     'name' => 'JwtRefreshTokens',
+    'navigation_bar' => false,
     'table' => 'jwt_refresh_tokens',
     'fields' => [
         'user_id' => [

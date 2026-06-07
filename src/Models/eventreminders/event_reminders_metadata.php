@@ -2,6 +2,7 @@
 // EventReminders model metadata for Gravitycar framework
 return [
     'name' => 'EventReminders',
+    'navigation_bar' => 'Event Organizer',
     'table' => 'event_reminders',
     'displayColumns' => ['reminder_type', 'status'],
     'fields' => [

@@ -20,6 +20,29 @@ export interface NavigationAction {
   icon?: string;
 }
 
+export interface NavModelItem {
+  type: 'item';
+  name: string;
+  title: string;
+  url: string;
+  icon: string;
+  actions: NavigationAction[];
+  permissions: {
+    list: boolean;
+    create: boolean;
+    update: boolean;
+    delete: boolean;
+  };
+}
+
+export interface NavModelGroup {
+  type: 'group';
+  label: string;
+  items: NavModelItem[];
+}
+
+export type NavModelEntry = NavModelItem | NavModelGroup;
+
 export interface CustomPage {
   key: string;
   title: string;
@@ -37,7 +60,7 @@ export interface NavigationData {
   role: string;
   sections: NavigationSection[];
   custom_pages: CustomPage[];
-  models: NavigationItem[];
+  models: NavModelEntry[];
   generated_at: string;
 }
 

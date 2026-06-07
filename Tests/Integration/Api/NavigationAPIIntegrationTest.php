@@ -188,7 +188,7 @@ class NavigationAPIIntegrationTest extends TestCase
             $this->assertArrayHasKey($role, $results);
             $this->assertTrue($results[$role]['success']);
             $this->assertArrayHasKey('cache_file', $results[$role]);
-            $this->assertArrayHasKey('items_count', $results[$role]);
+            $this->assertArrayHasKey('total_model_items_count', $results[$role]);
         }
     }
 

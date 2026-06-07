@@ -3,6 +3,8 @@
 return [
     'name' => 'Movie_Quotes',
     'table' => 'movie_quotes',
+    'navigation_bar' => 'Movies',
+    'displayColumns' => ['quote'],
     'fields' => [
         'quote' => [
             'name' => 'quote',

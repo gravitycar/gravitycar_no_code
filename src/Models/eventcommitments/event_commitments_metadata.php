@@ -2,6 +2,7 @@
 // EventCommitments model metadata for Gravitycar framework
 return [
     'name' => 'EventCommitments',
+    'navigation_bar' => 'Event Organizer',
     'table' => 'event_commitments',
     'displayColumns' => ['event_display', 'user_display', 'is_available'],
     'fields' => [

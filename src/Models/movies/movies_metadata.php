@@ -4,6 +4,7 @@ return [
     'name' => 'Movies',
     'table' => 'movies',
     'displayColumns' => ['name', 'release_year'],
+    'navigation_bar' => 'Movies',
     'fields' => [
         'name' => [
             'name' => 'name',

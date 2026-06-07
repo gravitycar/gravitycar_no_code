@@ -61,93 +61,158 @@ class NavigationBuilder
         $navigation['sections'] = $this->navigationConfig->getNavigationSections();
 
         $this->logger->info('Navigation built successfully', [
-            'role' => $role,
-            'custom_pages_count' => count($navigation['custom_pages']),
-            'models_count' => count($navigation['models'])
+            'role'                        => $role,
+            'custom_pages_count'          => count($navigation['custom_pages']),
+            'top_level_nav_entries_count' => count($navigation['models']),
         ]);
 
         return $navigation;
     }
 
     /**
-     * Build model navigation items with permission filtering
+     * Build model navigation items with permission filtering and grouping.
+     * Models with navigation_bar === false are hidden; non-empty string values
+     * place the model into a named group; empty/absent values leave it ungrouped.
      */
     protected function buildModelNavigation(array $modelNames, string $role): array
     {
-        $modelNavigation = [];
-
-        // Get the role model instance for permission checking
         $roleModel = $this->getRoleByName($role);
         if (!$roleModel) {
             $this->logger->warning('Role not found for navigation building', ['role' => $role]);
             return [];
         }
 
+        $groups    = [];   // string $label => array[] $modelItems
+        $ungrouped = [];   // array[] $modelItems
+
         foreach ($modelNames as $modelName) {
             try {
-                // Check if role has list permission for this model
                 $hasListPermission = $this->authorizationService->roleHasPermission($roleModel, 'list', $modelName);
-                
                 if (!$hasListPermission) {
-                    continue; // Skip this model if no list permission
+                    continue;
                 }
 
-                // Build model navigation item
-                $modelItem = [
-                    'name' => $modelName,
-                    'title' => $this->generateModelTitle($modelName),
-                    'url' => '/' . $modelName,
-                    'icon' => $this->getModelIcon($modelName),
-                    'actions' => [],
-                    'permissions' => [
-                        'list' => true, // Already verified above
-                        'create' => false,
-                        'update' => false,
-                        'delete' => false
-                    ]
-                ];
+                $metadata      = $this->metadataEngine->getModelMetadata($modelName);
+                $navigationBar = $metadata['navigation_bar'] ?? '';
 
-                // Check for create permission
-                $hasCreatePermission = $this->authorizationService->roleHasPermission($roleModel, 'create', $modelName);
-                if ($hasCreatePermission) {
-                    $modelItem['actions'][] = [
-                        'key' => 'create',
-                        'title' => 'Create New',
-                        'action' => 'create', // Use action instead of url for modal trigger
-                        'icon' => '➕'
-                    ];
-                    $modelItem['permissions']['create'] = true;
+                if ($navigationBar === false) {
+                    continue;  // Hidden model — skip entirely
                 }
 
-                // Check for update permission (for UI link enabling/disabling)
-                $hasUpdatePermission = $this->authorizationService->roleHasPermission($roleModel, 'update', $modelName);
-                if ($hasUpdatePermission) {
-                    $modelItem['permissions']['update'] = true;
-                }
+                $modelItem = $this->buildModelItem($modelName, $roleModel);
 
-                // Check for delete permission (for UI link enabling/disabling)
-                $hasDeletePermission = $this->authorizationService->roleHasPermission($roleModel, 'delete', $modelName);
-                if ($hasDeletePermission) {
-                    $modelItem['permissions']['delete'] = true;
+                if (is_string($navigationBar) && $navigationBar !== '') {
+                    $groups[$navigationBar][] = $modelItem;
+                } else {
+                    $ungrouped[] = $modelItem;
                 }
-
-                $modelNavigation[] = $modelItem;
 
             } catch (\Exception $e) {
                 $this->logger->warning('Failed to build navigation for model', [
                     'model' => $modelName,
-                    'role' => $role,
-                    'error' => $e->getMessage()
+                    'role'  => $role,
+                    'error' => $e->getMessage(),
                 ]);
             }
         }
 
-        // Sort models alphabetically
-        usort($modelNavigation, function($a, $b) {
-            return strcmp($a['title'], $b['title']);
-        });
+        return $this->assembleNavigationResult($groups, $ungrouped);
+    }
 
-        return $modelNavigation;
+    /**
+     * Sort groups and ungrouped items, then merge into the final ordered result array.
+     * Groups appear first (sorted alphabetically by label), followed by ungrouped items
+     * (sorted alphabetically by title).
+     */
+    private function assembleNavigationResult(array $groups, array $ungrouped): array
+    {
+        // Sort items within each group alphabetically by title
+        foreach ($groups as &$groupItems) {
+            usort($groupItems, fn(array $a, array $b) => strcmp($a['title'], $b['title']));
+        }
+        unset($groupItems);
+
+        // Sort group labels alphabetically
+        ksort($groups);
+
+        // Sort ungrouped items alphabetically by title
+        usort($ungrouped, fn(array $a, array $b) => strcmp($a['title'], $b['title']));
+
+        // Build result: groups first, then ungrouped items
+        $result = [];
+        foreach ($groups as $label => $items) {
+            $result[] = [
+                'type'  => 'group',
+                'label' => $label,
+                'items' => $items,
+            ];
+        }
+        foreach ($ungrouped as $item) {
+            $result[] = $item;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Count total individual model items across all groups and ungrouped entries.
+     */
+    private function countTotalModelItems(array $modelEntries): int
+    {
+        $count = 0;
+        foreach ($modelEntries as $entry) {
+            if ($entry['type'] === 'group') {
+                $count += count($entry['items']);
+            } else {
+                $count += 1;
+            }
+        }
+        return $count;
+    }
+
+    /**
+     * Build a single navigation item array for a model.
+     * Always includes 'type' => 'item' as the first key.
+     */
+    protected function buildModelItem(string $modelName, object $roleModel): array
+    {
+        $modelItem = [
+            'type'        => 'item',
+            'name'        => $modelName,
+            'title'       => $this->generateModelTitle($modelName),
+            'url'         => '/' . $modelName,
+            'icon'        => $this->getModelIcon($modelName),
+            'actions'     => [],
+            'permissions' => [
+                'list'   => true,
+                'create' => false,
+                'update' => false,
+                'delete' => false,
+            ],
+        ];
+
+        $hasCreatePermission = $this->authorizationService->roleHasPermission($roleModel, 'create', $modelName);
+        if ($hasCreatePermission) {
+            $modelItem['actions'][] = [
+                'key'    => 'create',
+                'title'  => 'Create New',
+                'action' => 'create',
+                'icon'   => '➕',
+            ];
+            $modelItem['permissions']['create'] = true;
+        }
+
+        $hasUpdatePermission = $this->authorizationService->roleHasPermission($roleModel, 'update', $modelName);
+        if ($hasUpdatePermission) {
+            $modelItem['permissions']['update'] = true;
+        }
+
+        $hasDeletePermission = $this->authorizationService->roleHasPermission($roleModel, 'delete', $modelName);
+        if ($hasDeletePermission) {
+            $modelItem['permissions']['delete'] = true;
+        }
+
+        return $modelItem;
     }
 
     /**
@@ -158,15 +223,15 @@ class NavigationBuilder
         try {
             $roleModel = $this->modelFactory->new('Roles');
             $roles = $roleModel->find(['name' => $roleName]);
-            
+
             return !empty($roles) ? $roles[0] : null;
-            
+
         } catch (\Exception $e) {
             $this->logger->error('Failed to get role by name', [
                 'role_name' => $roleName,
                 'error' => $e->getMessage()
             ]);
-            
+
             return null;
         }
     }
@@ -178,13 +243,13 @@ class NavigationBuilder
     {
         // First replace underscores with spaces
         $title = str_replace('_', ' ', $modelName);
-        
+
         // Then convert PascalCase to Title Case with spaces, but only if no space precedes
         $title = preg_replace('/(?<!\s)(?<!^)[A-Z]/', ' $0', $title);
-        
+
         // Clean up any multiple spaces
         $title = preg_replace('/\s+/', ' ', $title);
-        
+
         return trim($title);
     }
 
@@ -218,12 +283,15 @@ class NavigationBuilder
             try {
                 $navigation = $this->buildNavigationForRole($role);
                 $cacheFile = "cache/navigation_cache_{$role}.php";
-                
+
                 $this->writeNavigationCache($cacheFile, $navigation);
+
+                $totalModelItems = $this->countTotalModelItems($navigation['models']);
+
                 $cacheResults[$role] = [
-                    'success' => true,
-                    'cache_file' => $cacheFile,
-                    'items_count' => count($navigation['models']) + count($navigation['custom_pages'])
+                    'success'                 => true,
+                    'cache_file'              => $cacheFile,
+                    'total_model_items_count' => $totalModelItems + count($navigation['custom_pages']),
                 ];
 
             } catch (\Exception $e) {
@@ -231,7 +299,7 @@ class NavigationBuilder
                     'success' => false,
                     'error' => $e->getMessage()
                 ];
-                
+
                 $this->logger->error('Failed to build navigation cache for role', [
                     'role' => $role,
                     'error' => $e->getMessage()
@@ -253,7 +321,7 @@ class NavigationBuilder
         }
 
         $content = '<?php return ' . var_export($navigation, true) . ';';
-        
+
         if (file_put_contents($cacheFile, $content) === false) {
             throw new NavigationBuilderException("Failed to write navigation cache file: {$cacheFile}");
         }

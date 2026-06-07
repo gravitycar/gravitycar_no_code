@@ -10,7 +10,7 @@ import type {
   Movie,
   MovieQuote
 } from '../types';
-import type { NavigationItem } from '../types/navigation';
+import type { NavModelEntry } from '../types/navigation';
 import { ApiError, isBackendErrorResponse } from '../utils/errors';
 import { imperativeNavigate } from '../utils/navigate';
 import { handleAuthError } from '../utils/authError';
@@ -690,10 +690,12 @@ class ApiService {
       const response = await this.api.get('/navigation');
       const navData = response.data;
       if (navData.success && navData.data?.models) {
-        return navData.data.models.map((m: NavigationItem) => ({
-          name: m.name,
-          title: m.title,
-        }));
+        return navData.data.models.flatMap((entry: NavModelEntry) => {
+          if (entry.type === 'group') {
+            return entry.items.map(item => ({ name: item.name, title: item.title }));
+          }
+          return [{ name: entry.name, title: entry.title }];
+        });
       }
       return [];
     } catch {

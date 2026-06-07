@@ -3,6 +3,7 @@
 return [
     'name' => 'EmailQueue',
     'table' => 'email_queue',
+    'navigation_bar' => 'Event Organizer',
     'displayColumns' => ['recipient_email', 'subject', 'status'],
     'fields' => [
         'recipient_email' => [

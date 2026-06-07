@@ -3,6 +3,7 @@
 return [
     'name' => 'Movie_Quote_Trivia_Games',
     'table' => 'movie_quote_trivia_games',
+    'navigation_bar' => 'Movies',
     'displayColumns' => ['name', 'score', 'game_completed_at'],
     'fields' => [
         'name' => [

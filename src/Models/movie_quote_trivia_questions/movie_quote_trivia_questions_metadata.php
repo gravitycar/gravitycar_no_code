@@ -3,6 +3,7 @@
 return [
     'name' => 'Movie_Quote_Trivia_Questions',
     'table' => 'movie_quote_trivia_questions',
+    'navigation_bar' => 'Movies',
     'displayColumns' => ['movie_quote_display', 'answered_correctly'],
     'fields' => [
         'movie_quote_id' => [
