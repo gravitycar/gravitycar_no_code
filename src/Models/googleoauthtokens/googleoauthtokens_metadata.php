@@ -2,6 +2,7 @@
 
 return [
     'name' => 'GoogleOauthTokens',
+    'navigation_bar' => false,
     'table' => 'google_oauth_tokens',
     'fields' => [
         'user_id' => [

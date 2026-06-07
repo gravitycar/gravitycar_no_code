@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { navigationService } from '../../services/navigationService';
-import { NavigationData, NavigationAction, NavigationItem } from '../../types/navigation';
+import { NavigationData, NavModelEntry, NavigationItem } from '../../types/navigation';
 import { groupCustomPages } from '../../utils/navigationUtils';
 import { useAuth } from '../../hooks/useAuth';
+import { useModelActions } from '../../hooks/useModelActions';
+import NavGroupSection from './NavGroupSection';
 
 interface NavigationSidebarProps {
   className?: string;
@@ -14,10 +16,11 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ className = '' })
   const location = useLocation();
   const navigate = useNavigate();
   const [navigationData, setNavigationData] = useState<NavigationData | null>(null);
-  const [expandedModel, setExpandedModel] = useState<string | null>(null);
   const [expandedCustomPage, setExpandedCustomPage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const { expandedModel, setExpandedModel, getVisibleActions, handleActionClick } = useModelActions();
 
   useEffect(() => {
     loadNavigation();
@@ -39,10 +42,6 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ className = '' })
     }
   };
 
-  const handleModelClick = (modelKey: string) => {
-    setExpandedModel(expandedModel === modelKey ? null : modelKey);
-  };
-
   const handleCustomPageToggle = (key: string) => {
     setExpandedCustomPage(expandedCustomPage === key ? null : key);
   };
@@ -51,36 +50,6 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ className = '' })
     e.preventDefault();
     const targetUrl = await navigationService.resolveEventsSmartRoute();
     navigate(targetUrl);
-  };
-
-  const getVisibleActions = (model: NavigationItem): NavigationAction[] => {
-    if (!model.actions) return [];
-    return model.actions.filter((action) => {
-      if (action.action === 'create') return model.permissions?.create !== false;
-      return true;
-    });
-  };
-
-  const handleActionClick = (action: NavigationAction, modelName: string) => {
-    if (action.action === 'create') {
-      // Check if we're currently on the model's page
-      const currentPath = location.pathname;
-      const expectedPath = `/${modelName.toLowerCase()}`;
-      
-      if (currentPath === expectedPath) {
-        // We're on the model page, dispatch create event
-        const createEvent = new CustomEvent('navigation-create', {
-          detail: { modelName }
-        });
-        window.dispatchEvent(createEvent);
-      } else {
-        // Navigate to the model page first, then trigger create
-        window.location.href = expectedPath + '?action=create';
-      }
-    } else if (action.url) {
-      // Regular URL navigation
-      window.location.href = action.url;
-    }
   };
 
   if (isLoading) {
@@ -203,7 +172,20 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ className = '' })
               Data Management
             </h3>
             <ul className="space-y-1">
-              {navigationData.models.map((model) => {
+              {navigationData.models.map((entry: NavModelEntry) => {
+                if (entry.type === 'group') {
+                  return (
+                    <NavGroupSection
+                      key={entry.label}
+                      group={entry}
+                      location={location}
+                      defaultOpen={entry.items.some(item => item.url === location.pathname)}
+                    />
+                  );
+                }
+
+                // entry.type === 'item' — render identical to current top-level model item
+                const model = entry as NavigationItem;
                 const visibleActions = getVisibleActions(model);
                 return (
                   <li key={model.name}>
@@ -212,6 +194,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ className = '' })
                       <div className="flex items-center justify-between px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-md transition-colors">
                         <a
                           href={model.url}
+                          aria-current={location.pathname === model.url ? 'page' : undefined}
                           className="flex items-center flex-1"
                         >
                           <span className="mr-2">{model.icon}</span>
@@ -222,7 +205,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ className = '' })
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
-                              handleModelClick(model.name);
+                              setExpandedModel(expandedModel === model.name ? null : model.name);
                             }}
                             className="ml-2 p-1 hover:bg-gray-200 rounded"
                           >
@@ -246,7 +229,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ className = '' })
                             <li key={action.key}>
                               {action.action ? (
                                 <button
-                                  onClick={() => handleActionClick(action, model.name)}
+                                  onClick={() => handleActionClick(action, model)}
                                   className="flex items-center px-3 py-1 text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors w-full text-left"
                                 >
                                   <span className="mr-2">{action.icon}</span>
@@ -283,15 +266,28 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = ({ className = '' })
             <details className="mt-2">
               <summary className="text-xs text-gray-500 cursor-pointer">Model Permissions</summary>
               <div className="mt-1 text-xs text-gray-400">
-                {navigationData.models.map((model) => (
-                  <div key={model.name} className="mb-1">
-                    <strong>{model.name}:</strong> 
-                    {model.permissions && Object.entries(model.permissions)
-                      .filter(([, hasPermission]) => hasPermission)
-                      .map(([permission]) => permission)
-                      .join(', ')}
-                  </div>
-                ))}
+                {navigationData.models.flatMap((entry: NavModelEntry) => {
+                  if (entry.type === 'group') {
+                    return entry.items.map((item) => (
+                      <div key={item.name} className="mb-1">
+                        <strong>{item.name}</strong> <em className="text-gray-300">({entry.label})</em>:{' '}
+                        {item.permissions && Object.entries(item.permissions)
+                          .filter(([, hasPermission]) => hasPermission)
+                          .map(([permission]) => permission)
+                          .join(', ')}
+                      </div>
+                    ));
+                  }
+                  return [
+                    <div key={entry.name} className="mb-1">
+                      <strong>{entry.name}:</strong>{' '}
+                      {entry.permissions && Object.entries(entry.permissions)
+                        .filter(([, hasPermission]) => hasPermission)
+                        .map(([permission]) => permission)
+                        .join(', ')}
+                    </div>,
+                  ];
+                })}
               </div>
             </details>
           </div>

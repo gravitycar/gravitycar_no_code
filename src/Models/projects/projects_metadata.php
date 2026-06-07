@@ -77,7 +77,7 @@ return [
     'validationRules' => [],
     'relationships' => [],
     'ui' => [
-        'listFields'   => ['title', 'status', 'tag_line', 'screenshot', 'link'],
+        'listFields'   => ['title', 'status', 'screenshot'],
         'createFields' => ['title', 'status', 'display_order', 'tag_line', 'description', 'screenshot', 'link'],
         'editFields'   => ['title', 'status', 'display_order', 'tag_line', 'description', 'screenshot', 'link'],
     ],

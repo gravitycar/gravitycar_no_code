@@ -3,6 +3,7 @@
 return [
     'name' => 'Installer',
     'nonDb' => true, // This model doesn't need a database table
+    'navigation_bar' => false, // Don't show in navigation
     'fields' => [
         'host' => [
             'name' => 'host',

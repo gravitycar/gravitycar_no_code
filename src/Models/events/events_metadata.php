@@ -2,6 +2,7 @@
 // Events model metadata for Gravitycar framework
 return [
     'name' => 'Events',
+    'navigation_bar' => 'Event Organizer',
     'table' => 'events',
     'displayColumns' => ['name'],
     'fields' => [

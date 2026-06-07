@@ -115,7 +115,6 @@ class ProjectsApiIntegrationTest extends IntegrationTestCase
             )
         ";
         $this->connection->executeStatement($sql);
-        $this->testTables[] = 'projects';
     }
 
     private function cleanupCreatedProjects(): void
