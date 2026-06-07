@@ -444,8 +444,9 @@ class APIRouteRegistry
                 $route['controllerDependencies'] = []; // Fallback to empty array
             }
             
+            $this->detectDuplicateRoute($route);
             $this->routes[] = $route;
-            
+
             $this->logger->debug("Registered route with dependencies", [
                 'method' => $route['method'],
                 'path' => $route['path'],
@@ -1009,6 +1010,32 @@ class APIRouteRegistry
                 'error' => $e->getMessage()
             ]);
             return [];
+        }
+    }
+
+    /**
+     * Throw if a route with the same method and path is already registered.
+     */
+    private function detectDuplicateRoute(array $route): void
+    {
+        foreach ($this->routes as $existing) {
+            if ($existing['method'] !== $route['method'] || $existing['path'] !== $route['path']) {
+                continue;
+            }
+
+            $this->logger->warning('Duplicate route detected', [
+                'method'          => $route['method'],
+                'path'            => $route['path'],
+                'existing_class'  => $existing['apiClass'],
+                'existing_method' => $existing['apiMethod'],
+                'conflict_class'  => $route['apiClass'],
+                'conflict_method' => $route['apiMethod'],
+            ]);
+
+            throw new GCException('Duplicate route: ' . $route['method'] . ' ' . $route['path'], [
+                'existing_class' => $existing['apiClass'],
+                'conflict_class' => $route['apiClass'],
+            ]);
         }
     }
 }

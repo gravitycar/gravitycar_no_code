@@ -248,8 +248,96 @@ class APIRouteRegistryTest extends TestCase
         // Test that method grouping handles case insensitivity
         $result = $this->registry->getRoutesByMethodAndLength('get', 2);
         $this->assertEquals([], $result);
-        
+
         $result = $this->registry->getRoutesByMethodAndLength('GET', 2);
         $this->assertEquals([], $result);
+    }
+
+    // -------------------------------------------------------------------------
+    // Duplicate route detection
+    // -------------------------------------------------------------------------
+
+    private function makeRegistryWithMockedInternals(): APIRouteRegistry
+    {
+        $registry = $this->createPartialMock(APIRouteRegistry::class, [
+            'discoverAndRegisterRoutes',
+            'validateRouteFormat',
+            'resolveControllerClassName',
+            'extractDependenciesFromConstructor',
+        ]);
+
+        $registry->method('validateRouteFormat');
+        $registry->method('resolveControllerClassName')->willReturnArgument(0);
+        $registry->method('extractDependenciesFromConstructor')->willReturn([]);
+
+        $reflection = new \ReflectionClass($registry);
+        $loggerProperty = $reflection->getProperty('logger');
+        $loggerProperty->setAccessible(true);
+        $loggerProperty->setValue($registry, $this->logger);
+
+        return $registry;
+    }
+
+    private function callRegisterRoute(APIRouteRegistry $registry, array $route): void
+    {
+        $method = (new \ReflectionClass($registry))->getMethod('registerRoute');
+        $method->setAccessible(true);
+        $method->invoke($registry, $route);
+    }
+
+    private function getRoutes(APIRouteRegistry $registry): array
+    {
+        $property = (new \ReflectionClass($registry))->getProperty('routes');
+        $property->setAccessible(true);
+        return $property->getValue($registry);
+    }
+
+    public function testDuplicateRouteIsNotAdded(): void
+    {
+        $registry = $this->makeRegistryWithMockedInternals();
+
+        $this->logger->expects($this->once())
+            ->method('warning')
+            ->with('Duplicate route detected', $this->anything());
+
+        $route = ['method' => 'GET', 'path' => '/Projects', 'apiClass' => 'ControllerA', 'apiMethod' => 'list'];
+        $duplicate = ['method' => 'GET', 'path' => '/Projects', 'apiClass' => 'ControllerB', 'apiMethod' => 'list'];
+
+        $this->callRegisterRoute($registry, $route);
+        $this->callRegisterRoute($registry, $duplicate);
+
+        $routes = $this->getRoutes($registry);
+        $this->assertCount(1, $routes);
+        $this->assertEquals('ControllerA', $routes[0]['apiClass']);
+    }
+
+    public function testSamePathDifferentMethodsAreAllowed(): void
+    {
+        $registry = $this->makeRegistryWithMockedInternals();
+
+        $this->logger->expects($this->never())->method('warning');
+
+        $get  = ['method' => 'GET',  'path' => '/Projects', 'apiClass' => 'ControllerA', 'apiMethod' => 'list'];
+        $post = ['method' => 'POST', 'path' => '/Projects', 'apiClass' => 'ControllerA', 'apiMethod' => 'create'];
+
+        $this->callRegisterRoute($registry, $get);
+        $this->callRegisterRoute($registry, $post);
+
+        $this->assertCount(2, $this->getRoutes($registry));
+    }
+
+    public function testSameMethodDifferentPathsAreAllowed(): void
+    {
+        $registry = $this->makeRegistryWithMockedInternals();
+
+        $this->logger->expects($this->never())->method('warning');
+
+        $projects = ['method' => 'GET', 'path' => '/Projects', 'apiClass' => 'ControllerA', 'apiMethod' => 'list'];
+        $events   = ['method' => 'GET', 'path' => '/Events',   'apiClass' => 'ControllerB', 'apiMethod' => 'list'];
+
+        $this->callRegisterRoute($registry, $projects);
+        $this->callRegisterRoute($registry, $events);
+
+        $this->assertCount(2, $this->getRoutes($registry));
     }
 }
